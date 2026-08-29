@@ -1302,9 +1302,89 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("directory_publication_cas.py evidence-publish", body)
         self.assertNotIn("ls-remote", body)
         self.assertIn("validate_directory", (ROOT / "scripts/materialize_launch_evidence.py").read_text())
-        self.assertIn('--main-old "${EXPECTED_SOURCE_COMMIT}"', body)
+        self.assertIn('--main-old "${EXPECTED_MAIN_PARENT}"', body)
         self.assertIn('--ledger-old "${EXPECTED_LEDGER_COMMIT}"', body)
         self.assertIn('--approval-tag "${marker_ref}"', body)
+
+    def test_staged_publication_resume_reuses_exact_signed_identity_without_signing(self) -> None:
+        workflow = load(DIRECTORY_PUBLICATION)
+        dispatch = workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(dispatch["resume_publication_id"]["type"], "string")
+        self.assertEqual(dispatch["resume_sequence"]["type"], "string")
+        self.assertNotIn(
+            ".github/workflows/directory-publication.yml",
+            workflow["on"]["push"]["paths"],
+        )
+
+        prepare = workflow["jobs"]["prepare"]
+        resume = next(step for step in prepare["steps"] if step.get("id") == "resume")
+        guard = next(
+            step for step in prepare["steps"]
+            if step.get("name") == "Reject a new append while a signed sequence is still staged"
+        )
+        self.assertIn("resume_publication_id != ''", resume["if"])
+        self.assertIn("resume_publication_id == ''", guard["if"])
+        for required in (
+            "refs/tags/${tag_name}^{commit}",
+            "chore(directory): materialize signed production site",
+            "git -C _publication-ledger diff --exit-code",
+            "verify_directory_publication.py",
+            'test "${production_sequence}" -lt "${sequence}"',
+            'git merge-base --is-ancestor "${marker_commit}" "${SOURCE_HEAD}"',
+        ):
+            self.assertIn(required, resume["run"])
+        self.assertIn("use the explicit resume inputs", guard["run"])
+
+        signer = workflow["jobs"]["sign"]
+        for output in (
+            "ledger_commit", "materialized_ledger_commit", "marker_commit",
+            "publication_id", "sequence", "snapshot_digest", "main_parent",
+        ):
+            self.assertIn("needs.prepare.outputs.resume_", signer["outputs"][output])
+        signing_step = next(step for step in signer["steps"] if step.get("id") == "signed")
+        publisher_step = next(step for step in signer["steps"] if step.get("id") == "publisher")
+        self.assertEqual(signing_step["if"], "inputs.resume_publication_id == ''")
+        self.assertEqual(publisher_step["if"], "inputs.resume_publication_id == ''")
+
+        persist = workflow["jobs"]["record_launch_approval"]
+        source_checkout = next(
+            step for step in persist["steps"]
+            if step.get("with", {}).get("path") == "trusted-source"
+        )
+        self.assertEqual(source_checkout["with"]["ref"], "${{ needs.sign.outputs.main_parent }}")
+        persist_body = commands(persist)
+        self.assertIn('--main-parent "${EXPECTED_MAIN_PARENT}"', persist_body)
+        self.assertIn('--main-old "${EXPECTED_MAIN_PARENT}"', persist_body)
+        self.assertIn('--expected-publication-source-commit "${EXPECTED_SOURCE_COMMIT}"', persist_body)
+
+    def test_protected_observer_preflights_oidc_claim_names_without_logging_token(self) -> None:
+        workflow = load(LAUNCH)
+        observer = workflow["jobs"]["protected-observer-inputs"]
+        claim_step = next(
+            step for step in observer["steps"]
+            if step.get("name") == "Validate non-secret OIDC identity claims locally"
+        )
+        token_index = next(
+            index for index, step in enumerate(observer["steps"])
+            if step.get("name") == "Obtain short-lived GitHub OIDC identity"
+        )
+        claim_index = observer["steps"].index(claim_step)
+        request_index = next(
+            index for index, step in enumerate(observer["steps"])
+            if step.get("id") == "observer"
+        )
+        self.assertLess(token_index, claim_index)
+        self.assertLess(claim_index, request_index)
+        body = claim_step["run"]
+        for field in (
+            "repository_id", "repository_owner_id", "workflow_ref",
+            "job_workflow_ref", "workflow_sha", "job_workflow_sha",
+            "environment", "event_name",
+        ):
+            self.assertIn(f'"{field}"', body)
+        self.assertIn("claim mismatch", body)
+        self.assertNotIn("print(claims", body)
+        self.assertNotIn("print(token", body)
 
     def test_approved_refresh_skips_launch_but_keeps_exact_publication_gates(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)

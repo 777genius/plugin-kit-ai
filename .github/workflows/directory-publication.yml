@@ -13,7 +13,6 @@ on:
       - "scripts/materialize_launch_evidence.py"
       - "scripts/prepare_directory_publication.py"
       - "scripts/sign_directory_publication.py"
-      - ".github/workflows/directory-publication.yml"
   schedule:
     - cron: "17 4 * * 1"
   workflow_dispatch:
@@ -25,6 +24,14 @@ on:
         type: boolean
       ledger_seed_commit:
         description: Exact commit currently at the uninitialized ledger branch head
+        required: false
+        type: string
+      resume_publication_id:
+        description: Existing staged publication ID to resume without signing a new sequence
+        required: false
+        type: string
+      resume_sequence:
+        description: Existing staged sequence to resume without signing a new sequence
         required: false
         type: string
 
@@ -104,6 +111,13 @@ jobs:
       ledger_sequence_floor: ${{ steps.ledger.outputs.sequence_floor }}
       ledger_head: ${{ steps.ledger.outputs.ledger_head }}
       launch_approved: ${{ steps.launch.outputs.approved }}
+      resume_signed_ledger_commit: ${{ steps.resume.outputs.signed_ledger_commit }}
+      resume_materialized_ledger_commit: ${{ steps.resume.outputs.materialized_ledger_commit }}
+      resume_marker_commit: ${{ steps.resume.outputs.marker_commit }}
+      resume_publication_id: ${{ steps.resume.outputs.publication_id }}
+      resume_sequence: ${{ steps.resume.outputs.sequence }}
+      resume_snapshot_digest: ${{ steps.resume.outputs.snapshot_digest }}
+      resume_main_parent: ${{ steps.resume.outputs.main_parent }}
       completed: ${{ needs.authenticate-completed-state.outputs.completed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -125,7 +139,7 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check check-jsonschema==0.37.4 cryptography==46.0.3 jsonschema==4.26.0 PyYAML==6.0.3
       - name: Create deterministic same-tree publication marker
         id: marker
-        if: needs.authenticate-completed-state.outputs.completed != 'true'
+        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id == ''
         env:
           PUBLICATION_ID: ${{ github.run_id }}
           SOURCE_COMMIT: ${{ github.sha }}
@@ -141,7 +155,18 @@ jobs:
         env:
           INITIALIZE_LEDGER: ${{ github.event_name == 'workflow_dispatch' && inputs.initialize_ledger || false }}
           REQUESTED_SEED_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.ledger_seed_commit || '' }}
+          RESUME_PUBLICATION_ID: ${{ inputs.resume_publication_id }}
+          RESUME_SEQUENCE: ${{ inputs.resume_sequence }}
         run: |
+          if { test -n "${RESUME_PUBLICATION_ID}" && test -z "${RESUME_SEQUENCE}"; } || \
+             { test -z "${RESUME_PUBLICATION_ID}" && test -n "${RESUME_SEQUENCE}"; }; then
+            echo "resume_publication_id and resume_sequence must be supplied together" >&2
+            exit 1
+          fi
+          if test -n "${RESUME_PUBLICATION_ID}" && test "${INITIALIZE_LEDGER}" = "true"; then
+            echo "staged resume cannot initialize the ledger" >&2
+            exit 1
+          fi
           tag_prefix=directory-publication-schema-1-sequence-
           git -C _publication-ledger fetch --force --tags origin
           mapfile -t tags < <(git -C _publication-ledger tag --list "${tag_prefix}*" | LC_ALL=C sort)
@@ -185,6 +210,82 @@ jobs:
             echo "sequence_floor=${sequence_floor}" >> "$GITHUB_OUTPUT"
           fi
           echo "ledger_head=$(git -C _publication-ledger rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Reject a new append while a signed sequence is still staged
+        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id == '' && steps.ledger.outputs.initialize != 'true'
+        env:
+          LEDGER_SEQUENCE_FLOOR: ${{ steps.ledger.outputs.sequence_floor }}
+        run: |
+          production_ref="$(python3 -c 'import json; print(json.load(open("registry/publication/production-marker.json"))["marker_ref"])')"
+          bootstrap_sequence="$(python3 -c 'import json; print(json.load(open("registry/publication/production-marker.json"))["bootstrap_sequence"])')"
+          observed="$(git -C _publication-ledger ls-remote --refs origin "${production_ref}" | awk '{ print $1 }')"
+          if test -z "${observed}"; then
+            if test "${LEDGER_SEQUENCE_FLOOR}" -ge "${bootstrap_sequence}"; then
+              echo "production marker is missing for the existing signed ledger" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          [[ "${observed}" =~ ^[0-9a-f]{40}$ ]]
+          git -C _publication-ledger fetch --no-tags origin "${observed}"
+          production_sequence="$(git -C _publication-ledger show "${observed}:registry/schemas/1/latest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sequence"])')"
+          if test "${production_sequence}" != "${LEDGER_SEQUENCE_FLOOR}"; then
+            echo "signed sequence ${LEDGER_SEQUENCE_FLOOR} is staged while production remains at ${production_sequence}; use the explicit resume inputs" >&2
+            exit 1
+          fi
+      - name: Authenticate an exact staged signed publication
+        id: resume
+        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id != ''
+        env:
+          REQUESTED_PUBLICATION_ID: ${{ inputs.resume_publication_id }}
+          REQUESTED_SEQUENCE: ${{ inputs.resume_sequence }}
+          SOURCE_HEAD: ${{ github.sha }}
+        run: |
+          [[ "${REQUESTED_PUBLICATION_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${REQUESTED_SEQUENCE}" =~ ^[1-9][0-9]*$ ]]
+          sequence="$((10#${REQUESTED_SEQUENCE}))"
+          tag_name="directory-publication-schema-1-sequence-$(printf '%020d' "${sequence}")"
+          signed_ledger_commit="$(git -C _publication-ledger rev-parse "refs/tags/${tag_name}^{commit}")"
+          materialized_ledger_commit="$(git -C _publication-ledger rev-parse HEAD)"
+          test "$(git -C _publication-ledger show -s --format=%P "${materialized_ledger_commit}")" = "${signed_ledger_commit}"
+          test "$(git -C _publication-ledger show -s --format=%B "${materialized_ledger_commit}")" = "chore(directory): materialize signed production site"
+          git -C _publication-ledger diff --exit-code "${signed_ledger_commit}" "${materialized_ledger_commit}" -- registry
+
+          feed=_publication-ledger/registry/schemas/1
+          snapshot_path="snapshots/$(printf '%020d' "${sequence}").json"
+          envelope_path="snapshots/$(printf '%020d' "${sequence}").envelope.json"
+          test "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sequence"])' "${feed}/latest.json")" = "${sequence}"
+          test "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["snapshot_path"])' "${feed}/latest.json")" = "${snapshot_path}"
+          test "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["envelope_path"])' "${feed}/latest.json")" = "${envelope_path}"
+          test "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["publication_id"])' "${feed}/${snapshot_path}")" = "${REQUESTED_PUBLICATION_ID}"
+          marker_commit="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_commit"])' "${feed}/${snapshot_path}")"
+          [[ "${marker_commit}" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "${marker_commit}^{commit}"
+          git merge-base --is-ancestor "${marker_commit}" "${SOURCE_HEAD}"
+          snapshot_digest="sha256:$(sha256sum "${feed}/${snapshot_path}" | cut -d ' ' -f 1)"
+          test "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["snapshot_digest"])' "${feed}/${envelope_path}")" = "${snapshot_digest}"
+          python3 scripts/verify_directory_publication.py \
+            --feed "${feed}" --trusted-keys registry/publication/trusted-keys.json \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --minimum-sequence "${sequence}"
+
+          production_ref="$(python3 -c 'import json; print(json.load(open("registry/publication/production-marker.json"))["marker_ref"])')"
+          bootstrap_sequence="$(python3 -c 'import json; print(json.load(open("registry/publication/production-marker.json"))["bootstrap_sequence"])')"
+          observed_production="$(git -C _publication-ledger ls-remote --refs origin "${production_ref}" | awk '{ print $1 }')"
+          if test -z "${observed_production}"; then
+            production_sequence="${bootstrap_sequence}"
+          else
+            [[ "${observed_production}" =~ ^[0-9a-f]{40}$ ]]
+            git -C _publication-ledger fetch --no-tags origin "${observed_production}"
+            production_sequence="$(git -C _publication-ledger show "${observed_production}:registry/schemas/1/latest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sequence"])')"
+          fi
+          test "${production_sequence}" -lt "${sequence}"
+
+          echo "signed_ledger_commit=${signed_ledger_commit}" >> "$GITHUB_OUTPUT"
+          echo "materialized_ledger_commit=${materialized_ledger_commit}" >> "$GITHUB_OUTPUT"
+          echo "marker_commit=${marker_commit}" >> "$GITHUB_OUTPUT"
+          echo "publication_id=${REQUESTED_PUBLICATION_ID}" >> "$GITHUB_OUTPUT"
+          echo "sequence=${sequence}" >> "$GITHUB_OUTPUT"
+          echo "snapshot_digest=${snapshot_digest}" >> "$GITHUB_OUTPUT"
+          echo "main_parent=${SOURCE_HEAD}" >> "$GITHUB_OUTPUT"
       - name: Observe immutable launch approval marker
         id: launch
         if: needs.authenticate-completed-state.outputs.completed != 'true'
@@ -199,7 +300,7 @@ jobs:
           fi
       - name: Prepare and bind exact post-merge source
         id: candidate
-        if: needs.authenticate-completed-state.outputs.completed != 'true'
+        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id == ''
         env:
           PUBLICATION_ID: ${{ github.run_id }}
           SOURCE_COMMIT: ${{ steps.marker.outputs.commit }}
@@ -234,7 +335,7 @@ jobs:
           test "$(wc -c < candidate.json)" -le 4194304
           check-jsonschema --schemafile schemas/directory-publication-candidate.schema.json candidate.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: needs.authenticate-completed-state.outputs.completed != 'true'
+        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id == ''
         with:
           name: directory-candidate-${{ github.run_id }}
           path: |
@@ -244,7 +345,7 @@ jobs:
           retention-days: 1
 
   sign:
-    name: Minimal privileged signer and ledger append
+    name: Authenticate staged publication or append a signed sequence
     if: github.ref == 'refs/heads/main' && needs.prepare.outputs.completed != 'true'
     needs: prepare
     runs-on: ubuntu-latest
@@ -254,19 +355,22 @@ jobs:
       actions: read
       contents: read
     outputs:
-      ledger_commit: ${{ steps.commit.outputs.ledger_commit }}
-      materialized_ledger_commit: ${{ steps.commit.outputs.materialized_ledger_commit }}
-      marker_commit: ${{ steps.marker.outputs.commit }}
-      publication_id: ${{ github.run_id }}
-      sequence: ${{ steps.signed.outputs.sequence }}
-      snapshot_digest: ${{ steps.signed.outputs.snapshot_digest }}
+      ledger_commit: ${{ needs.prepare.outputs.resume_signed_ledger_commit || steps.commit.outputs.ledger_commit }}
+      materialized_ledger_commit: ${{ needs.prepare.outputs.resume_materialized_ledger_commit || steps.commit.outputs.materialized_ledger_commit }}
+      marker_commit: ${{ needs.prepare.outputs.resume_marker_commit || steps.marker.outputs.commit }}
+      publication_id: ${{ needs.prepare.outputs.resume_publication_id || github.run_id }}
+      sequence: ${{ needs.prepare.outputs.resume_sequence || steps.signed.outputs.sequence }}
+      snapshot_digest: ${{ needs.prepare.outputs.resume_snapshot_digest || steps.signed.outputs.snapshot_digest }}
+      main_parent: ${{ needs.prepare.outputs.resume_main_parent || steps.commit.outputs.main_parent }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: inputs.resume_publication_id == ''
         with:
           ref: ${{ github.sha }}
           path: trusted-source
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: inputs.resume_publication_id == ''
         with:
           ref: ${{ env.LEDGER_BRANCH }}
           path: ledger
@@ -274,10 +378,12 @@ jobs:
           fetch-tags: true
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: inputs.resume_publication_id == ''
         with:
           name: directory-candidate-${{ github.run_id }}
           path: candidate
       - name: Verify reviewed system-only signer runtime
+        if: inputs.resume_publication_id == ''
         run: |
           test -x /usr/bin/python3
           test -x /usr/bin/openssl
@@ -287,6 +393,7 @@ jobs:
           /usr/bin/openssl version
       - name: Observe protected main freshness without signing seed
         id: freshness
+        if: inputs.resume_publication_id == ''
         working-directory: trusted-source
         env:
           EVENT_SOURCE_COMMIT: ${{ github.sha }}
@@ -299,6 +406,7 @@ jobs:
           echo "source_commit=${EVENT_SOURCE_COMMIT}" >> "$GITHUB_OUTPUT"
       - name: Recreate and verify deterministic marker without signing seed
         id: marker
+        if: inputs.resume_publication_id == ''
         working-directory: trusted-source
         env:
           PUBLICATION_ID: ${{ github.run_id }}
@@ -311,6 +419,7 @@ jobs:
           echo "commit=${marker_commit}" >> "$GITHUB_OUTPUT"
       - name: Validate candidate digest, sequence, and sign
         id: signed
+        if: inputs.resume_publication_id == ''
         working-directory: trusted-source
         env:
           DIRECTORY_ED25519_PRIVATE_KEY: ${{ secrets.DIRECTORY_ED25519_PRIVATE_KEY }}
@@ -362,6 +471,7 @@ jobs:
           echo "snapshot_digest=$(/usr/bin/python3 -c 'import json; print(json.load(open("../publication-result.json"))["snapshot_digest"])')" >> "$GITHUB_OUTPUT"
       - name: Acquire dedicated publisher token
         id: publisher
+        if: inputs.resume_publication_id == ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.DIRECTORY_PUBLISHER_APP_ID }}
@@ -370,6 +480,7 @@ jobs:
           repositories: ${{ github.event.repository.name }}
       - name: Enforce append-only diff and commit atomically
         id: commit
+        if: inputs.resume_publication_id == ''
         working-directory: ledger
         env:
           PUBLISHER_TOKEN: ${{ steps.publisher.outputs.token }}
@@ -431,6 +542,25 @@ jobs:
             materialized_ledger_commit=""
           fi
           echo "materialized_ledger_commit=${materialized_ledger_commit}" >> "$GITHUB_OUTPUT"
+          echo "main_parent=${MARKER_COMMIT}" >> "$GITHUB_OUTPUT"
+      - name: Reuse only the pre-authenticated staged identity
+        if: inputs.resume_publication_id != ''
+        env:
+          SIGNED_LEDGER_COMMIT: ${{ needs.prepare.outputs.resume_signed_ledger_commit }}
+          MATERIALIZED_LEDGER_COMMIT: ${{ needs.prepare.outputs.resume_materialized_ledger_commit }}
+          MARKER_COMMIT: ${{ needs.prepare.outputs.resume_marker_commit }}
+          PUBLICATION_ID: ${{ needs.prepare.outputs.resume_publication_id }}
+          PUBLICATION_SEQUENCE: ${{ needs.prepare.outputs.resume_sequence }}
+          SNAPSHOT_DIGEST: ${{ needs.prepare.outputs.resume_snapshot_digest }}
+          MAIN_PARENT: ${{ needs.prepare.outputs.resume_main_parent }}
+        run: |
+          [[ "${SIGNED_LEDGER_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${MATERIALIZED_LEDGER_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${MARKER_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${MAIN_PARENT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${PUBLICATION_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${PUBLICATION_SEQUENCE}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${SNAPSHOT_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
 
   completed_rerun:
     name: Accept exact already-persisted whole-run retry
@@ -898,7 +1028,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.sign.outputs.marker_commit }}
+          ref: ${{ needs.sign.outputs.main_parent }}
           path: trusted-source
           fetch-depth: 0
           persist-credentials: false
@@ -922,6 +1052,7 @@ jobs:
           EXPECTED_PUBLICATION_SEQUENCE: ${{ needs.sign.outputs.sequence }}
           EXPECTED_SNAPSHOT_DIGEST: ${{ needs.sign.outputs.snapshot_digest }}
           EXPECTED_SOURCE_COMMIT: ${{ needs.sign.outputs.marker_commit }}
+          EXPECTED_MAIN_PARENT: ${{ needs.sign.outputs.main_parent }}
           EXPECTED_EVIDENCE_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.launch_evidence_digest }}
           EXPECTED_EVIDENCE_RUN_ATTEMPT: ${{ needs.required_stable_launch_evidence.outputs.evidence_run_attempt }}
           WORKFLOW_SOURCE_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.workflow_source_digest }}
@@ -963,6 +1094,7 @@ jobs:
           EXPECTED_PUBLICATION_SEQUENCE: ${{ needs.sign.outputs.sequence }}
           EXPECTED_SNAPSHOT_DIGEST: ${{ needs.sign.outputs.snapshot_digest }}
           EXPECTED_SOURCE_COMMIT: ${{ needs.sign.outputs.marker_commit }}
+          EXPECTED_MAIN_PARENT: ${{ needs.sign.outputs.main_parent }}
           EXPECTED_EVIDENCE_RUN_ATTEMPT: ${{ needs.required_stable_launch_evidence.outputs.evidence_run_attempt }}
           WORKFLOW_SOURCE_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.workflow_source_digest }}
         run: |
@@ -978,14 +1110,14 @@ jobs:
             --expected-publication-snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}" \
             --expected-publication-source-commit "${EXPECTED_SOURCE_COMMIT}" \
             --source-repo trusted-source --ledger-repo approved-ledger \
-            --main-parent "${EXPECTED_SOURCE_COMMIT}" --ledger-parent "${EXPECTED_LEDGER_COMMIT}" \
+            --main-parent "${EXPECTED_MAIN_PARENT}" --ledger-parent "${EXPECTED_LEDGER_COMMIT}" \
             --attestation-bundle launch-attestation/github-attestation.jsonl \
             --output persistence.json
           main_commit="$(python3 -c 'import json; print(json.load(open("persistence.json"))["main_commit"])')"
           ledger_commit="$(python3 -c 'import json; print(json.load(open("persistence.json"))["ledger_commit"])')"
-          test "$(git -C trusted-source show -s --format=%P "${main_commit}")" = "${EXPECTED_SOURCE_COMMIT}"
+          test "$(git -C trusted-source show -s --format=%P "${main_commit}")" = "${EXPECTED_MAIN_PARENT}"
           test "$(git -C approved-ledger show -s --format=%P "${ledger_commit}")" = "${EXPECTED_LEDGER_COMMIT}"
-          test "$(git -C trusted-source diff --name-only "${EXPECTED_SOURCE_COMMIT}" "${main_commit}")" = registry/directory.json
+          test "$(git -C trusted-source diff --name-only "${EXPECTED_MAIN_PARENT}" "${main_commit}")" = registry/directory.json
           git -C trusted-source fetch --no-tags ../approved-ledger "${ledger_commit}"
       - name: Acquire dedicated publisher token
         id: publisher
@@ -999,6 +1131,7 @@ jobs:
         env:
           EXPECTED_LEDGER_COMMIT: ${{ needs.materialize_site.outputs.ledger_commit }}
           EXPECTED_SOURCE_COMMIT: ${{ needs.sign.outputs.marker_commit }}
+          EXPECTED_MAIN_PARENT: ${{ needs.sign.outputs.main_parent }}
           PUBLISHER_TOKEN: ${{ steps.publisher.outputs.token }}
         run: |
           marker_ref="$(python3 -c 'import json; print(json.load(open("trusted-source/registry/publication/launch-approved-marker.json"))["marker_ref"])')"
@@ -1009,7 +1142,7 @@ jobs:
           GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
           GIT_CONFIG_VALUE_0="${auth_header}" \
           python3 trusted-source/scripts/directory_publication_cas.py evidence-publish \
-            --repo trusted-source --main-old "${EXPECTED_SOURCE_COMMIT}" --main-new "${main_commit}" \
+            --repo trusted-source --main-old "${EXPECTED_MAIN_PARENT}" --main-new "${main_commit}" \
             --ledger-old "${EXPECTED_LEDGER_COMMIT}" --ledger-new "${ledger_commit}" \
             --approval-tag "${marker_ref}"
 

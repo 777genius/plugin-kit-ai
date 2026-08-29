@@ -413,6 +413,61 @@ jobs:
           ACTIONS_ID_TOKEN="$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$response")"
           echo "::add-mask::$ACTIONS_ID_TOKEN"
           echo "ACTIONS_ID_TOKEN=$ACTIONS_ID_TOKEN" >> "$GITHUB_ENV"
+      - name: Validate non-secret OIDC identity claims locally
+        env:
+          EXPECTED_CALLER_EVENT_NAME: ${{ inputs.caller_event_name }}
+          EXPECTED_CALLER_WORKFLOW_REF: ${{ inputs.caller_workflow_ref }}
+        run: |
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          import re
+
+          token = os.environ.get("ACTIONS_ID_TOKEN", "")
+          parts = token.split(".")
+          if len(parts) != 3 or len(token) > 16_384:
+              raise SystemExit("OIDC self-check failed: token shape")
+          if not re.fullmatch(r"[A-Za-z0-9_-]+", parts[1]):
+              raise SystemExit("OIDC self-check failed: payload encoding")
+          try:
+              claims = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+          except (ValueError, UnicodeError, json.JSONDecodeError):
+              raise SystemExit("OIDC self-check failed: payload JSON") from None
+          repository = os.environ["GITHUB_REPOSITORY"]
+          expected = {
+              "iss": "https://token.actions.githubusercontent.com",
+              "aud": "stable-launch-observer",
+              "sub": f"repo:{repository}:environment:stable-launch-e2e",
+              "repository": repository,
+              "repository_owner": os.environ["GITHUB_REPOSITORY_OWNER"],
+              "repository_id": os.environ["GITHUB_REPOSITORY_ID"],
+              "repository_owner_id": os.environ["GITHUB_REPOSITORY_OWNER_ID"],
+              "ref": "refs/heads/main",
+              "ref_type": "branch",
+              "sha": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "environment": "stable-launch-e2e",
+              "workflow_ref": os.environ["EXPECTED_CALLER_WORKFLOW_REF"],
+              "job_workflow_ref": f"{repository}/.github/workflows/launch-evidence-e2e.yml@refs/heads/main",
+              "workflow": "Signed Directory publication",
+              "event_name": os.environ["EXPECTED_CALLER_EVENT_NAME"],
+              "workflow_sha": os.environ["GITHUB_SHA"],
+              "job_workflow_sha": os.environ["GITHUB_SHA"],
+          }
+          mismatches = sorted(
+              field for field, value in expected.items()
+              if str(claims.get(field, "")) != str(value)
+          )
+          missing_security_claims = sorted(
+              field for field in ("iat", "nbf", "exp", "jti") if field not in claims
+          )
+          if mismatches or missing_security_claims:
+              fields = ",".join(mismatches + missing_security_claims)
+              raise SystemExit(f"OIDC self-check failed: claim mismatch ({fields})")
+          print("OIDC identity matches the protected observer policy")
+          PY
       - name: Request protected challenge-bound runtime and OAuth observations
         id: observer
         env:
