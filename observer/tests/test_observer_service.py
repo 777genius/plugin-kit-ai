@@ -42,7 +42,7 @@ from observer.fixed_runner import Adapter, ReviewedRunner, serve as serve_runner
 from observer.http_server import BoundedThreadingHTTPServer, MAX_REQUEST_BYTES, ObserverHandler
 from observer.runner import SocketRunner
 from observer.schema_validation import validate_artifact_schemas
-from observer.secure_files import read_immutable_closure_regular, read_owned_regular
+from observer.secure_files import read_immutable_closure_regular, read_owned_regular, write_new_owned
 from observer.service import CHALLENGE_DOMAIN, ObserverService, WorkBusyError
 from observer.signer import SocketSigner
 from observer.signer import CacheExpiredError
@@ -338,6 +338,25 @@ class FakeSigner:
 
 
 class ObserverTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "O_PATH"), "Linux O_PATH is required")
+    def test_protected_writes_traverse_execute_only_ancestors_with_path_handles(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary) / "execute-only-parent"
+            state = parent / "state"
+            state.mkdir(parents=True, mode=0o700)
+            parent.chmod(0o711)
+            target = state / "record"
+            real_open = os.open
+
+            def require_path_handle(path: Any, flags: int, *args: Any, **kwargs: Any) -> int:
+                if path == parent.name and flags & os.O_DIRECTORY and not flags & os.O_PATH:
+                    raise PermissionError(errno.EACCES, "execute-only directory")
+                return real_open(path, flags, *args, **kwargs)
+
+            with mock.patch("observer.secure_files.os.open", side_effect=require_path_handle):
+                write_new_owned(target, b"value")
+                self.assertEqual(read_owned_regular(target, 32, owner_uid=os.geteuid()), b"value")
+
     def test_protected_reads_reject_parent_symlinks_and_hardlinks(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

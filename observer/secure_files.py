@@ -12,15 +12,23 @@ IMMUTABLE_CLOSURE_ALIAS = Path("/opt/uap-observer-current")
 _CLOSURE_TARGET = re.compile(r"uap-observer-closures/[a-f0-9]{64}")
 
 
+def _directory_open_flags(*, nofollow: bool = False) -> int:
+    """Open directory handles without requiring read permission on Linux."""
+    flags = getattr(os, "O_PATH", os.O_RDONLY) | os.O_DIRECTORY | os.O_CLOEXEC
+    if nofollow:
+        flags |= os.O_NOFOLLOW
+    return flags
+
+
 def open_trusted_directory(path: Path, *, owner_uid: int, exact_mode: int | None = None) -> int:
     """Open an absolute directory without ever resolving a link in its chain."""
     if not path.is_absolute() or ".." in path.parts:
         raise ValueError("protected directory path is invalid")
-    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    descriptor = os.open("/", _directory_open_flags())
     try:
         for component in path.parts[1:]:
             child = os.open(
-                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                component, _directory_open_flags(nofollow=True),
                 dir_fd=descriptor,
             )
             os.close(descriptor)
@@ -89,13 +97,13 @@ def read_immutable_closure_regular(
             raise ValueError("immutable closure alias target differs")
         closure_parent, digest = target.split("/", 1)
         closure_parent_fd = os.open(
-            closure_parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            closure_parent, _directory_open_flags(nofollow=True),
             dir_fd=opt_fd,
         )
         try:
             _require_trusted_directory(closure_parent_fd, owner_uid=alias_owner_uid)
             closure_fd = os.open(
-                digest, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                digest, _directory_open_flags(nofollow=True),
                 dir_fd=closure_parent_fd,
             )
         finally:
@@ -104,7 +112,7 @@ def read_immutable_closure_regular(
         parent_fd = os.dup(closure_fd)
         for component in relative.parts[:-1]:
             child = os.open(
-                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                component, _directory_open_flags(nofollow=True),
                 dir_fd=parent_fd,
             )
             os.close(parent_fd)
