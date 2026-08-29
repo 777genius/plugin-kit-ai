@@ -71,8 +71,8 @@ is available through `npx` once a release containing this source is published.
 | Claude Code | Claude Code 2.1.205: real isolated `add`, native list, `update`, and `remove` lifecycle |
 | Gemini CLI | Gemini CLI 0.36.0: real isolated configuration and lifecycle |
 | OpenCode | OpenCode 1.18.4: real isolated configuration and lifecycle |
-| Cline | Isolated native-configuration lifecycle; no client runtime or login |
-| Windsurf | Contract and mock coverage only; Windsurf was absent from the test host |
+| Cline | Real locally detected client; isolated native-configuration `add`, `update`, and `remove`; no client runtime or login |
+| Windsurf | Real locally detected configuration; isolated native-configuration `add`, `update`, and `remove`; no client runtime or login |
 
 `search` combines the reviewed Directory with a separately signed Discovery
 Index. Unreviewed results use publisher-qualified `discovery:owner/repo//path`
