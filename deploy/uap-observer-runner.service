@@ -26,7 +26,6 @@ Restart=on-failure
 NoNewPrivileges=yes
 PrivateDevices=yes
 PrivateTmp=yes
-ProtectSystem=strict
 ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
@@ -47,6 +46,8 @@ RemoveIPC=yes
 TasksMax=64
 MemoryMax=2G
 CPUQuota=200%
+# Keep ProtectSystem unset: systemd applies ProtectSystem=strict over this
+# mount and exposes the host root read-only instead of preserving the allowlist.
 TemporaryFileSystem=/:ro,nosuid,nodev,noexec
 BindReadOnlyPaths=/usr/bin /usr/lib -/usr/lib64 -/lib -/lib64 /etc/passwd /etc/group /etc/nsswitch.conf -/etc/ssl -/etc/pki
 BindPaths=/var/lib/uap-observer/jobs /var/lib/uap-observer/workspaces /var/lib/uap-observer-human/pending /var/lib/uap-observer-human/reserved /var/lib/uap-observer-human/consumed /var/lib/uap-observer-consent/pending /var/lib/uap-observer-consent/reserved /var/lib/uap-observer-consent/consumed

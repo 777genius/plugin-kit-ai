@@ -10,6 +10,8 @@ from pathlib import Path
 
 IMMUTABLE_CLOSURE_ALIAS = Path("/opt/uap-observer-current")
 _CLOSURE_TARGET = re.compile(r"uap-observer-closures/[a-f0-9]{64}")
+_BOUND_CLOSURE_ROOT = re.compile(r"/opt/uap-observer-closures/[a-f0-9]{64}")
+_MAX_MOUNTINFO_BYTES = 1 << 20
 
 
 def _directory_open_flags(*, nofollow: bool = False) -> int:
@@ -90,24 +92,30 @@ def read_immutable_closure_regular(
     parent_fd = -1
     try:
         alias_info = os.stat(alias.name, dir_fd=opt_fd, follow_symlinks=False)
-        if not stat.S_ISLNK(alias_info.st_mode) or alias_info.st_uid != alias_owner_uid:
-            raise ValueError("immutable closure alias is not a trusted root-owned symlink")
-        target = os.readlink(alias.name, dir_fd=opt_fd)
-        if not _CLOSURE_TARGET.fullmatch(target):
-            raise ValueError("immutable closure alias target differs")
-        closure_parent, digest = target.split("/", 1)
-        closure_parent_fd = os.open(
-            closure_parent, _directory_open_flags(nofollow=True),
-            dir_fd=opt_fd,
-        )
-        try:
-            _require_trusted_directory(closure_parent_fd, owner_uid=alias_owner_uid)
-            closure_fd = os.open(
-                digest, _directory_open_flags(nofollow=True),
-                dir_fd=closure_parent_fd,
+        if stat.S_ISLNK(alias_info.st_mode) and alias_info.st_uid == alias_owner_uid:
+            target = os.readlink(alias.name, dir_fd=opt_fd)
+            if not _CLOSURE_TARGET.fullmatch(target):
+                raise ValueError("immutable closure alias target differs")
+            closure_parent, digest = target.split("/", 1)
+            closure_parent_fd = os.open(
+                closure_parent, _directory_open_flags(nofollow=True),
+                dir_fd=opt_fd,
             )
-        finally:
-            os.close(closure_parent_fd)
+            try:
+                _require_trusted_directory(closure_parent_fd, owner_uid=alias_owner_uid)
+                closure_fd = os.open(
+                    digest, _directory_open_flags(nofollow=True),
+                    dir_fd=closure_parent_fd,
+                )
+            finally:
+                os.close(closure_parent_fd)
+        elif stat.S_ISDIR(alias_info.st_mode) and alias_info.st_uid == alias_owner_uid:
+            _require_exact_bound_closure(alias)
+            closure_fd = os.open(
+                alias.name, _directory_open_flags(nofollow=True), dir_fd=opt_fd,
+            )
+        else:
+            raise ValueError("immutable closure alias is not a trusted root-owned symlink or bind mount")
         _require_trusted_directory(closure_fd, owner_uid=alias_owner_uid)
         parent_fd = os.dup(closure_fd)
         for component in relative.parts[:-1]:
@@ -129,6 +137,39 @@ def read_immutable_closure_regular(
         if closure_fd >= 0:
             os.close(closure_fd)
         os.close(opt_fd)
+
+
+def _mount_path(value: str) -> str:
+    return re.sub(r"\\([0-7]{3})", lambda match: chr(int(match.group(1), 8)), value)
+
+
+def _require_exact_bound_closure(alias: Path) -> None:
+    """Accept only systemd's read-only bind of one immutable closure at the alias."""
+    encoded = Path("/proc/self/mountinfo").read_bytes()
+    if len(encoded) > _MAX_MOUNTINFO_BYTES:
+        raise ValueError("mount namespace description exceeds size bound")
+    try:
+        lines = encoded.decode("utf-8", "strict").splitlines()
+    except UnicodeError:
+        raise ValueError("mount namespace description is invalid") from None
+    matches = []
+    for line in lines:
+        fields = line.split()
+        try:
+            fields.index("-")
+            source_root = _mount_path(fields[3])
+            target = _mount_path(fields[4])
+            options = set(fields[5].split(","))
+        except (ValueError, IndexError):
+            raise ValueError("mount namespace description is malformed") from None
+        if target == str(alias):
+            matches.append((source_root, options))
+    if (
+        len(matches) != 1
+        or _BOUND_CLOSURE_ROOT.fullmatch(matches[0][0]) is None
+        or "ro" not in matches[0][1]
+    ):
+        raise ValueError("immutable closure bind mount differs")
 
 
 def _require_trusted_directory(descriptor: int, *, owner_uid: int) -> None:

@@ -84,6 +84,7 @@ FIXED_MOUNT_PATHS = FIXED_INPUT_PATHS - {
     "/opt/uap-observer-inputs/cursor/cursor-agent",
     str(CHROME_BINARY),
 }
+CLOSURE_MOUNT_SOURCE = re.compile(r"/opt/uap-observer-closures/[a-f0-9]{64}")
 PRIVACY_RESULT = {
     "real_project_accessed": False, "absolute_paths_exported": False,
     "credential_material_exported": False, "auth_copied": False,
@@ -617,7 +618,10 @@ def verify_positive_mount_namespace(mountinfo: str) -> None:
             raise ValueError(f"mount namespace exposes a non-allowlisted filesystem at {target}")
         if target in fixed_paths and source_root != target:
             raise ValueError(f"fixed runtime input at {target} is an alternate-path bind")
-        closure_alias = matched in {"/opt/uap-observer-current", "/etc/hosts"} and source_root.startswith("/opt/uap-observer-closures/")
+        closure_alias = (
+            matched == "/opt/uap-observer-current"
+            and CLOSURE_MOUNT_SOURCE.fullmatch(source_root) is not None
+        )
         same_source = matched is not None and (source_root == matched or source_root.startswith(matched + "/"))
         if target not in fixed_paths and not same_source and not closure_alias:
             raise ValueError(f"allowlisted runtime path at {target} has a foreign mount source")

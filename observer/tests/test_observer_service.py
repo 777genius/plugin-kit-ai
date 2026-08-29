@@ -421,6 +421,40 @@ class ObserverTests(unittest.TestCase):
                     alias=alias, alias_owner_uid=uid,
                 )
 
+    def test_immutable_closure_accepts_only_exact_readonly_bind_mount(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            alias = Path(temporary).resolve() / "opt" / "uap-observer-current"
+            record = alias / "etc" / "record"
+            record.parent.mkdir(parents=True)
+            record.write_bytes(b"value")
+            record.chmod(0o600)
+            uid = os.geteuid()
+            mount = (
+                f"10 1 8:1 /opt/uap-observer-closures/{'a' * 64} "
+                f"{alias} ro,nosuid - ext4 /dev/root ro\n"
+            ).encode()
+            with mock.patch("observer.secure_files.Path.read_bytes", return_value=mount):
+                self.assertEqual(
+                    read_immutable_closure_regular(
+                        Path("etc/record"), 32, owner_uid=uid,
+                        exact_mode=0o600, alias=alias, alias_owner_uid=uid,
+                    ),
+                    b"value",
+                )
+            for changed in (
+                mount.replace(b" ro,nosuid ", b" rw,nosuid "),
+                mount.replace(b"/opt/uap-observer-closures/", b"/srv/closures/"),
+            ):
+                with (
+                    self.subTest(mount=changed),
+                    mock.patch("observer.secure_files.Path.read_bytes", return_value=changed),
+                    self.assertRaisesRegex(ValueError, "bind mount differs"),
+                ):
+                    read_immutable_closure_regular(
+                        Path("etc/record"), 32, owner_uid=uid,
+                        alias=alias, alias_owner_uid=uid,
+                    )
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.fixture = Fixture(Path(self.temp.name))
@@ -1831,6 +1865,8 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         binding = "Environment=PYTHONPATH=/opt/uap-observer-current/runtime\n"
         self.assertEqual(service.count(binding), 1)
         self.assertNotIn("Environment=PYTHONPATH=/opt/uap-observer\n", service)
+        self.assertIn("TemporaryFileSystem=/:ro,nosuid,nodev,noexec", service)
+        self.assertNotIn("\nProtectSystem=strict\n", "\n" + service)
 
     def test_protected_adapters_import_only_the_immutable_runtime(self) -> None:
         protected = fixed_runner.adapter_environment("sha256:" + "a" * 64, "codex", protected=True)
@@ -4213,6 +4249,11 @@ class FixedAdapterContractTests(unittest.TestCase):
         fixed_adapters.verify_positive_mount_namespace(
             allowed + "12 10 8:2 /opt/uap-observer-inputs/cursor /opt/uap-observer-inputs/cursor ro - ext4 /dev/root ro\n",
         )
+        fixed_adapters.verify_positive_mount_namespace(
+            allowed
+            + f"12 10 8:2 /opt/uap-observer-closures/{'a' * 64} "
+            "/opt/uap-observer-current ro - ext4 /dev/root ro\n",
+        )
         for target in ("/var/www/customer-project", "/usr/local/src/repository", "/workspace/project", "/var/www/link-to-project", "/var/lib/uap-observer/state"):
             with self.subTest(target=target), self.assertRaisesRegex(ValueError, "non-allowlisted"):
                 fixed_adapters.verify_positive_mount_namespace(allowed + f"12 10 8:2 /project {target} ro - ext4 /dev/fixture ro\n")
@@ -4225,6 +4266,10 @@ class FixedAdapterContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "alternate-path"):
             fixed_adapters.verify_positive_mount_namespace(
                 root + "12 10 8:2 /var/www/customer-project /opt/uap-observer-inputs/bin/codex ro - ext4 /dev/fixture ro\n",
+            )
+        with self.assertRaisesRegex(ValueError, "foreign mount source"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root + "12 10 8:2 /opt/uap-observer-closures/not-a-digest /opt/uap-observer-current ro - ext4 /dev/fixture ro\n",
             )
         with self.assertRaisesRegex(ValueError, "synthetic"):
             fixed_adapters.verify_positive_mount_namespace("10 1 8:1 / / ro - ext4 /dev/root ro\n")
