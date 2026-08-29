@@ -3736,14 +3736,28 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
             (protected / "chatgpt").mkdir()
             (protected / "cursor").mkdir()
             (protected / "chrome-for-testing").mkdir()
+            app_id = "plugin_asdk_app_" + "a" * 32
+            chat_tuple = {
+                "product_id": "cloudflare-docs",
+                "snapshot_sequence": 19,
+                "snapshot_digest": "sha256:" + "b" * 64,
+                "observed_at": "2026-08-29T00:03:12Z",
+                "client_version": None,
+            }
             files = {
                 protected / "bin/git": b"git",
                 protected / "bin/codex": b"codex",
                 protected / "bin/codex-code-mode-host": b"codex-host",
                 protected / "bin/kiro": b"kiro",
                 protected / "bin/kiro-cli-chat": b"kiro-chat",
-                protected / "chatgpt/app-binding.json": b"app",
-                protected / "chatgpt/projection-receipt.json": b"receipt",
+                protected / "chatgpt/app-binding.json": json.dumps({
+                    "apps": {"cloudflare-docs": {"id": app_id}},
+                }).encode(),
+                protected / "chatgpt/projection-receipt.json": json.dumps({
+                    "application_id": app_id,
+                    "product_id": "cloudflare-docs",
+                    "tuple": chat_tuple,
+                }).encode(),
                 protected / "external-pr-evidence.json": b"evidence",
                 protected / "cursor/cursor-agent": b"cursor",
                 protected / "cursor/index.js": b"index",
@@ -3809,6 +3823,8 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 "chatgpt": {
                     "app_binding_path": str(protected / "chatgpt/app-binding.json"),
                     "app_binding_sha256": digest(protected / "chatgpt/app-binding.json"),
+                    "app_id": app_id,
+                    "tuple": chat_tuple,
                     "projection_receipt_path": str(protected / "chatgpt/projection-receipt.json"),
                     "projection_receipt_sha256": digest(protected / "chatgpt/projection-receipt.json"),
                 },
@@ -3839,6 +3855,22 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                     list(identities.values()),
                 )
                 self.assertTrue(all(len(paths) == 19 for _, _, _, paths in probes))
+                receipt_path = protected / "chatgpt/projection-receipt.json"
+                receipt = json.loads(receipt_path.read_text())
+                receipt["tuple"]["snapshot_sequence"] = 13
+                receipt_path.write_text(json.dumps(receipt))
+                value = json.loads(config.read_text())
+                value["chatgpt"]["projection_receipt_sha256"] = digest(receipt_path)
+                config.write_text(json.dumps(value))
+                with self.assertRaisesRegex(ValueError, "projection receipt differs"):
+                    fixed_runner.validate_adapter_input_access(
+                        config, protected_root=protected, identities=identities,
+                        access_probe=lambda *_args: None,
+                    )
+                receipt["tuple"]["snapshot_sequence"] = 19
+                receipt_path.write_text(json.dumps(receipt))
+                value["chatgpt"]["projection_receipt_sha256"] = digest(receipt_path)
+                config.write_text(json.dumps(value))
                 for excluded, (denied_uid, _, _) in identities.items():
                     with self.subTest(excluded=excluded):
                         def deny(uid: int, _gid: int, _gids: frozenset[int], _paths: tuple[tuple[Path, bool], ...]) -> None:
@@ -4014,6 +4046,51 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 self.assertRaisesRegex(ValueError, "injected cgroup failure"),
             ):
                 runner.execute({"request": {}, "github_attestation": {}})
+            self.assertEqual(list(runner.state_root.iterdir()), [])
+
+    @requires_disposable_observer_host
+    def test_protected_adapter_enters_private_cwd_after_privilege_drop(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runner = self._protected_runner_for_pre_spawn_cleanup(root)
+            calls: list[tuple[str, object]] = []
+
+            def popen(*_args: object, **kwargs: object) -> object:
+                self.assertIsNone(kwargs["cwd"])
+                preexec = kwargs["preexec_fn"]
+                self.assertTrue(callable(preexec))
+                preexec()
+                raise ValueError("stop after protected privilege drop")
+
+            with (
+                mock.patch.object(fixed_runner, "read_owned_regular", return_value=b"reviewed adapter"),
+                mock.patch.object(fixed_runner, "revalidate_client_proofs"),
+                mock.patch.object(fixed_runner, "delegated_job_cgroup", return_value=None),
+                mock.patch.object(fixed_runner.subprocess, "Popen", side_effect=popen),
+                mock.patch.object(
+                    fixed_runner.os, "setgroups",
+                    side_effect=lambda groups: calls.append(("setgroups", groups)),
+                ),
+                mock.patch.object(
+                    fixed_runner.os, "setgid",
+                    side_effect=lambda gid: calls.append(("setgid", gid)),
+                ),
+                mock.patch.object(
+                    fixed_runner.os, "setuid",
+                    side_effect=lambda uid: calls.append(("setuid", uid)),
+                ),
+                mock.patch.object(
+                    fixed_runner.os, "chdir",
+                    side_effect=lambda path: calls.append(("chdir", path)),
+                ),
+                self.assertRaisesRegex(ValueError, "stop after protected privilege drop"),
+            ):
+                runner.execute({"request": {}, "github_attestation": {}})
+
+            self.assertEqual([name for name, _value in calls], [
+                "setgroups", "setgid", "setuid", "chdir",
+            ])
+            self.assertEqual(calls[-1][1].name, "adapter-0-codex")
             self.assertEqual(list(runner.state_root.iterdir()), [])
 
     def test_fixed_runner_socket_executes_only_injected_reviewed_adapters(self) -> None:

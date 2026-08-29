@@ -415,6 +415,11 @@ def validate_adapter_input_access(
         info = os.lstat(directory)
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
             raise ValueError("protected input directory is not root-controlled")
+    chat = config["chatgpt"]
+    chat_paths = {
+        Path(chat["app_binding_path"]), Path(chat["projection_receipt_path"]),
+    }
+    protected_chat_bytes: dict[Path, bytes] = {}
     for path, digest in expected_files.items():
         if path.resolve(strict=True) != path:
             raise ValueError("protected input path traverses a symlink")
@@ -427,9 +432,27 @@ def validate_adapter_input_access(
             or (not executable and info.st_gid != config_gid)
         ):
             raise ValueError("protected input metadata differs")
-        actual_digest = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        encoded = path.read_bytes()
+        actual_digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
         if actual_digest != digest:
             raise ValueError("protected input digest differs")
+        if path in chat_paths:
+            protected_chat_bytes[path] = encoded
+    binding = strict_json_loads(protected_chat_bytes[Path(chat["app_binding_path"])])
+    if binding != {"apps": {"cloudflare-docs": {"id": chat["app_id"]}}}:
+        raise ValueError("protected ChatGPT app binding differs")
+    receipt = strict_json_loads(protected_chat_bytes[Path(chat["projection_receipt_path"])])
+    static_tuple = lambda value: (
+        {key: child for key, child in value.items() if key not in {"observed_at", "client_version"}}
+        if isinstance(value, dict) else None
+    )
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("product_id") != "cloudflare-docs"
+        or receipt.get("application_id") != chat["app_id"]
+        or static_tuple(receipt.get("tuple")) != static_tuple(chat["tuple"])
+    ):
+        raise ValueError("protected ChatGPT projection receipt differs from adapter config")
     probes = tuple(
         [(path, path.parent == protected_root / "bin") for path in sorted(expected_files)]
         + [(bundle_manifest, False)]
@@ -933,9 +956,14 @@ class ReviewedRunner:
                                     os.setgroups([self._config_gid])
                                     os.setgid(gid)
                                     os.setuid(uid)
+                                    os.chdir(invocation_dir)
                             process = subprocess.Popen(
                                 [str(adapter.executable), "--context", str(context_path), "--output", str(output)],
-                                cwd=invocation_dir,
+                                # Python enters cwd before preexec_fn. The root runner
+                                # intentionally lacks CAP_DAC_OVERRIDE and therefore
+                                # cannot enter the adapter-owned 0700 directory after
+                                # ownership transfer. Enter it only after setuid.
+                                cwd=None if self.protected else invocation_dir,
                                 env=adapter_environment(
                                     adapter.config_digest, identity, protected=self.protected,
                                 ),
