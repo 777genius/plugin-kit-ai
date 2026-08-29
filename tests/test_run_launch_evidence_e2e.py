@@ -5,6 +5,7 @@ import base64
 import ctypes
 import errno
 import hashlib
+import copy
 import json
 import os
 import platform
@@ -51,6 +52,425 @@ PUBLICATION = ROOT / "tests/fixtures/directory-publication"
 
 
 class LaunchEvidenceE2ETests(unittest.TestCase):
+    def test_scenario_target_contract_is_exhaustive_exact_and_ordered(self) -> None:
+        config = json.loads((ROOT / "tests/e2e/launch-scenarios.json").read_text())
+        targets = observer.validate_scenario_target_contract(config)
+        self.assertEqual(set(targets), observer.EXPECTED_SCENARIOS)
+        self.assertEqual(len(targets), 53)
+        order = {client: index for index, client in enumerate(observer.SCENARIO_TARGET_ORDER)}
+        for scenario, value in targets.items():
+            with self.subTest(scenario=scenario):
+                self.assertTrue(value)
+                self.assertEqual(len(value), len(set(value)))
+                self.assertTrue(set(value) <= observer.CLIENTS)
+                self.assertEqual(value, tuple(sorted(value, key=order.__getitem__)))
+
+        self.assertEqual(targets["state_schema_2_migration"], ("codex",))
+        self.assertEqual(targets["managed_rollback"], ("codex", "cursor", "kiro"))
+        self.assertEqual(targets["repair_sticky_distribution"], ("cursor",))
+        self.assertEqual(targets["repair_codex"], ("codex",))
+        self.assertEqual(targets["repair_cursor"], ("cursor",))
+        self.assertEqual(targets["repair_kiro"], ("kiro",))
+        self.assertEqual(targets["shared_copilot_vscode_backend"], ("copilot", "vscode"))
+        for plugin in config["heroes"]:
+            for client in config["runtime_clients"]:
+                self.assertEqual(targets[f"hero_lifecycle_{plugin}_{client}"], (client,))
+
+    def test_invalid_scenario_target_contracts_fail_before_effects(self) -> None:
+        base = json.loads((ROOT / "tests/e2e/launch-scenarios.json").read_text())
+        mutations = {
+            "missing": lambda value: value["scenario_targets"].pop("directory_offline"),
+            "extra": lambda value: value["scenario_targets"].update(unknown_scenario=["cursor"]),
+            "empty": lambda value: value["scenario_targets"].update(directory_offline=[]),
+            "duplicate": lambda value: value["scenario_targets"].update(directory_offline=["cursor", "cursor"]),
+            "unsupported": lambda value: value["scenario_targets"].update(directory_offline=["unknown"]),
+            "order": lambda value: value["scenario_targets"].update(managed_rollback=["kiro", "cursor", "codex"]),
+        }
+        for label, mutate in mutations.items():
+            config = json.loads(json.dumps(base))
+            mutate(config)
+            with self.subTest(label=label), mock.patch.object(observer, "observe") as observe_effect, mock.patch.object(
+                observer.subprocess, "run",
+            ) as process_effect, self.assertRaises(ValueError):
+                observer.validate_scenario_target_contract(config)
+            observe_effect.assert_not_called()
+            process_effect.assert_not_called()
+
+    def test_harness_and_observer_resolve_every_scenario_from_same_contract(self) -> None:
+        harness = self.fixture_harness()
+        self.assertEqual(len(observer.EXPECTED_SCENARIOS), 53)
+        self.assertEqual(harness.scenario_targets, observer.SCENARIO_CLIENT_TARGETS)
+        for scenario in observer.EXPECTED_SCENARIOS:
+            self.assertEqual(harness.scenario_targets[scenario], observer.scenario_client_targets(scenario))
+
+    def test_scenario_target_argv_guard_rejects_drift(self) -> None:
+        observer.validate_scenario_command_targets("state_schema_2_migration", [{
+            "argv": ["info", "context7", "--target", "codex", "--format", "json"],
+        }])
+        with self.assertRaisesRegex(ValueError, "drift"):
+            observer.validate_scenario_command_targets("state_schema_2_migration", [{
+                "argv": ["info", "context7", "--target", "cursor", "--format", "json"],
+            }])
+
+    def test_target_boundary_rejects_contract_change_and_old_blanket_bypass_before_process(self) -> None:
+        counterexamples = (
+            (["add", "context7", "--target", "cursor", "--format", "json"], ("codex",)),
+            (["remove", "context7", "--target", "codex", "--format", "json"], ("cursor",)),
+        )
+        for argv, targets in counterexamples:
+            with self.subTest(argv=argv), mock.patch.object(observer.subprocess, "run") as process, self.assertRaisesRegex(ValueError, "drift"):
+                observer.traced(Path("binary"), argv, Path("root"), "challenge", scenario_targets=targets)
+            process.assert_not_called()
+
+    def test_exact_revoked_probe_descriptor_is_accepted_and_near_misses_rejected(self) -> None:
+        context = self.complete_scenario_context()
+        with tempfile.TemporaryDirectory() as temporary:
+            environment, digest = observer.conformance_directory(
+                Path(temporary), context, sequence=12_001, revoked=True,
+            )
+            probe = observer.RevokedTargetProbe(
+                "revoked_operations_boundary", "add", "context7", context["release"]["distribution_id"],
+                observer.REVOKED_TARGET_PROBE_ARGV, digest, 1,
+                observer.REVOKED_TARGET_PROBE_EXIT_CODE,
+                observer.REVOKED_TARGET_PROBE_REJECTION_CLASS,
+                observer.REVOKED_TARGET_PROBE_REJECTION_REASON,
+                "", observer.revoked_target_probe_stderr(context["release"]["distribution_id"], 1), True,
+            )
+            argv = list(observer.REVOKED_TARGET_PROBE_ARGV)
+            observer.authorize_scenario_command_target(argv, ("cursor",), environment=environment, revoked_probe=probe)
+            near_misses = (
+                (argv, ("cursor",), environment, probe._replace(operation="remove")),
+                (argv, ("cursor",), environment, probe._replace(expected_exit_code=42)),
+                (argv, ("cursor",), environment, probe._replace(expected_rejection_class="timeout")),
+                (argv, ("cursor",), environment, probe._replace(expected_rejection_reason="revoked")),
+                (argv, ("cursor",), environment, probe._replace(expected_stderr="revoked")),
+                (["remove", "context7", "--target", "codex", "--format", "json"], ("cursor",), environment, probe),
+                (argv, ("cursor",), {**environment, "AGENTPLUGINS_DIRECTORY_SNAPSHOT": "missing"}, probe),
+                (argv, ("cursor",), environment, probe._replace(scenario_id="directory_offline")),
+            )
+            for candidate, targets, candidate_environment, candidate_probe in near_misses:
+                with self.subTest(candidate=candidate, probe=candidate_probe), self.assertRaisesRegex(ValueError, "drift"):
+                    observer.authorize_scenario_command_target(
+                        candidate, targets, environment=candidate_environment, revoked_probe=candidate_probe,
+                    )
+
+    def test_revoked_probe_verifier_binds_exact_result_and_complete_disposable_root(self) -> None:
+        context = self.complete_scenario_context()
+        with tempfile.TemporaryDirectory() as temporary:
+            scenario_root = Path(temporary) / "scenario"
+            workspace = scenario_root / "workspace"
+            for relative in ("workspace", "home", "manager", "config", "cache", "evidence", "tmp"):
+                (scenario_root / relative).mkdir(parents=True)
+            environment, digest = observer.conformance_directory(
+                workspace, context, sequence=12_001, revoked=True,
+            )
+            environment.update({
+                "HOME": str(scenario_root / "home"), "USERPROFILE": str(scenario_root / "home"),
+                "AGENTPLUGINS_HOME": str(scenario_root / "manager"),
+                "XDG_CONFIG_HOME": str(scenario_root / "config"),
+                "XDG_CACHE_HOME": str(scenario_root / "cache"),
+                "AGENTPLUGINS_EVIDENCE_ROOT": str(scenario_root / "evidence"),
+                "TMPDIR": str(scenario_root / "tmp"), "TMP": str(scenario_root / "tmp"),
+                "TEMP": str(scenario_root / "tmp"), "GIT_CONFIG_GLOBAL": str(scenario_root / "gitconfig"),
+            })
+            probe = observer.RevokedTargetProbe(
+                "revoked_operations_boundary", "add", "context7", context["release"]["distribution_id"],
+                observer.REVOKED_TARGET_PROBE_ARGV, digest, 1,
+                observer.REVOKED_TARGET_PROBE_EXIT_CODE,
+                observer.REVOKED_TARGET_PROBE_REJECTION_CLASS,
+                observer.REVOKED_TARGET_PROBE_REJECTION_REASON,
+                "", observer.revoked_target_probe_stderr(context["release"]["distribution_id"], 1), True,
+            )
+            root, bindings = observer.revoked_probe_scenario_root(workspace, environment)
+            expected_binary = scenario_root / "release" / "agentplugins"
+            expected_binary.parent.mkdir()
+            body = (
+                "#!/usr/bin/python3\nimport sys\n"
+                "if sys.argv[1:] == ['version']:\n print('agentplugins 0.1.18')\n"
+                "else:\n"
+                f" sys.stderr.write({probe.expected_stderr!r})\n raise SystemExit(1)\n"
+            ).encode()
+            expected_binary.write_bytes(body)
+            expected_binary.chmod(0o700)
+            def issue():
+                session = observer.AuthenticatedBinaryExecutionSession(
+                    expected_binary.resolve(), cwd=workspace,
+                    command_plan=(observer.REVOKED_TARGET_PROBE_ARGV,),
+                )
+                completed, evidence = session.execute(
+                    expected_binary.resolve(), list(observer.REVOKED_TARGET_PROBE_ARGV),
+                    cwd=workspace, write_authority=None,
+                )
+                return session, completed, evidence
+
+            def verify(session, completed, evidence, *, candidate_probe=probe, before=None, after=None):
+                before = observer.filesystem_snapshot(root) if before is None else before
+                after = before if after is None else after
+                return observer.verify_revoked_target_probe_result(
+                    completed, candidate_probe, argv=list(probe.target_argv), environment=environment,
+                    scenario_root=root, writable_bindings=bindings, before=before,
+                    after=after,
+                    execution_binding=evidence, execution_session=session,
+                    binary=expected_binary,
+                )
+
+            def rejected_result(label, mutate):
+                session, completed, evidence = issue()
+                original = (copy.deepcopy(completed.args), completed.returncode, completed.stdout, completed.stderr)
+                mutate(completed)
+                with self.subTest(result=label):
+                    self.assertFalse(verify(session, completed, evidence)["verified"])
+                    completed.args, completed.returncode, completed.stdout, completed.stderr = original
+                    self.assertFalse(verify(session, completed, evidence)["verified"])
+
+            def rejected_evidence(label, mutate):
+                session, completed, evidence = issue()
+                original = copy.deepcopy(evidence)
+                mutate(evidence)
+                with self.subTest(evidence=label):
+                    self.assertFalse(verify(session, completed, evidence)["verified"])
+                    evidence.clear(); evidence.update(original)
+                    self.assertFalse(verify(session, completed, evidence)["verified"])
+
+            def rejected_probe(label, candidate_probe):
+                session, completed, evidence = issue()
+                with self.subTest(probe=label):
+                    self.assertFalse(verify(
+                        session, completed, evidence, candidate_probe=candidate_probe,
+                    )["verified"])
+                    self.assertFalse(verify(session, completed, evidence)["verified"])
+            with (
+                mock.patch.object(observer, "RELEASED_AGENTPLUGINS_0_1_18_SIZE", len(body)),
+                mock.patch.object(observer, "RELEASED_AGENTPLUGINS_0_1_18_SHA256", hashlib.sha256(body).hexdigest()),
+            ):
+                session, completed, evidence = issue()
+                self.assertIs(type(evidence), dict)
+                self.assertFalse(hasattr(observer, "AuthenticatedBinaryExecutionBinding"))
+                self.assertTrue(verify(session, completed, evidence)["verified"])
+                self.assertFalse(verify(session, completed, evidence)["verified"])
+
+                stderr_lines = probe.expected_stderr.splitlines(keepends=True)
+                result_mutations = {
+                    "wrong exit code": lambda item: setattr(item, "returncode", 42),
+                    "extra argv": lambda item: setattr(item, "args", [*item.args, "extra"]),
+                    "reordered argv": lambda item: setattr(
+                        item, "args", [item.args[0], item.args[2], item.args[1], *item.args[3:]],
+                    ),
+                    "wrong argv": lambda item: setattr(
+                        item, "args", [item.args[0], "remove", *item.args[2:]],
+                    ),
+                    "unexpected stdout": lambda item: setattr(item, "stdout", "unexpected\n"),
+                    "omitted progress line": lambda item: setattr(item, "stderr", "".join(stderr_lines[1:])),
+                    "wrong selector": lambda item: setattr(
+                        item, "stderr", item.stderr.replace('"context7"', '"other"'),
+                    ),
+                    "wrong distribution": lambda item: setattr(
+                        item, "stderr", item.stderr.replace(
+                            context["release"]["distribution_id"], "fixture/wrong-distribution",
+                        ),
+                    ),
+                    "wrong release sequence": lambda item: setattr(
+                        item, "stderr", item.stderr.replace("release 1", "release 2"),
+                    ),
+                    "wrong reason": lambda item: setattr(
+                        item, "stderr", item.stderr.replace("is revoked", "is suspended"),
+                    ),
+                    "reversed stderr lines": lambda item: setattr(item, "stderr", "".join(reversed(stderr_lines))),
+                    "extra stderr output": lambda item: setattr(item, "stderr", item.stderr + "unexpected\n"),
+                }
+                for label, mutate in result_mutations.items():
+                    rejected_result(label, mutate)
+
+                for label, candidate_probe in {
+                    "wrong reason descriptor": probe._replace(expected_rejection_reason="wrong reason"),
+                    "wrong rejection class": probe._replace(expected_rejection_class="timeout"),
+                }.items():
+                    rejected_probe(label, candidate_probe)
+
+                for label, result_factory in {
+                    "identical result": lambda item: subprocess.CompletedProcess(
+                        list(item.args), item.returncode, item.stdout, item.stderr,
+                    ),
+                    "identical executable output": lambda item: subprocess.run(
+                        [sys.executable, "-c", f"import sys;sys.stderr.write({item.stderr!r});raise SystemExit(1)"],
+                        text=True, capture_output=True, check=False,
+                    ),
+                }.items():
+                    candidate_session, candidate_completed, candidate_evidence = issue()
+                    with self.subTest(label=label):
+                        self.assertFalse(verify(
+                            candidate_session, result_factory(candidate_completed), candidate_evidence,
+                        )["verified"])
+                        self.assertFalse(verify(
+                            candidate_session, candidate_completed, candidate_evidence,
+                        )["verified"])
+
+                def drift_identity(section, field):
+                    return lambda value: value[section][field].__setitem__(
+                        "device", value[section][field]["device"] + 1,
+                    )
+
+                def coherent_path_substitution(value):
+                    substituted = scenario_root / "substituted" / expected_binary.name
+                    value["path"] = str(substituted)
+                    value["parent_path"] = str(substituted.parent)
+                    value["pre"]["path"] = str(substituted)
+                    value["post"]["path"] = str(substituted)
+
+                evidence_mutations = {
+                    "missing binding": lambda value: value.clear(),
+                    "wrong mechanism": lambda value: value.__setitem__("mechanism", "path-subprocess-run"),
+                    "wrong evidence argv": lambda value: value.__setitem__(
+                        "argv", ["agentplugins", *probe.target_argv],
+                    ),
+                    "wrong descriptor digest": lambda value: value["post"].__setitem__(
+                        "sha256", "sha256:" + "0" * 64,
+                    ),
+                    "wrong descriptor size": lambda value: value["pre"].__setitem__(
+                        "size", value["pre"]["size"] + 1,
+                    ),
+                    "descriptor identity drift": drift_identity("post", "descriptor_identity"),
+                    "path identity drift": drift_identity("post", "path_identity"),
+                    "parent identity drift": drift_identity("post", "parent_identity"),
+                    "path substitution": lambda value: value.__setitem__(
+                        "path", str(scenario_root / "substituted" / expected_binary.name),
+                    ),
+                    "coherent public path substitution": coherent_path_substitution,
+                    "missing pre observation": lambda value: value.pop("pre"),
+                    "missing post observation": lambda value: value.pop("post"),
+                }
+                for label, mutate in evidence_mutations.items():
+                    rejected_evidence(label, mutate)
+
+                mutation_paths = {
+                    "workspace": workspace / "mutation",
+                    "manager": scenario_root / "manager" / "mutation",
+                    "home": scenario_root / "home" / "mutation",
+                    "config": scenario_root / "config" / "mutation",
+                    "cache": scenario_root / "cache" / "mutation",
+                    "evidence": scenario_root / "evidence" / "mutation",
+                    "tmp": scenario_root / "tmp" / "mutation",
+                    "Directory cache": Path(environment["AGENTPLUGINS_DIRECTORY_CACHE"]),
+                    "git config": Path(environment["GIT_CONFIG_GLOBAL"]),
+                }
+                for label, path in mutation_paths.items():
+                    candidate_session, candidate_completed, candidate_evidence = issue()
+                    candidate_before = observer.filesystem_snapshot(root)
+                    path.write_text("mutation\n")
+                    candidate_after = observer.filesystem_snapshot(root)
+                    with self.subTest(root_mutation=label):
+                        self.assertFalse(verify(
+                            candidate_session, candidate_completed, candidate_evidence,
+                            before=candidate_before, after=candidate_after,
+                        )["verified"])
+                        path.unlink()
+                        restored = observer.filesystem_snapshot(root)
+                        self.assertFalse(verify(
+                            candidate_session, candidate_completed, candidate_evidence,
+                            before=restored, after=restored,
+                        )["verified"])
+
+                copy_factories = {
+                    "copy": lambda value, _session: copy.copy(value),
+                    "deepcopy": lambda value, _session: copy.deepcopy(value),
+                    "dict": lambda value, _session: dict(value),
+                    "json": lambda value, _session: json.loads(json.dumps(value)),
+                    "internal lifecycle copy": lambda _value, bound_session: bound_session.command_observations[0],
+                }
+                for label, copy_factory in copy_factories.items():
+                    copied_session, copied_completed, copied_evidence = issue()
+                    candidate = copy_factory(copied_evidence, copied_session)
+                    with self.subTest(copy_type=label):
+                        self.assertFalse(verify(copied_session, copied_completed, candidate)["verified"])
+                        self.assertFalse(verify(copied_session, copied_completed, copied_evidence)["verified"])
+
+    def test_authenticated_binary_one_command_revoked_probe_plan_is_descriptor_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "agentplugins"
+            expected_stderr = "exact revoked probe rejection\n"
+            body = (
+                "#!/usr/bin/python3\n"
+                "import sys\n"
+                "if sys.argv[1:] == ['version']:\n"
+                " print('agentplugins 0.1.18')\n"
+                "else:\n"
+                f" sys.stderr.write({expected_stderr!r})\n"
+                " raise SystemExit(1)\n"
+            ).encode()
+            binary.write_bytes(body); binary.chmod(0o700)
+            with (
+                mock.patch.object(observer, "RELEASED_AGENTPLUGINS_0_1_18_SIZE", len(body)),
+                mock.patch.object(observer, "RELEASED_AGENTPLUGINS_0_1_18_SHA256", hashlib.sha256(body).hexdigest()),
+            ):
+                session = observer.AuthenticatedBinaryExecutionSession(
+                    binary.resolve(), cwd=root,
+                    command_plan=(observer.REVOKED_TARGET_PROBE_ARGV,),
+                )
+                completed, binding = session.execute(
+                    binary.resolve(), list(observer.REVOKED_TARGET_PROBE_ARGV),
+                    cwd=root, write_authority=None,
+                )
+            self.assertEqual(completed.args, ["<authenticated-binary-fd>", *observer.REVOKED_TARGET_PROBE_ARGV])
+            self.assertEqual((completed.returncode, completed.stdout, completed.stderr), (1, "", expected_stderr))
+            self.assertIs(type(binding), dict)
+            self.assertEqual(binding["mechanism"], "linux-raw-execveat-at-empty-path-authenticated-fd")
+            self.assertEqual(binding["pre"]["descriptor_identity"], binding["post"]["descriptor_identity"])
+            self.assertEqual(binding["pre"]["path_identity"], binding["post"]["path_identity"])
+            self.assertEqual(binding["pre"]["parent_identity"], binding["post"]["parent_identity"])
+            self.assertEqual(session.command_observations, [dict(binding)])
+            self.assertIs(type(session.command_observations[0]), dict)
+            self.assertIs(type(copy.deepcopy(session.command_observations[0])), dict)
+            self.assertTrue(session._closed)
+
+    def test_revoked_probe_rejects_outside_unbound_and_aliased_writable_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            scenario_root = Path(temporary) / "scenario"
+            workspace = scenario_root / "workspace"
+            roots = {
+                "HOME": scenario_root / "home", "USERPROFILE": scenario_root / "home",
+                "AGENTPLUGINS_HOME": scenario_root / "manager", "XDG_CONFIG_HOME": scenario_root / "config",
+                "XDG_CACHE_HOME": scenario_root / "cache", "AGENTPLUGINS_EVIDENCE_ROOT": scenario_root / "evidence",
+                "TMPDIR": scenario_root / "tmp", "TMP": scenario_root / "tmp", "TEMP": scenario_root / "tmp",
+            }
+            for path in {workspace, *roots.values()}:
+                path.mkdir(parents=True, exist_ok=True)
+            environment = {name: str(path) for name, path in roots.items()}
+            directory = workspace / "directory"
+            directory.mkdir()
+            for filename in ("snapshot.json", "envelope.json", "trust.json"):
+                (directory / filename).write_text("{}")
+            environment.update({
+                "AGENTPLUGINS_DIRECTORY_CACHE": str(workspace / "directory-cache"),
+                "AGENTPLUGINS_DIRECTORY_SNAPSHOT": str(directory / "snapshot.json"),
+                "AGENTPLUGINS_DIRECTORY_ENVELOPE": str(directory / "envelope.json"),
+                "AGENTPLUGINS_DIRECTORY_TRUST": str(directory / "trust.json"),
+                "GIT_CONFIG_GLOBAL": str(scenario_root / "gitconfig"),
+            })
+            observer.revoked_probe_scenario_root(workspace, environment)
+            for mutation in (
+                {**environment, "TMPDIR": ""},
+                {**environment, "XDG_CACHE_HOME": str(Path(temporary))},
+                {**environment, "AGENTPLUGINS_EVIDENCE_ROOT": environment["XDG_CONFIG_HOME"]},
+            ):
+                with self.subTest(environment=mutation), self.assertRaisesRegex(ValueError, "unbound|outside|aliased|exactly bound"):
+                    observer.revoked_probe_scenario_root(workspace, mutation)
+
+    def test_managed_rollback_constructs_argv_from_exact_contract_tuple(self) -> None:
+        process = mock.Mock(returncode=1)
+        process.poll.return_value = 1
+        process.communicate.return_value = ("", "fault")
+        with mock.patch.object(observer.subprocess, "Popen", return_value=process) as popen, mock.patch.object(
+            observer, "observe", return_value={},
+        ), mock.patch.object(observer, "manager_facts", return_value={"installation_records": 0}), mock.patch.object(
+            observer, "materialized_product_mentions", return_value={"codex": 0, "cursor": 0, "kiro": 0},
+        ), mock.patch.dict(os.environ, {"HOME": "/tmp/contract-home", "AGENTPLUGINS_HOME": "/tmp/contract-manager"}, clear=False):
+            observer.managed_rollback_scenario(Path("binary"), ("codex", "cursor", "kiro"), Path("root"), "challenge")
+        self.assertEqual(
+            popen.call_args.args[0][1:],
+            ["add", "context7", "--target", "codex,cursor,kiro", "--format", "json"],
+        )
+
     def test_authenticated_linux_binary_pin_matches_immutable_0_1_18_release(self) -> None:
         self.assertEqual(observer.RELEASED_AGENTPLUGINS_0_1_18_SIZE, 11_677_880)
         self.assertEqual(
@@ -136,6 +556,7 @@ import run_launch_evidence_e2e
             output = run_root / "evidence" / "launch-evidence.json"
             completed = subprocess.run([
                 sys.executable, str(MODULE), "--mode", "fixture-only",
+                "--uap-sha", "a" * 40,
                 "--consent", str(CONSENT), "--run-root", str(run_root),
                 "--output", str(output),
             ], cwd=ROOT, text=True, capture_output=True, check=False)
@@ -179,7 +600,7 @@ import run_launch_evidence_e2e
     def test_fixture_mode_is_explicitly_non_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(e2e, "ROOT", Path("/opt/test-repository")):
             evidence = self.fixture_harness(Path(tmp) / "fresh").export()
-        self.assertEqual(evidence["schema_version"], 3)
+        self.assertEqual(evidence["schema_version"], 4)
         self.assertEqual(evidence["run"]["mode"], "fixture-only")
         self.assertFalse(evidence["run"]["runtime_claims"])
         self.assertFalse(evidence["summary"]["required_gates_complete"])
@@ -316,6 +737,10 @@ import run_launch_evidence_e2e
                     execution_session._inotify_fd,
                 )
                 binary_execution = execution_session.finalize()
+                self.assertEqual(binary_execution["commands"], execution_session.command_observations)
+                self.assertEqual(len(binary_execution["commands"]), 7)
+                self.assertTrue(all(type(command) is dict for command in binary_execution["commands"]))
+                self.assertEqual(json.loads(json.dumps(binary_execution["commands"])), binary_execution["commands"])
                 for descriptor in execution_descriptors:
                     with self.assertRaises(OSError):
                         os.fstat(descriptor)
@@ -356,7 +781,8 @@ import run_launch_evidence_e2e
         inherited_home = os.environ.get("HOME")
         observed: dict[str, object] = {}
 
-        def lifecycle(binary: Path, root: Path, challenge: str, *, binary_session):
+        def lifecycle(binary: Path, scenario_targets: tuple[str, ...], root: Path, challenge: str, *, binary_session):
+            self.assertEqual(scenario_targets, ("cursor",))
             observed.update({
                 "binary": binary, "root": root, "challenge": challenge,
                 "home": os.environ.get("HOME"), "manager": os.environ.get("AGENTPLUGINS_HOME"),
@@ -636,6 +1062,48 @@ import run_launch_evidence_e2e
                     os.waitpid(session._last_child_pid, os.WNOHANG)
             finally:
                 os.close(descriptor)
+
+    def test_authenticated_image_cannot_inherit_an_unrelated_inheritable_descriptor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / "agentplugins"
+            token = b"unrelated-inheritable-descriptor"
+            read_fd, write_fd = os.pipe()
+            os.set_inheritable(read_fd, True)
+            os.write(write_fd, token)
+            body = (
+                "#!/usr/bin/python3\nimport os,sys\n"
+                "try:\n inherited = os.read(int(os.environ['UAP_UNRELATED_FD']), 31)\n"
+                "except OSError:\n inherited = b''\n"
+                f"if inherited == {token!r}:\n sys.stderr.write('unrelated descriptor inherited\\n');raise SystemExit(91)\n"
+                "if sys.argv[1:] == ['version']:\n print('agentplugins 0.1.18')\n"
+                "else:\n sys.stderr.write('exact revoked probe rejection\\n');raise SystemExit(1)\n"
+            ).encode()
+            binary.write_bytes(body)
+            binary.chmod(0o700)
+            try:
+                with (
+                    mock.patch.dict(os.environ, {"UAP_UNRELATED_FD": str(read_fd)}),
+                    mock.patch.object(observer, "RELEASED_AGENTPLUGINS_0_1_18_SIZE", len(body)),
+                    mock.patch.object(observer, "RELEASED_AGENTPLUGINS_0_1_18_SHA256", hashlib.sha256(body).hexdigest()),
+                ):
+                    session = observer.AuthenticatedBinaryExecutionSession(
+                        binary.resolve(), cwd=root,
+                        command_plan=(observer.REVOKED_TARGET_PROBE_ARGV,),
+                    )
+                    completed, _evidence = session.execute(
+                        binary.resolve(), list(observer.REVOKED_TARGET_PROBE_ARGV),
+                        cwd=root, write_authority=None,
+                    )
+                self.assertEqual((completed.returncode, completed.stdout, completed.stderr), (
+                    1, "", "exact revoked probe rejection\n",
+                ))
+                self.assertTrue(session._closed)
+                self.assertTrue(os.get_inheritable(read_fd))
+                self.assertEqual(os.read(read_fd, len(token)), token)
+            finally:
+                os.close(read_fd)
+                os.close(write_fd)
 
     def test_authenticated_binary_fd_exec_unavailable_fails_enotsup_without_path_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1015,6 +1483,83 @@ with tempfile.TemporaryDirectory() as temporary:
         )
         self.assertTrue(e2e.challenge_context_valid(first))
         self.assertFalse(e2e.challenge_context_valid({**first, "directory_digest": "sha256:" + "d" * 64}))
+
+    def complete_scenario_context(self) -> dict:
+        snapshot = json.loads((ROOT / "tests/fixtures/directory-publication/snapshot.json").read_text())
+        product = snapshot["products"][0]
+        distribution = snapshot["distributions"][0]
+        selected = distribution["releases"][0]
+        policy = distribution["release_policies"][0]
+        challenge = e2e.make_challenge(
+            "a" * 40, "12", "3", "push", "refs/heads/main",
+            "777genius/universal-agent-plugins/.github/workflows/directory-publication.yml@refs/heads/main",
+            "sha256:" + "b" * 64, "sha256:" + "c" * 64, e2e.sha256_file(e2e.SCENARIOS), Path("/tmp/unused"),
+        )
+        release = {
+            "product_id": product["id"], "distribution_id": distribution["id"],
+            "distribution_kind": distribution["kind"], "release_sequence": selected["sequence"],
+            "package_version": selected["package_version"], "tree_digest": selected["tree_digest"],
+            "manifest_digest": selected["manifest_digest"],
+            "source_repository": selected["package_source"]["repository"],
+            "source_revision": selected["package_source"]["revision"],
+            "source_path": selected["package_source"]["path"],
+            "compatible_clients": sorted(target["client"] for target in policy["targets"]),
+            "resolved_targets": ["codex"], "fallback_reason": None,
+        }
+        identity = {
+            **{key: release[key] for key in observer.CHALLENGE_SOURCE_IDENTITY_FIELDS if key != "canonical_source"},
+            "canonical_source": f'https://github.com/{release["source_repository"]}@{release["source_revision"]}//{release["source_path"]}',
+        }
+        context = {
+            **challenge, "binary_digest": "sha256:" + "d" * 64, "expected_version": "0.1.18",
+            "snapshot_sequence": snapshot["sequence"], "release": release,
+            "catalog_repository": "777genius/universal-agent-plugins",
+            "directory_product": product, "directory_distribution": distribution,
+            "source_identity": identity, "scenario_id": "state_schema_2_migration",
+        }
+        context["context_digest"] = observer.scenario_challenge_context_digest(context)
+        return context
+
+    def test_complete_scenario_digest_rejects_replay_mutation_and_substitution_before_effects(self) -> None:
+        valid = self.complete_scenario_context()
+        self.assertEqual(observer.validate_scenario_challenge_context(valid, "state_schema_2_migration"), valid)
+        cases = {}
+        nested = copy.deepcopy(valid); nested["release"]["source_path"] = "plugins/other"; cases["nested_mutation"] = nested
+        cases["digest_substitution"] = {**valid, "context_digest": "sha256:" + "f" * 64}
+        replay = copy.deepcopy(valid); replay["scenario_id"] = "repair_codex"; replay["context_digest"] = observer.scenario_challenge_context_digest(replay); cases["another_scenario_replay"] = replay
+        for label, context in cases.items():
+            with self.subTest(label=label), mock.patch.object(observer, "observe") as observation, mock.patch.object(
+                observer.subprocess, "run",
+            ) as process, mock.patch.object(observer.subprocess, "Popen") as popen, self.assertRaises(ValueError):
+                observer.validate_scenario_challenge_context(context, "state_schema_2_migration")
+            observation.assert_not_called(); process.assert_not_called(); popen.assert_not_called()
+
+    def test_coherent_source_and_digest_substitution_differs_from_retained_digest(self) -> None:
+        retained = self.complete_scenario_context()
+        attack = copy.deepcopy(retained)
+        source = {"repository": "attacker/packages", "revision": "e" * 40, "path": "plugins/demo"}
+        selected = attack["directory_distribution"]["releases"][0]
+        selected["package_source"] = source
+        attack["release"].update(source_repository=source["repository"], source_revision=source["revision"], source_path=source["path"])
+        attack["source_identity"].update(
+            source_repository=source["repository"], source_revision=source["revision"], source_path=source["path"],
+            canonical_source=f'https://github.com/{source["repository"]}@{source["revision"]}//{source["path"]}',
+        )
+        attack["context_digest"] = observer.scenario_challenge_context_digest(attack)
+        self.assertEqual(observer.validate_scenario_challenge_context(attack, "state_schema_2_migration"), attack)
+        self.assertNotEqual(attack["context_digest"], retained["context_digest"])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "challenge.json"; path.write_text(json.dumps(attack))
+            argv = [
+                "observe_launch_scenario.py", "--binary", str(Path(temporary) / "binary"),
+                "--scenario", "state_schema_2_migration", "--root", temporary,
+                "--challenge-context", str(path), "--expected-context-digest", retained["context_digest"],
+            ]
+            with mock.patch.object(sys, "argv", argv), mock.patch.object(observer, "run") as dispatch, mock.patch.object(
+                observer, "observe",
+            ) as observation, mock.patch.object(observer.subprocess, "run") as process, self.assertRaisesRegex(ValueError, "retained"):
+                observer.main()
+            dispatch.assert_not_called(); observation.assert_not_called(); process.assert_not_called()
 
     def test_exported_root_identity_is_logical_not_temporary_path_derived(self) -> None:
         challenge = {
@@ -1522,7 +2067,7 @@ with tempfile.TemporaryDirectory() as temporary:
             PUBLICATION / "envelope-current.json",
             PUBLICATION / "trusted-keys.json",
         )
-        self.assertEqual(snapshot["sequence"], 7)
+        self.assertEqual(snapshot["sequence"], 15)
         self.assertEqual(digest, json.loads((PUBLICATION / "envelope-current.json").read_text())["snapshot_digest"])
         self.assertNotIn("CATALOG", " ".join(env))
         self.assertIn("AGENTPLUGINS_DIRECTORY_ORIGIN", env)
@@ -1541,7 +2086,7 @@ with tempfile.TemporaryDirectory() as temporary:
                     PUBLICATION / "trusted-keys.json",
                 )
 
-    def test_real_binary_directory_environment_has_exact_conformance_tuple(self) -> None:
+    def test_real_binary_directory_environment_forwards_only_candidate_origin(self) -> None:
         directory_environment = {
             "AGENTPLUGINS_DIRECTORY_ORIGIN": "https://directory.example.test/registry/",
             "AGENTPLUGINS_DIRECTORY_SNAPSHOT": str(PUBLICATION / "snapshot.json"),
@@ -1554,7 +2099,10 @@ with tempfile.TemporaryDirectory() as temporary:
             env = e2e.isolated_environment(sandbox, ("cursor",), directory_environment)
         directory_keys = {key for key in env if key.startswith("AGENTPLUGINS_DIRECTORY_")}
         self.assertEqual(directory_keys, e2e.DIRECTORY_LAUNCH_ENVIRONMENT_KEYS)
-        self.assertEqual(env["AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY"], "1")
+        self.assertEqual(env["AGENTPLUGINS_DIRECTORY_ORIGIN"], directory_environment["AGENTPLUGINS_DIRECTORY_ORIGIN"])
+        self.assertNotIn("AGENTPLUGINS_DIRECTORY_SNAPSHOT", env)
+        self.assertNotIn("AGENTPLUGINS_DIRECTORY_TRUST", env)
+        self.assertNotIn("AGENTPLUGINS_DIRECTORY_CACHE", env)
 
     def test_partial_real_binary_directory_environment_is_rejected(self) -> None:
         partial = {
@@ -1702,17 +2250,20 @@ with tempfile.TemporaryDirectory() as temporary:
                 "manager_observer": {}, "native_observer": {},
             }
             completed = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+            def observed(*args, **kwargs):
+                context_path = Path(args[0][args[0].index("--challenge-context") + 1])
+                payload["challenge_context_digest"] = json.loads(context_path.read_text())["context_digest"]
+                return subprocess.CompletedProcess([], 0, json.dumps(payload), "")
             with mock.patch.object(harness, "directory_release", return_value=release), mock.patch.object(
-                e2e.subprocess, "run", return_value=completed,
+                e2e.subprocess, "run", side_effect=observed,
             ) as run:
                 outcome, _, _ = harness.driven_scenario("shared_copilot_vscode_backend")
             self.assertEqual(outcome, "passed")
             self.assertEqual(run.call_args.kwargs["env"]["PATH"].split(os.pathsep)[0], str(copilot.parent))
 
             payload["scenario_id"] = "missing_runtime_zero_mutation"
-            completed = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
             with mock.patch.object(harness, "directory_release", return_value=release), mock.patch.object(
-                e2e.subprocess, "run", return_value=completed,
+                e2e.subprocess, "run", side_effect=observed,
             ) as run:
                 harness.driven_scenario("missing_runtime_zero_mutation")
             self.assertNotEqual(run.call_args.kwargs["env"]["PATH"].split(os.pathsep)[0], str(copilot.parent))
@@ -1827,8 +2378,8 @@ with tempfile.TemporaryDirectory() as temporary:
         self.assertNotIn("lifecycle_verified", item["properties"])
         self.assertNotIn("lifecycle_operations", item["properties"])
         self.assertNotIn("copilot", schema["$defs"]["nativeDiscoveryEvidence"]["properties"]["client"]["enum"])
-        launch = json.loads((ROOT / "tests/e2e/schemas/launch-evidence.schema.json").read_text())
-        discovery_rule = launch["properties"]["matrix"]["items"]["allOf"][0]
+        launch = json.loads((ROOT / "tests/e2e/schemas/launch-evidence-v4.schema.json").read_text())
+        discovery_rule = launch["properties"]["matrix"]["items"]["allOf"][1]
         self.assertEqual(discovery_rule["then"]["properties"]["details"]["properties"]["evidence_basis"]["const"], "native_client_command")
         with tempfile.TemporaryDirectory() as tmp:
             artifact = Path(tmp) / "external.json"
@@ -1993,7 +2544,7 @@ with tempfile.TemporaryDirectory() as temporary:
         evidence["matrix"].append(row)
         evidence["run"]["mode"] = "contract-test"
         e2e.assert_redacted(evidence)
-        schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence.schema.json").read_text())
+        schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence-v4.schema.json").read_text())
         jsonschema.Draft202012Validator(schema).evolve(
             schema=schema["properties"]["matrix"]["items"],
         ).validate(row)
@@ -2009,7 +2560,7 @@ with tempfile.TemporaryDirectory() as temporary:
                 e2e.assert_redacted(rejected)
 
     def test_launch_schema_rejects_unknown_outcome_and_mutable_ref(self) -> None:
-        schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence.schema.json").read_text())
+        schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence-v4.schema.json").read_text())
         evidence = self.fixture_harness().export()
         evidence["matrix"][0]["outcome"] = "not_tested"
         with self.assertRaises(jsonschema.ValidationError):
@@ -2132,7 +2683,7 @@ with tempfile.TemporaryDirectory() as temporary:
                     binding["native_objects"][0]["managed_digest"] = managed
                     binding["receipts"][0]["after_digest"] = managed
 
-            def invoke(binary: Path, argv: list[str], cwd: Path, challenge: str):
+            def invoke(binary: Path, argv: list[str], cwd: Path, challenge: str, **kwargs):
                 del binary, cwd
                 command = argv[0]
                 if command == "add":
@@ -2874,32 +3425,39 @@ print((fixtures / name).read_text(), end="")
         uint_fixture = json.loads(json.dumps(absent_snapshot_nulls))
         directory = uint_fixture["installations"][0]["directory"]
         client = next(iter(uint_fixture["installations"][0]["clients"].values()))
-        directory["desired_release_sequence"] = (1 << 64) - 1
-        directory["snapshot_sequence"] = (1 << 64) - 1
+        safe_maximum = 9_007_199_254_740_991
+        directory["desired_release_sequence"] = safe_maximum
+        directory["snapshot_sequence"] = safe_maximum
         directory["snapshot_schema"] = 1
         directory["snapshot_digest"] = "snapshot"
-        client["package_revision"]["release_sequence"] = (1 << 64) - 1
-        self.assertTrue(observer.validate_released_state_v4(uint_fixture), "uint64 max is representable")
+        client["package_revision"]["release_sequence"] = safe_maximum
+        self.assertTrue(observer.validate_released_state_v4(uint_fixture), "safe maximum is representable")
         for field, value in (
+            ("desired_release_sequence", 9_007_199_254_740_992),
+            ("desired_release_sequence", 9_007_199_254_740_993),
             ("desired_release_sequence", 1 << 64),
             ("desired_release_sequence", -1),
             ("desired_release_sequence", True),
             ("snapshot_sequence", 1 << 64),
+            ("snapshot_sequence", 9_007_199_254_740_992),
+            ("snapshot_sequence", 9_007_199_254_740_993),
         ):
             invalid = json.loads(json.dumps(uint_fixture)); invalid["installations"][0]["directory"][field] = value
             self.assertFalse(observer.validate_released_state_v4(invalid), (field, value))
-        overflow_revision = json.loads(json.dumps(uint_fixture))
-        next(iter(overflow_revision["installations"][0]["clients"].values()))["package_revision"]["release_sequence"] = 1 << 64
-        self.assertFalse(observer.validate_released_state_v4(overflow_revision))
+        for unsafe in (9_007_199_254_740_992, 9_007_199_254_740_993, 1 << 64):
+            overflow_revision = json.loads(json.dumps(uint_fixture))
+            next(iter(overflow_revision["installations"][0]["clients"].values()))["package_revision"]["release_sequence"] = unsafe
+            self.assertFalse(observer.validate_released_state_v4(overflow_revision))
         catalog_uint = json.loads(json.dumps(fixture))
         catalog_revision = next(iter(catalog_uint["installations"][0]["clients"].values()))["package_revision"]
         catalog_revision["catalog_evidence"] = {
-            "current_evidence": [{"release_sequence": (1 << 64) - 1}],
-            "compatibility": {"cursor": {"evidence": [{"release_sequence": (1 << 64) - 1}]}},
+            "current_evidence": [{"release_sequence": safe_maximum}],
+            "compatibility": {"cursor": {"evidence": [{"release_sequence": safe_maximum}]}},
         }
         self.assertTrue(observer.validate_released_state_v4(catalog_uint))
-        catalog_revision["catalog_evidence"]["compatibility"]["cursor"]["evidence"][0]["release_sequence"] = 1 << 64
-        self.assertFalse(observer.validate_released_state_v4(catalog_uint))
+        for unsafe in (9_007_199_254_740_992, 9_007_199_254_740_993):
+            catalog_revision["catalog_evidence"]["compatibility"]["cursor"]["evidence"][0]["release_sequence"] = unsafe
+            self.assertFalse(observer.validate_released_state_v4(catalog_uint))
         null_catalog = json.loads(json.dumps(fixture))
         null_revision = next(iter(null_catalog["installations"][0]["clients"].values()))["package_revision"]
         null_revision["catalog_evidence"] = {
@@ -2931,9 +3489,13 @@ print((fixtures / name).read_text(), end="")
 
         directory_vector = json.loads(json.dumps(uint_fixture))
         raw = json.dumps(directory_vector, separators=(",", ":"))
-        token = str((1 << 64) - 1)
+        token = str(safe_maximum)
         parsed_max = observer.strict_state_json_loads(raw)
         self.assertTrue(observer.validate_released_state_v4(parsed_max))
+        raw_uint64 = raw.replace(token, str((1 << 64) - 1), 1)
+        decoded_uint64 = observer.strict_state_json_loads(raw_uint64)
+        self.assertTrue(observer._released_state_v4_decodes(decoded_uint64))
+        self.assertFalse(observer.validate_released_state_v4(decoded_uint64))
         self.assertFalse(observer.validate_released_state_v4(
             observer.strict_state_json_loads(raw.replace(token, "18446744073709551616", 1)),
         ))
@@ -3287,7 +3849,7 @@ else: raise SystemExit(2)
             root = Path(tmp); binary = root / "agentplugins"; binary.write_text(fake); binary.chmod(0o700)
             workspace = root / "workspace"; workspace.mkdir()
             with mock.patch.dict(os.environ, {"HOME": str(root / "home"), "AGENTPLUGINS_HOME": str(root / "manager")}, clear=False):
-                passed, value = observer.migration_scenario(binary, workspace, "challenge")
+                passed, value = observer.migration_scenario(binary, ("codex",), workspace, "challenge")
         self.assertFalse(passed, value)
         self.assertFalse(value["proof"]["migration_applied"])
 
@@ -3326,9 +3888,17 @@ else:
             with mock.patch.dict(os.environ, {
                 "HOME": str(root / "home"), "AGENTPLUGINS_HOME": str(root / "manager"),
             }, clear=False):
-                passed, value = observer.migration_scenario(binary, workspace, "challenge")
+                passed, value = observer.migration_scenario(binary, ("codex",), workspace, "challenge")
         self.assertTrue(passed, value)
         self.assertTrue(all(value["proof"].values()))
+        target_commands = [trace["argv"] for trace in value["command_traces"] if "--target" in trace["argv"]]
+        self.assertEqual(
+            target_commands,
+            [
+                ["info", "demo", "--target", "codex", "--format", "json"],
+                ["add", "demo", "--target", "codex", "--format", "json"],
+            ],
+        )
         self.assertEqual(
             value["sandbox_transformation"]["algorithm"],
             "agentplugins-sanitized-placeholder-to-sandbox-v1",
@@ -3344,7 +3914,7 @@ print(json.dumps({"schema_version": 1, "command": sys.argv[1], "result": "succes
             root = Path(tmp); binary = root / "agentplugins"; binary.write_text(fake); binary.chmod(0o700)
             workspace = root / "workspace"; workspace.mkdir()
             with mock.patch.dict(os.environ, {"HOME": str(root / "home"), "AGENTPLUGINS_HOME": str(root / "manager")}, clear=False):
-                passed, value = observer.plugin_data_scenario(binary, workspace, "challenge")
+                passed, value = observer.plugin_data_scenario(binary, ("cursor",), workspace, "challenge")
         self.assertFalse(passed, value)
         self.assertIsNone(value["initial_data_receipt"])
 
@@ -4152,7 +4722,7 @@ print("{{}}")
                 if mode == "extra-replacement": environment["EXTRA_REPLACEMENT_EPOCH"] = "1"
                 if mode == "symlink-excursion": environment["SYMLINK_STATE_EXCURSION"] = "1"
                 with mock.patch.dict(os.environ, environment, clear=False):
-                    passed, value = observer.plugin_data_scenario(binary, workspace, "challenge")
+                    passed, value = observer.plugin_data_scenario(binary, ("cursor",), workspace, "challenge")
                 expected = mode == "atomic-state"
                 self.assertEqual(passed, expected, value)
                 self.assertEqual(value["proof"]["explicit_owned_purge_deleted"], expected)
@@ -4169,7 +4739,7 @@ print("{{}}")
                         "ATTACK_MODE": attack_mode, "OUTSIDE": str(outside),
                     }
                     with mock.patch.dict(os.environ, environment, clear=False):
-                        passed, value = observer.plugin_data_scenario(binary, workspace, "challenge")
+                        passed, value = observer.plugin_data_scenario(binary, ("cursor",), workspace, "challenge")
                     self.assertFalse(passed, value)
                     if attacked_command == "info":
                         self.assertNotEqual(value["command_traces"][1]["exit_code"], 0, value)
@@ -4185,7 +4755,7 @@ print("{{}}")
                 "PYTHONDONTWRITEBYTECODE": "1", "DETACHED_PROOF": str(detached_proof),
             }
             with mock.patch.dict(os.environ, environment, clear=False):
-                passed, value = observer.plugin_data_scenario(binary, workspace, "challenge")
+                passed, value = observer.plugin_data_scenario(binary, ("cursor",), workspace, "challenge")
             time.sleep(0.5)
             self.assertTrue(passed, value)
             self.assertEqual(detached_proof.read_text(), "denied")
@@ -4331,7 +4901,7 @@ else: raise SystemExit(2)
                 if adversarial:
                     environment["MUTATE_DURING_REFUSAL"] = "1"
                 with mock.patch.dict(os.environ, environment, clear=False):
-                    passed, value = observer.direct_full_sha_scenario(binary, workspace, "challenge", context)
+                    passed, value = observer.direct_full_sha_scenario(binary, ("cursor",), workspace, "challenge", context)
                 self.assertEqual(passed, not adversarial, value)
                 self.assertEqual(value["proof"]["direct_update_refused_requires_switch"], not adversarial)
     def test_evidence_boundary_rejects_incomplete_or_forged_acquisition(self) -> None:
@@ -4421,78 +4991,15 @@ else: raise SystemExit(2)
             expected_release,
             {**expected_identity, "canonical_source": "upstash/context7@" + "1" * 40 + "//plugins/context7"},
         ))
-        for name, identity in (
-            ("missing", None),
-            ("missing_product", {key: value for key, value in expected_identity.items() if key != "product_id"}),
-            ("unauthorized_fork", {**expected_identity, "source_repository": "attacker/context7", "canonical_source": "attacker/context7@" + "1" * 40 + "//plugins/context7"}),
-            ("wrong_path", {**expected_identity, "source_path": "plugins/other", "canonical_source": "upstash/context7@" + "1" * 40 + "//plugins/other"}),
-            ("wrong_manifest", {**expected_identity, "manifest_digest": "sha256:" + "8" * 64}),
-            ("canonical_repository_mismatch", {**expected_identity, "canonical_source": "attacker/context7@" + "1" * 40 + "//plugins/context7"}),
-            ("canonical_sha_mismatch", {**expected_identity, "canonical_source": "upstash/context7@" + "2" * 40 + "//plugins/context7"}),
-            ("canonical_path_mismatch", {**expected_identity, "canonical_source": "upstash/context7@" + "1" * 40 + "//plugins/other"}),
-            ("spoofed_kind", {**expected_identity, "distribution_kind": "community_bridge"}),
-            ("spoofed_digest", {**expected_identity, "tree_digest": "sha256:" + "9" * 64}),
-        ):
-            with self.subTest(name=name):
-                harness = self.fixture_harness()
-                harness.config = {
-                    **harness.config, "fault_scenarios": [], "adapter_repair_faults": [],
-                    "advanced_scenarios": ["upstream_owned_short_name"],
-                    "source_identity_scenarios": {"upstream_owned_short_name": {
-                        "product_id": "context7", "distribution_id": "upstash/context7", "distribution_kind": "upstream",
-                    }},
-                }
-                value = {
-                    "source_kind": "upstream", "immutable_revision": True, "exact_source_identity": True,
-                    "source_identity": identity, "tuple": {"distribution_id": "spoofed/tuple"},
-                    "client_version": "manager-state-v1", "proof": {}, "command_traces": [],
-                }
-                with mock.patch.object(harness, "driven_scenario", return_value=("passed", value, "claimed")), mock.patch.object(
-                    harness, "configured_source_release", return_value=expected_release,
-                ):
-                    harness.fault_matrix()
-                self.assertEqual(harness.rows[0]["outcome"], "failed")
-                self.assertTrue(all(harness.rows[0]["tuple"][key] is None for key in (
-                    "product_id", "tree_digest", "distribution_id", "distribution_kind", "release_sequence",
-                )))
-
-        bridge_release = {
-            **expected_release, "product_id": "cloudflare-docs",
-            "distribution_id": "777genius/cloudflare-docs-bridge", "distribution_kind": "community_bridge",
-        }
-        bridge_identity = {key: bridge_release[key] for key in (
-            "product_id", "distribution_id", "distribution_kind", "release_sequence", "source_revision",
-            "source_repository", "source_path", "tree_digest", "manifest_digest",
-        )}
-        bridge_identity["canonical_source"] = "https://github.com/upstash/context7@" + "1" * 40 + "//plugins/context7"
-        self.assertTrue(e2e.LaunchHarness.source_identity_matches_release(bridge_release, bridge_identity))
-        self.assertFalse(e2e.LaunchHarness.source_identity_matches_release(
-            bridge_release, {**bridge_identity, "distribution_id": "upstash/context7"},
-        ))
-        self.assertFalse(e2e.LaunchHarness.source_identity_matches_release(bridge_release, None))
-
+        # Short-name identity is now a source-policy contract. It cannot be
+        # turned into a released-binary row, even when a manager-shaped value
+        # is supplied by a test observer.
         harness = self.fixture_harness()
-        harness.config = {
-            **harness.config, "fault_scenarios": [], "adapter_repair_faults": [],
-            "advanced_scenarios": ["upstream_owned_short_name"],
-            "source_identity_scenarios": {"upstream_owned_short_name": {
-                "product_id": "context7", "distribution_id": "upstash/context7", "distribution_kind": "upstream",
-            }},
-        }
-        exact_value = {
-            "source_kind": "upstream", "immutable_revision": True, "exact_source_identity": True,
-            "source_identity": expected_identity, "client_version": "manager-state-v1",
-            "proof": {}, "command_traces": [],
-        }
-        with mock.patch.object(harness, "driven_scenario", return_value=("passed", exact_value, "claimed")), mock.patch.object(
-            harness, "configured_source_release", return_value=expected_release,
-        ):
-            harness.fault_matrix()
-        exact_row = harness.rows[0]
-        self.assertEqual(exact_row["outcome"], "passed")
-        self.assertEqual(exact_row["details"]["evidence_basis"], "repository_owned_disposable_observer")
-        self.assertFalse(exact_row["details"]["runtime_proof"])
-        self.assertEqual(exact_row["tuple"]["source_repository"], expected_identity["source_repository"])
+        with mock.patch.object(harness, "fresh_sandbox") as sandbox, mock.patch.object(e2e.subprocess, "run") as process:
+            with self.assertRaisesRegex(ValueError, "source-policy conformance"):
+                harness.driven_scenario("upstream_owned_short_name")
+        sandbox.assert_not_called()
+        process.assert_not_called()
 
     def test_canonical_github_source_parser_rejects_noncanonical_identity(self) -> None:
         revision = "1" * 40
@@ -4815,6 +5322,8 @@ else: raise SystemExit(2)
             "invalid_capture_challenge": {**record, "challenge": "not-a-challenge"},
             "wrong_release": {**record, "binding": {**binding, "release_tag": "v0.1.13"}},
             "wrong_directory": {**record, "binding": {**binding, "directory_sequence": 8}},
+            "unsafe_directory_alias_low": {**record, "binding": {**binding, "directory_sequence": 9_007_199_254_740_992}},
+            "unsafe_directory_alias_high": {**record, "binding": {**binding, "directory_sequence": 9_007_199_254_740_993}},
             "base_binding_mismatch": {**record, "binding": {**binding, "catalog_sha": "4" * 40}},
             "wrong_base": {**record, "base_sha": "4" * 40},
             "unexpected_merge": {**record, "merge_commit_sha": "4" * 40},
@@ -4830,9 +5339,25 @@ else: raise SystemExit(2)
                 self.assertFalse(verify(value)[0])
 
         schema_path = ROOT / "tests/e2e/schemas/external-pr-evidence.schema.json"
-        jsonschema.Draft202012Validator(json.loads(schema_path.read_text())).validate(record)
+        validator = jsonschema.Draft202012Validator(json.loads(schema_path.read_text()))
+        boundary_record = {**record, "binding": {**binding, "directory_sequence": 9_007_199_254_740_991}}
+        boundary_snapshot = {**snapshot, "sequence": 9_007_199_254_740_991}
+        validator.validate(boundary_record)
+        self.assertTrue(e2e.external_pr_evidence_valid(
+            boundary_record, catalog_repository=e2e.TRUSTED_CATALOG_REPOSITORY,
+            catalog_sha="c" * 40, snapshot=boundary_snapshot,
+            snapshot_digest="sha256:" + "d" * 64,
+            release_repository=e2e.TRUSTED_CLI_RELEASE_REPOSITORY,
+            release_tag=e2e.TRUSTED_CLI_RELEASE_TAG, release_commit="e" * 40,
+            release_manifest_digest="sha256:" + "f" * 64,
+            now=now + timedelta(days=365),
+        )[0])
+        validator.validate(record)
         with self.assertRaises(jsonschema.ValidationError):
-            jsonschema.Draft202012Validator(json.loads(schema_path.read_text())).validate(negatives["failed_check"])
+            validator.validate(negatives["failed_check"])
+        for name in ("unsafe_directory_alias_low", "unsafe_directory_alias_high"):
+            with self.subTest(schema=name), self.assertRaises(jsonschema.ValidationError):
+                validator.validate(negatives[name])
 
     def test_authoritative_resolver_preserves_complete_targets_and_exact_fallback_reason(self) -> None:
         harness = self.fixture_harness()
@@ -4939,7 +5464,7 @@ print("accepted")
             workspace = root / "workspace"
             workspace.mkdir()
             with mock.patch.dict(os.environ, {"HOME": str(root / "home"), "AGENTPLUGINS_HOME": str(root / "manager")}, clear=False):
-                passed, value = observer.no_hidden_yes_scenario(binary, workspace, "a" * 64)
+                passed, value = observer.no_hidden_yes_scenario(binary, ("cursor",), workspace, "a" * 64)
         self.assertFalse(passed)
         self.assertFalse(value["proof"]["manager_unchanged"])
         self.assertFalse(value["proof"]["unknown_option_reported"])
@@ -4950,8 +5475,8 @@ print("accepted")
             snapshots = root / "snapshots"
             snapshots.mkdir(parents=True)
             shutil.copy2(PUBLICATION / "latest.json", root / "latest.json")
-            snapshot = snapshots / "00000000000000000007.json"
-            envelope = snapshots / "00000000000000000007.envelope.json"
+            snapshot = snapshots / "00000000000000000015.json"
+            envelope = snapshots / "00000000000000000015.envelope.json"
             shutil.copy2(PUBLICATION / "snapshot.json", snapshot)
             shutil.copy2(PUBLICATION / "envelope-current.json", envelope)
             with mock.patch.object(
@@ -4960,8 +5485,8 @@ print("accepted")
                 identity = e2e.production_identity_from_materialized_ledger(root)
                 self.assertEqual(identity, {
                     "publication_id": "fixture-1",
-                    "sequence": 7,
-                    "snapshot_digest": "sha256:82a3c3c0528cdf846304fafccc1428ef0092cdfd47b36e1d8589fbc341ffe5de",
+                    "sequence": 15,
+                    "snapshot_digest": "sha256:a9b4e1ae54fcb3397269ef8aff50df794a7d431fc18ea4ffb3a102fa66a4fd60",
                     "source_commit": "d" * 40,
                 })
                 snapshot.unlink()
@@ -4974,17 +5499,44 @@ print("accepted")
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(e2e, "bounded_https_get", return_value=latest):
             with self.assertRaisesRegex(ValueError, "exact caller publication identity"):
                 e2e.fetch_production_directory(
-                    Path(tmp) / "directory", expected_publication_id="fixture-1", expected_sequence=8,
+                    Path(tmp) / "directory", expected_publication_id="fixture-1", expected_sequence=16,
                     expected_snapshot_digest="sha256:" + "b" * 64, expected_source_commit="d" * 40,
                 )
+
+    def test_public_directory_sequence_is_capped_before_any_network_access(self) -> None:
+        arguments = {
+            "expected_publication_id": "fixture-1",
+            "expected_snapshot_digest": "sha256:" + "b" * 64,
+            "expected_source_commit": "d" * 40,
+        }
+        for fetcher in (e2e.fetch_production_directory, e2e.fetch_staged_directory):
+            for unsafe in (9_007_199_254_740_992, 9_007_199_254_740_993):
+                with self.subTest(fetcher=fetcher.__name__, unsafe=unsafe), \
+                     tempfile.TemporaryDirectory() as tmp, \
+                     mock.patch.object(e2e, "bounded_https_get") as network:
+                    call = {**arguments, "expected_sequence": unsafe}
+                    if fetcher is e2e.fetch_staged_directory:
+                        call.update(repository=e2e.TRUSTED_CATALOG_REPOSITORY,
+                                    ledger_commit="e" * 40)
+                    with self.assertRaisesRegex(ValueError, "identity is incomplete or invalid"):
+                        fetcher(Path(tmp) / "directory", **call)
+                    network.assert_not_called()
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(e2e, "bounded_https_get", side_effect=RuntimeError("network seam")) as network:
+            with self.assertRaisesRegex(RuntimeError, "network seam"):
+                e2e.fetch_production_directory(
+                    Path(tmp) / "directory", expected_sequence=9_007_199_254_740_991,
+                    **arguments,
+                )
+            network.assert_called_once()
 
     def test_production_n_minus_one_does_not_block_valid_staged_n(self) -> None:
         latest = json.loads((PUBLICATION / "latest.json").read_bytes())
         production_n_minus_one = e2e.canonical_json({
             **latest,
-            "sequence": 6,
-            "snapshot_path": "snapshots/00000000000000000006.json",
-            "envelope_path": "snapshots/00000000000000000006.envelope.json",
+            "sequence": 14,
+            "snapshot_path": "snapshots/00000000000000000014.json",
+            "envelope_path": "snapshots/00000000000000000014.envelope.json",
         })
         digest = json.loads((PUBLICATION / "envelope-current.json").read_text())["snapshot_digest"]
         ledger_commit = "e" * 40
@@ -4999,24 +5551,24 @@ print("accepted")
         ), mock.patch.object(e2e, "bounded_https_get", return_value=production_n_minus_one):
             with self.assertRaisesRegex(ValueError, "exact caller publication identity"):
                 e2e.fetch_production_directory(
-                    Path(tmp) / "production", expected_publication_id="fixture-1", expected_sequence=7,
+                    Path(tmp) / "production", expected_publication_id="fixture-1", expected_sequence=15,
                     expected_snapshot_digest=digest, expected_source_commit="d" * 40,
                 )
             environment, snapshot, staged_digest = e2e.fetch_staged_directory(
                 Path(tmp) / "staged", repository=e2e.TRUSTED_CATALOG_REPOSITORY,
                 ledger_commit=ledger_commit, expected_publication_id="fixture-1",
-                expected_sequence=7, expected_snapshot_digest=digest,
+                expected_sequence=15, expected_snapshot_digest=digest,
                 expected_source_commit="d" * 40,
                 fixture_fetch=lambda url, _maximum, _accept: staged_bodies[url],
             )
-            self.assertEqual(snapshot["sequence"], 7)
+            self.assertEqual(snapshot["sequence"], 15)
             self.assertEqual(staged_digest, digest)
             self.assertEqual(environment["AGENTPLUGINS_DIRECTORY_ORIGIN"], staged_origin)
             with self.assertRaisesRegex(ValueError, "differs from the exact caller publication identity"):
                 e2e.fetch_staged_directory(
                     Path(tmp) / "mismatched-staged", repository=e2e.TRUSTED_CATALOG_REPOSITORY,
                     ledger_commit=ledger_commit, expected_publication_id="wrong-publication",
-                    expected_sequence=7, expected_snapshot_digest=digest,
+                    expected_sequence=15, expected_snapshot_digest=digest,
                     expected_source_commit="d" * 40,
                     fixture_fetch=lambda url, _maximum, _accept: staged_bodies[url],
                 )

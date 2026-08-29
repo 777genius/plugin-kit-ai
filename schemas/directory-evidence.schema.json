@@ -9,7 +9,7 @@
     "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]*$"},
     "product_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
     "distribution_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$"},
-    "release_sequence": {"type": "integer", "minimum": 1},
+    "release_sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
     "package_tree_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "manifest_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "source_repository": {"type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,99})$"},

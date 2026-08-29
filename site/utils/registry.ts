@@ -27,6 +27,7 @@ const KINDS = new Set<DistributionKind>(['upstream', 'community_bridge', 'commun
 const RFC3339_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/
 const EVIDENCE_WORKFLOW = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9._-]*\/\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/
 const EVIDENCE_SOURCE_REF = /^refs\/heads\/[A-Za-z0-9._/-]+$/
+const JSON_SAFE_INTEGER_MAX = 9_007_199_254_740_991
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -53,6 +54,14 @@ function stringArray(value: unknown, field: string, context: string): string[] {
 
 function digestValue(value: unknown, context: string): string {
   if (typeof value !== 'string' || !DIGEST.test(value)) throw new Error(`${context} must be a sha256 digest`)
+  return value
+}
+
+function safeSequence(value: unknown, context: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)
+    || value < 1 || value > JSON_SAFE_INTEGER_MAX) {
+    throw new Error(`${context} must be a safe positive integer`)
+  }
   return value
 }
 
@@ -289,8 +298,13 @@ function releaseTargets(value: unknown, context: string): ReleaseTarget[] {
   })
 }
 
-function evidenceTrustedForEligibility(item: Record<string, unknown>, level: EvidenceLevel): boolean {
-  if (!record(item.trust)) return false
+function evidenceTrustedForEligibility(item: Record<string, unknown>, level: EvidenceLevel, signerVouched: boolean): boolean {
+  // On the published_snapshot call path, production receives only snapshot
+  // bytes verified by the publication workflow. The Directory signer therefore
+  // vouches that github_actions trust matched the repository's approved
+  // workflow and protected-ref policy; these public fields are the CLI 0.1.18
+  // projection of that reviewed decision. Review previews never enable commands.
+  if (!signerVouched || !record(item.trust)) return false
   const trust = item.trust
   if (trust.kind === 'github_actions') {
     const workflow = optionalString(trust, 'workflow')
@@ -308,7 +322,7 @@ function evidenceTrustedForEligibility(item: Record<string, unknown>, level: Evi
   return trust.kind === 'reviewed_external' && ['discovery', 'runtime', 'oauth'].includes(level)
 }
 
-function evidenceFromSnapshot(input: unknown, distributionID: string, releaseSequence: number, treeDigest: string, selectedIDs: readonly string[]): { client: ClientEvidence[], package: PackageEvidence[] } {
+function evidenceFromSnapshot(input: unknown, distributionID: string, releaseSequence: number, treeDigest: string, selectedIDs: readonly string[], signerVouched: boolean): { client: ClientEvidence[], package: PackageEvidence[] } {
   const client: ClientEvidence[] = []
   const packageEvidence: PackageEvidence[] = []
   if (!Array.isArray(input)) return { client, package: packageEvidence }
@@ -337,7 +351,7 @@ function evidenceFromSnapshot(input: unknown, distributionID: string, releaseSeq
       id: String(item.id),
       outcome: outcome as ClientEvidence['outcome'],
       package_tree_digest: treeDigest,
-      trusted_for_eligibility: evidenceTrustedForEligibility(item, level as EvidenceLevel),
+      trusted_for_eligibility: evidenceTrustedForEligibility(item, level as EvidenceLevel, signerVouched),
       ...(optionalString(item, 'observed_at') ? { tested_at: optionalString(item, 'observed_at') } : {}),
       artifact,
     }
@@ -374,8 +388,27 @@ function parseSnapshot(input: Record<string, unknown>, mode: 'published_snapshot
     throw new Error('Directory data must have schema version 1, products, and distributions')
   }
   const snapshotSequence = isSigned ? input.sequence : input.snapshot_sequence
-  if (mode === 'published_snapshot' && (!isSigned || !Number.isInteger(snapshotSequence) || typeof input.generated_at !== 'string' || typeof input.expires_at !== 'string')) {
+  if (mode === 'published_snapshot' && (!isSigned || typeof input.generated_at !== 'string' || typeof input.expires_at !== 'string')) {
     throw new Error('published snapshot requires one signed sequence, generated_at, and expires_at')
+  }
+  if (isSigned) safeSequence(snapshotSequence, 'Directory snapshot sequence')
+  else if (snapshotSequence !== undefined) safeSequence(snapshotSequence, 'Directory preview snapshot sequence')
+
+  // Reject unsafe identities before building keys or comparing them. JSON.parse
+  // aliases 9007199254740992 and 9007199254740993 in JavaScript, so filtering
+  // or stringifying first would make distinct signed identities collide.
+  for (const [field, records] of [
+    ['evidence', input.evidence],
+    ['verification_summaries', input.verification_summaries],
+    ['current_verification', input.current_verification],
+    ['revocations', input.revocations],
+  ] as const) {
+    if (!Array.isArray(records)) continue
+    for (const [index, item] of records.entries()) {
+      if (record(item) && item.release_sequence !== undefined) {
+        safeSequence(item.release_sequence, `Directory ${field}[${index}] release sequence`)
+      }
+    }
   }
   let generatedAt: string | undefined
   let expiresAt: string | undefined
@@ -416,12 +449,18 @@ function parseSnapshot(input: Record<string, unknown>, mode: 'published_snapshot
       const status = requiredString(item, 'status', `distribution ${id}`)
       if (!['candidate', 'active', 'suspended'].includes(status)) throw new Error(`distribution ${id}: unsupported status`)
       const policies = Array.isArray(item.release_policies) ? item.release_policies.filter(record) : []
-      const releases = item.releases.filter(record).sort((a, b) => Number(b.sequence) - Number(a.sequence))
+      for (const [policyIndex, policy] of policies.entries()) {
+        safeSequence(policy.release_sequence, `distribution ${id} policy ${policyIndex} release sequence`)
+      }
+      const releases = item.releases.filter(record)
+      for (const [releaseIndex, release] of releases.entries()) {
+        safeSequence(release.sequence, `distribution ${id} release ${releaseIndex} sequence`)
+      }
+      releases.sort((a, b) => Number(b.sequence) - Number(a.sequence))
       const releaseSequences = releases.map(release => release.sequence)
       if (new Set(releaseSequences).size !== releaseSequences.length) throw new Error(`distribution ${id}: release sequences must be unique`)
       const releaseViews = releases.map((release): DistributionReleaseView => {
-        if (!Number.isInteger(release.sequence) || Number(release.sequence) < 1) throw new Error(`distribution ${id}: release sequence must be a positive integer`)
-        const releaseSequence = release.sequence as number
+        const releaseSequence = safeSequence(release.sequence, `distribution ${id} release sequence`)
         const packageSource = source({
           ...(record(release.package_source) ? release.package_source : {}),
           manifest_digest: release.manifest_digest,
@@ -435,7 +474,7 @@ function parseSnapshot(input: Record<string, unknown>, mode: 'published_snapshot
         const releaseStatus = revoked.has(`${id}:${String(releaseSequence)}`) ? 'revoked' : policyStatus as DistributionView['release_status']
         if (!Array.isArray(policy.current_evidence) || policy.current_evidence.some(value => typeof value !== 'string')) throw new Error(`distribution ${id}: current_evidence must be an array of evidence IDs`)
         const treeDigest = digestValue(release.tree_digest, `distribution ${id} tree digest`)
-        const evidence = evidenceFromSnapshot(input.evidence ?? input.verification_summaries ?? input.current_verification, id, releaseSequence, treeDigest, policy.current_evidence as string[])
+        const evidence = evidenceFromSnapshot(input.evidence ?? input.verification_summaries ?? input.current_verification, id, releaseSequence, treeDigest, policy.current_evidence as string[], mode === 'published_snapshot')
         const components = stringArray(release.components ?? [], 'components', `distribution ${id}`) as ComponentID[]
         if (components.some(component => !COMPONENTS.has(component))) throw new Error(`distribution ${id}: unsupported component`)
         const blockingClients = [...new Set(evidence.client.filter(observation => observation.trusted_for_eligibility && observation.outcome === 'failed' && ['materialization', 'discovery', 'runtime'].includes(observation.level)).map(observation => observation.client))]

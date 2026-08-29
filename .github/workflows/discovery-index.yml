@@ -205,14 +205,16 @@ jobs:
           test "$(git -C ledger rev-parse HEAD)" = "${EXPECTED_LEDGER_HEAD}"
           tag_prefix=discovery-index-sequence-
           mapfile -t tags < <(git -C ledger tag --list "${tag_prefix}*" | LC_ALL=C sort)
-          sequence=0
+          sequence=
           for tag in "${tags[@]}"; do
-            sequence=$((sequence + 1))
+            successor_args=()
+            if test -n "${sequence}"; then successor_args=(--current "${sequence}"); fi
+            sequence="$(python3 source/scripts/sequence_boundaries.py successor "${successor_args[@]}")"
             test "${tag}" = "${tag_prefix}$(printf '%020d' "${sequence}")"
             git -C ledger merge-base --is-ancestor "refs/tags/${tag}" HEAD
           done
           recovery_tag=
-          if test "${sequence}" -gt 0; then
+          if test -n "${sequence}"; then
             latest_sequence_tag="${tags[$((sequence - 1))]}"
             expected_feed=("${FEED_PATH}/latest.json")
             for ((current = 1; current <= sequence; current++)); do
@@ -235,11 +237,12 @@ jobs:
             done
           fi
           if test -f "ledger/${FEED_PATH}/latest.json"; then
-            test "${sequence}" -gt 0
-            test "$(python3 -c 'import json; print(json.load(open("ledger/discovery/latest.json"))["sequence"])')" = "${sequence}"
+            test -n "${sequence}"
+            latest_sequence="$(python3 -c 'import json; print(json.load(open("ledger/discovery/latest.json"))["sequence"])')"
+            test "$(python3 source/scripts/sequence_boundaries.py validate "${latest_sequence}")" = "${sequence}"
             mapfile -t ledger_entries < <(git -C ledger ls-tree -r HEAD -- "${FEED_PATH}")
             test "${ledger_entries[*]}" = "${tagged_entries[*]}"
-          elif test "${sequence}" -gt 0; then
+          elif test -n "${sequence}"; then
             test -z "$(git -C ledger ls-tree -r --name-only HEAD -- "${FEED_PATH}")"
             recovery_tag="${latest_sequence_tag}"
             git -C ledger checkout "refs/tags/${recovery_tag}" -- "${FEED_PATH}"
@@ -250,12 +253,16 @@ jobs:
             for change in "${restored[@]}"; do
               test "${change%%$'\t'*}" = A
             done
-            test "$(python3 -c 'import json; print(json.load(open("ledger/discovery/latest.json"))["sequence"])')" = "${sequence}"
+            latest_sequence="$(python3 -c 'import json; print(json.load(open("ledger/discovery/latest.json"))["sequence"])')"
+            test "$(python3 source/scripts/sequence_boundaries.py validate "${latest_sequence}")" = "${sequence}"
             echo "Recovering the complete signed Discovery feed from ${recovery_tag}."
           else
-            test "${sequence}" -eq 0
+            test -z "${sequence}"
           fi
-          echo "next_sequence=$((sequence + 1))" >> "$GITHUB_OUTPUT"
+          successor_args=()
+          if test -n "${sequence}"; then successor_args=(--current "${sequence}"); fi
+          next_sequence="$(python3 source/scripts/sequence_boundaries.py successor "${successor_args[@]}")"
+          echo "next_sequence=${next_sequence}" >> "$GITHUB_OUTPUT"
           echo "recovery_tag=${recovery_tag}" >> "$GITHUB_OUTPUT"
       - name: Sign in the separate Discovery signature domain
         id: sign

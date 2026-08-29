@@ -10,12 +10,13 @@ import time
 from pathlib import Path
 
 from run_launch_evidence_e2e import FULL_SHA, fetch_production_directory
+from sequence_boundaries import parse_public_sequence
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--publication-id", required=True)
-    parser.add_argument("--publication-sequence", type=int, required=True)
+    parser.add_argument("--publication-sequence", type=parse_public_sequence, required=True)
     parser.add_argument("--publication-snapshot-digest", required=True)
     parser.add_argument("--publication-source-commit", required=True)
     parser.add_argument("--publication-ledger-commit", required=True)

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "fixture_key_id": "launch-conformance-only",
+  "runtime_claims": false,
+  "revoked_oracle": {
+    "argv": ["add", "context7", "--target", "codex", "--format", "json"],
+    "exit_code": 1,
+    "distribution_id": "upstash/context7",
+    "release_sequence": 1,
+    "stdout": "",
+    "stderr_template": "Resolving and validating one Agent Plugin package for every selected target...\nagentplugins: no eligible directory release for \"context7\": {distribution_id}: release {release_sequence} is revoked\n",
+    "zero_mutation": true
+  },
+  "directory_contracts": ["cold", "offline_lkg", "expired", "tampered", "sequence_rollback"]
+}

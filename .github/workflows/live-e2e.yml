@@ -11,7 +11,7 @@ on:
         type: string
       publication_sequence:
         required: true
-        type: number
+        type: string
       publication_snapshot_digest:
         required: true
         type: string
@@ -46,6 +46,18 @@ on:
       attestation_artifact_name:
         description: Exact offline GitHub provenance transport artifact
         value: ${{ jobs.required-live-e2e.outputs.attestation_artifact_name }}
+      source_policy_artifact_name:
+        description: Exact source-policy conformance artifact
+        value: ${{ jobs.required-live-e2e.outputs.source_policy_artifact_name }}
+      source_policy_evidence_digest:
+        description: SHA-256 of canonical source-policy evidence
+        value: ${{ jobs.required-live-e2e.outputs.source_policy_evidence_digest }}
+      readiness_artifact_name:
+        description: Exact two-lane readiness artifact
+        value: ${{ jobs.required-live-e2e.outputs.readiness_artifact_name }}
+      readiness_evidence_digest:
+        description: SHA-256 of canonical readiness envelope
+        value: ${{ jobs.required-live-e2e.outputs.readiness_evidence_digest }}
   workflow_dispatch:
     inputs:
       run_scheduled_regression:
@@ -64,7 +76,7 @@ on:
       publication_sequence:
         description: Exact staged snapshot sequence to verify
         required: true
-        type: number
+        type: string
       publication_snapshot_digest:
         description: Exact sha256 digest of the staged snapshot bytes
         required: true
@@ -88,8 +100,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-publication-sequence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          if test "$EVENT_NAME" = schedule; then
+            exit 0
+          fi
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
+
   required-stable-launch-evidence:
-    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    needs: [validate-publication-sequence]
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     uses: ./.github/workflows/launch-evidence-e2e.yml
     with:
       consent: ${{ inputs.consent }}
@@ -108,6 +141,7 @@ jobs:
       id-token: write
 
   public-read-flows:
+    needs: [validate-publication-sequence]
     if: github.event_name == 'schedule' || inputs.consent || inputs.run_scheduled_regression
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -135,8 +169,9 @@ jobs:
 
   required-live-e2e:
     name: Require complete live E2E results
-    if: always() && inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    if: always() && needs.validate-publication-sequence.result == 'success' && inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     needs:
+      - validate-publication-sequence
       - required-stable-launch-evidence
       - public-read-flows
     runs-on: ubuntu-24.04
@@ -149,16 +184,25 @@ jobs:
       workflow_source_digest: ${{ needs.required-stable-launch-evidence.outputs.workflow_source_digest }}
       evidence_run_attempt: ${{ needs.required-stable-launch-evidence.outputs.evidence_run_attempt }}
       attestation_artifact_name: ${{ needs.required-stable-launch-evidence.outputs.attestation_artifact_name }}
+      source_policy_artifact_name: ${{ needs.required-stable-launch-evidence.outputs.source_policy_artifact_name }}
+      source_policy_evidence_digest: ${{ needs.required-stable-launch-evidence.outputs.source_policy_evidence_digest }}
+      readiness_artifact_name: ${{ needs.required-stable-launch-evidence.outputs.readiness_artifact_name }}
+      readiness_evidence_digest: ${{ needs.required-stable-launch-evidence.outputs.readiness_evidence_digest }}
     steps:
       - name: Reject skipped or failed nested evidence
         env:
           STABLE_E2E_RESULT: ${{ needs.required-stable-launch-evidence.result }}
           PUBLIC_READ_RESULT: ${{ needs.public-read-flows.result }}
+          READINESS_DIGEST: ${{ needs.required-stable-launch-evidence.outputs.readiness_evidence_digest }}
+          POLICY_DIGEST: ${{ needs.required-stable-launch-evidence.outputs.source_policy_evidence_digest }}
         run: |
           test "$STABLE_E2E_RESULT" = success
           test "$PUBLIC_READ_RESULT" = success
+          case "$READINESS_DIGEST" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1 ;; esac
+          case "$POLICY_DIGEST" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1 ;; esac
 
   scheduled-fixture-contract:
+    needs: [validate-publication-sequence]
     if: github.event_name == 'schedule' || inputs.run_scheduled_regression
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -178,12 +222,14 @@ jobs:
         run: |
           run_root="/tmp/uap-live-contract-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           python scripts/run_launch_evidence_e2e.py --mode fixture-only \
+            --uap-sha "$GITHUB_SHA" \
             --consent tests/e2e/fixtures/fixture-only-consent.json \
             --run-root "$run_root" \
             --output "$run_root/evidence/launch-evidence.json"
           python -m unittest tests.test_run_launch_evidence_e2e tests.test_materialize_launch_evidence tests.test_workflow_contracts
 
   scheduled-production-directory-observation:
+    needs: [validate-publication-sequence]
     if: github.event_name == 'schedule' || inputs.run_scheduled_regression
     runs-on: ubuntu-24.04
     timeout-minutes: 10

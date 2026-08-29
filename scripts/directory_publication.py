@@ -38,6 +38,8 @@ MAX_SNAPSHOT_BYTES = 4 << 20
 MAX_ENVELOPE_BYTES = 16 << 10
 MAX_LATEST_BYTES = 16 << 10
 MAX_LEDGER_SNAPSHOTS = 100_000
+JSON_SAFE_INTEGER_MAX = 9_007_199_254_740_991
+WIRE_EVIDENCE_CUTOVER_SEQUENCE = 15
 LEDGER_CONTRACT_NAME = "ledger-contract.json"
 OPENSSL = "/usr/bin/openssl"
 ED25519_PRIVATE_DER_PREFIX = bytes.fromhex("302e020100300506032b657004220420")
@@ -281,7 +283,11 @@ def validate_envelope_contract(envelope: dict[str, Any]) -> None:
     }, "signature envelope fields are invalid")
     require_integer_const(envelope["envelope_schema_version"], 1, "signature envelope version is invalid")
     require_integer_const(envelope["snapshot_schema_version"], 1, "signature envelope snapshot version is invalid")
-    require(type(envelope["sequence"]) is int and envelope["sequence"] >= 1, "signature envelope sequence is invalid")
+    require(
+        type(envelope["sequence"]) is int
+        and 1 <= envelope["sequence"] <= JSON_SAFE_INTEGER_MAX,
+        "signature envelope sequence is invalid",
+    )
     require(isinstance(envelope["key_id"], str) and ID_RE.fullmatch(envelope["key_id"]) is not None, "signature envelope key ID is invalid")
     require(envelope["algorithm"] == "Ed25519", "signature envelope algorithm is invalid")
     require(envelope["signature_domain"] == "UAP-DIRECTORY-SNAPSHOT-ED25519-V1", "signature envelope domain is invalid")
@@ -323,7 +329,10 @@ def _array(value: Any, label: str, *, minimum: int = 0, maximum: int | None = No
 
 
 def _positive_integer(value: Any, label: str) -> None:
-    require(type(value) is int and value >= 1, f"{label} is invalid")
+    require(
+        type(value) is int and 1 <= value <= JSON_SAFE_INTEGER_MAX,
+        f"{label} is invalid",
+    )
 
 
 def _validate_source(value: Any, label: str) -> None:
@@ -514,20 +523,16 @@ def _validate_legacy_evidence(value: Any, label: str) -> None:
     _string(artifact["digest"], DIGEST_RE, f"{label}.artifact.digest")
 
 
-def _validate_evidence(value: Any, label: str) -> None:
-    if isinstance(value, dict) and "product_id" in value:
-        _validate_legacy_evidence(value, label)
-    else:
-        _validate_public_evidence(value, label)
-
-
-def validate_directory_records(value: dict[str, Any], *, snapshot: bool) -> None:
+def validate_directory_records(
+    value: dict[str, Any], *, snapshot: bool, wire_evidence: bool = True,
+) -> None:
     for index, product in enumerate(value["products"]):
         _validate_product(product, f"products[{index}]")
     for index, distribution in enumerate(value["distributions"]):
         _validate_distribution(distribution, f"distributions[{index}]", snapshot=snapshot)
     for index, evidence in enumerate(value["evidence"]):
-        _validate_evidence(evidence, f"evidence[{index}]")
+        validator = _validate_public_evidence if wire_evidence else _validate_legacy_evidence
+        validator(evidence, f"evidence[{index}]")
     for index, item in enumerate(value["revocations"]):
         revocation = _object(item, {"distribution_id", "release_sequence"}, set(), f"revocations[{index}]")
         _string(revocation["distribution_id"], DISTRIBUTION_ID_RE, f"revocations[{index}].distribution_id")
@@ -587,12 +592,22 @@ def validate_snapshot_semantics(
         "generated_at", "expires_at", "products", "distributions", "evidence", "revocations",
     }, "snapshot fields are invalid")
     require_integer_const(snapshot["snapshot_schema_version"], 1, "snapshot schema version is invalid")
-    require(type(snapshot["sequence"]) is int and snapshot["sequence"] >= 1, "snapshot sequence is invalid")
+    require(
+        type(snapshot["sequence"]) is int
+        and 1 <= snapshot["sequence"] <= JSON_SAFE_INTEGER_MAX,
+        "snapshot sequence is invalid",
+    )
     require(isinstance(snapshot["publication_id"], str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", snapshot["publication_id"]) is not None, "snapshot publication ID is invalid")
     require(isinstance(snapshot["source_commit"], str) and SHA_RE.fullmatch(snapshot["source_commit"]) is not None, "snapshot source commit is invalid")
     for field in ("products", "distributions", "evidence", "revocations"):
         require(isinstance(snapshot[field], list), f"snapshot {field} must be an array")
-    validate_directory_records(snapshot, snapshot=True)
+    has_wire_evidence = any("trust" in evidence for evidence in snapshot["evidence"])
+    require(
+        not has_wire_evidence or all("trust" in evidence for evidence in snapshot["evidence"]),
+        "snapshot cannot mix legacy and wire evidence shapes",
+    )
+    wire_evidence = snapshot["sequence"] >= WIRE_EVIDENCE_CUTOVER_SEQUENCE
+    validate_directory_records(snapshot, snapshot=True, wire_evidence=wire_evidence)
     generated = parse_timestamp(snapshot["generated_at"], "generated_at")
     expires = parse_timestamp(snapshot["expires_at"], "expires_at")
     require(expires > generated, "expires_at must be later than generated_at")
@@ -643,7 +658,7 @@ def validate_snapshot_semantics(
         identity = (evidence["distribution_id"], evidence["release_sequence"])
         require(identity in release_map, f"{evidence_id}: evidence release is missing")
         release = release_map[identity]
-        if "product_id" in evidence:
+        if not wire_evidence:
             source = release["package_source"]
             require(
                 evidence["product_id"] == distribution_map[evidence["distribution_id"]]["product_id"]
@@ -659,7 +674,12 @@ def validate_snapshot_semantics(
                 evidence["package_tree_digest"] == release["tree_digest"],
                 f"{evidence_id}: evidence package tree does not match release",
             )
-        applicability = tuple(evidence.get(field) for field in ("level", "client", "client_version", "installer_version", "dependency_identity", "os", "architecture"))
+        applicability_fields = (
+            "level", "client", "client_version", "installer_version",
+            *(("adapter_version",) if not wire_evidence else ()),
+            "dependency_identity", "os", "architecture",
+        )
+        applicability = tuple(evidence.get(field) for field in applicability_fields)
         seen_applicability = applicability_by_release.setdefault(identity, set())
         require(applicability not in seen_applicability, f"{identity}: multiple current evidence records for one applicability tuple")
         seen_applicability.add(applicability)
@@ -744,7 +764,11 @@ def validate_latest(latest: dict[str, Any], *, validate_schema: bool = True) -> 
     }, "latest pointer fields are invalid")
     require_integer_const(latest["pointer_schema_version"], 1, "latest pointer version is invalid")
     require_integer_const(latest["snapshot_schema_version"], 1, "latest pointer snapshot version is invalid")
-    require(type(latest["sequence"]) is int and latest["sequence"] >= 1, "latest pointer sequence is invalid")
+    require(
+        type(latest["sequence"]) is int
+        and 1 <= latest["sequence"] <= JSON_SAFE_INTEGER_MAX,
+        "latest pointer sequence is invalid",
+    )
     sequence = latest["sequence"]
     stem = f"{sequence:020d}"
     validate_relative_artifact(latest["snapshot_path"], f"snapshots/{stem}.json")
@@ -785,7 +809,11 @@ def load_ledger_latest(
     require(not allow_initialization or minimum_sequence is None, "initialization cannot accept an existing sequence floor")
     if require_external_floor and not allow_initialization:
         require(seed_commit is not None and SHA_RE.fullmatch(seed_commit) is not None, "normal publication requires the protected seed commit")
-        require(type(minimum_sequence) is int and minimum_sequence >= 1, "normal publication requires the immutable tag sequence floor")
+        require(
+            type(minimum_sequence) is int
+            and 1 <= minimum_sequence <= JSON_SAFE_INTEGER_MAX,
+            "normal publication requires the immutable tag sequence floor",
+        )
     contract_path = feed / LEDGER_CONTRACT_NAME
     contract_body = read_bytes_bounded(contract_path, MAX_LATEST_BYTES)
     contract = parse_json_bytes(contract_body, str(contract_path), max_bytes=MAX_LATEST_BYTES)
@@ -816,7 +844,11 @@ def load_ledger_latest(
     validate_latest(latest, validate_schema=validate_schema)
     highest = latest["sequence"]
     if minimum_sequence is not None:
-        require(type(minimum_sequence) is int and minimum_sequence >= 1, "publication ledger sequence floor is invalid")
+        require(
+            type(minimum_sequence) is int
+            and 1 <= minimum_sequence <= JSON_SAFE_INTEGER_MAX,
+            "publication ledger sequence floor is invalid",
+        )
         require(highest >= minimum_sequence, "publication ledger latest sequence regressed below the immutable tag floor")
     require(highest <= MAX_LEDGER_SNAPSHOTS, "publication ledger exceeds supported history bound")
     snapshots_dir = feed / "snapshots"

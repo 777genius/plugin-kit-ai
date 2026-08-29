@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "fixture_key_id": "launch-conformance-only",
+  "tests": {
+    "retained_data_readd_before_changed_default": {"package": "./install/integrationctl/agentplugins/domain", "name": "TestResolveDirectoryRecordedReAddRetainsExactRelease"},
+    "revoked_operations_boundary": {"package": "./install/integrationctl/agentplugins/usecase", "name": "TestDirectorySuspensionAndRevocationOperationBoundaries"},
+    "signed_sequence_not_semver": {"package": "./install/integrationctl/agentplugins/domain", "name": "TestResolveDirectoryDeclaredDefaultFallbackQualifiedAndSequence"},
+    "directory_offline": {"package": "./install/integrationctl/agentplugins/adapters/discoveryv1", "name": "TestClientColdCachedOfflineTamperedExpiredAndRollback"},
+    "directory_expired": {"package": "./install/integrationctl/agentplugins/adapters/discoveryv1", "name": "TestClientColdCachedOfflineTamperedExpiredAndRollback"},
+    "directory_tampered": {"package": "./install/integrationctl/agentplugins/adapters/discoveryv1", "name": "TestClientColdCachedOfflineTamperedExpiredAndRollback"},
+    "directory_sequence_rollback": {"package": "./install/integrationctl/agentplugins/adapters/discoveryv1", "name": "TestClientColdCachedOfflineTamperedExpiredAndRollback"},
+    "upstream_owned_short_name": {"package": "./install/integrationctl/agentplugins/domain", "name": "TestResolveDirectoryUpstreamMaterializationAndExactFailedTuple"},
+    "community_bridge_short_name": {"package": "./install/integrationctl/agentplugins/domain", "name": "TestResolveDirectoryDeclaredDefaultPrecedesKindAndFallbackUsesKindOrder"},
+    "distribution_sticky_update": {"package": "./cli/plugin-kit-ai/internal/agentpluginscli", "name": "TestDirectoryUpdateAllowsHigherReleaseOwnImmutableSourceIdentity"},
+    "external_activation_failure": {"package": "./cli/plugin-kit-ai/internal/agentpluginscli", "name": "TestSwitchSynthesizesRemoteChatGPTAndRecoversAfterActivationFailure"}
+  }
+}

@@ -40,7 +40,7 @@
         "id": {"$ref": "#/$defs/distributionId"},
         "kind": {"enum": ["upstream", "community_bridge", "community"]},
         "status": {"enum": ["candidate", "active", "suspended"]},
-        "release_sequence": {"type": "integer", "minimum": 1},
+        "release_sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
         "package_version": {"type": "string"},
         "components": {"type": "array", "uniqueItems": true, "items": {"enum": ["extensions", "mcp", "skills"]}},
         "eligible_targets": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/eligibleTarget"}},
@@ -58,7 +58,7 @@
       "properties": {
         "targets": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/eligibleTarget"}},
         "distribution_id": {"$ref": "#/$defs/distributionId"},
-        "release_sequence": {"type": "integer", "minimum": 1},
+        "release_sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
         "fallback_reason": {"type": "string", "minLength": 1}
       },
       "additionalProperties": false

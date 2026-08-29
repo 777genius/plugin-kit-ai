@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Two-lane protected readiness envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evidence_class", "runtime_evidence_digest", "source_policy_evidence_digest", "uap_sha", "directory_ledger_sha", "publication_id", "publication_sequence", "publication_snapshot_digest", "publication_source_commit", "runtime_results", "policy_results", "readiness_gate_complete"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "evidence_class": {"const": "two_lane_readiness"},
+    "runtime_evidence_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "source_policy_evidence_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "uap_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "directory_ledger_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "publication_id": {"type": "string", "minLength": 1},
+    "publication_sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "publication_snapshot_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "publication_source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "runtime_results": {"const": 15},
+    "policy_results": {"const": 11},
+    "readiness_gate_complete": {"const": true}
+  }
+}

@@ -17,6 +17,7 @@ from typing import Any, Mapping, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from directory_publication import (  # noqa: E402
+    JSON_SAFE_INTEGER_MAX,
     PublicationError,
     canonical_json,
     parse_json_bytes,
@@ -25,14 +26,24 @@ from directory_publication import (  # noqa: E402
     validate_with_schema,
 )
 from build_registry import RegistryError, validate_directory  # noqa: E402
+from directory_publication_cas import (  # noqa: E402
+    CasError,
+    validate_staged_lineage,
+)
 from launch_observer_signatures import (  # noqa: E402
     validate_evidence_redaction,
     verify_observer_bundle,
 )
+from sequence_boundaries import parse_public_sequence  # noqa: E402
+from two_lane_evidence import (  # noqa: E402
+    require_uap_sha,
+    validate_launch_schema,
+    validate_completed_readiness,
+    sha256_file as policy_sha256_file,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LAUNCH_SCHEMA = ROOT / "tests" / "e2e" / "schemas" / "launch-evidence.schema.json"
 OBSERVER_SCHEMA_ROOT = ROOT / "tests" / "e2e" / "schemas"
 EVIDENCE_SCHEMA = ROOT / "schemas" / "directory-evidence-artifact.schema.json"
 DIRECTORY_EVIDENCE_SCHEMA = ROOT / "schemas" / "directory-evidence.schema.json"
@@ -49,6 +60,8 @@ MAX_FILES = 64
 MAX_FILE_BYTES = 4 << 20
 MAX_BUNDLE_BYTES = 16 << 20
 ATTESTATION_BUNDLE_NAME = "github-attestation.jsonl"
+POLICY_EVIDENCE_NAME = "source-policy-conformance.json"
+READINESS_EVIDENCE_NAME = "two-lane-readiness.json"
 LEDGER_ROOT = PurePosixPath("registry/evidence/sha256")
 BOT_NAME = "uap-directory-publisher[bot]"
 BOT_EMAIL = "uap-directory-publisher[bot]@users.noreply.github.com"
@@ -124,8 +137,18 @@ def applicability(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def selected_rows(launch: dict[str, Any]) -> list[dict[str, Any]]:
+    if launch.get("schema_version") != 3 and launch.get("evidence_class") != "released_binary":
+        fail("Directory accepts only released-binary runtime evidence")
     rows: list[dict[str, Any]] = []
     for row in launch["matrix"]:
+        if row.get("scenario") in {
+            "retained_data_readd_before_changed_default", "revoked_operations_boundary",
+            "signed_sequence_not_semver", "directory_offline", "directory_expired",
+            "directory_tampered", "directory_sequence_rollback", "upstream_owned_short_name",
+            "community_bridge_short_name", "distribution_sticky_update",
+            "external_activation_failure",
+        }:
+            fail("source-policy conformance rows cannot enter Directory")
         hero_runtime = (
             row.get("scenario") == "hero_5x3_runtime"
             and row.get("plugin") in HEROES and row.get("client") in HERO_CLIENTS
@@ -343,8 +366,11 @@ def build_bundle(artifact_dir: Path, *, repository: str, workflow: str,
     require_sha(expected_source_commit, "publication source commit")
     if not expected_run_id.isdigit() or not expected_run_attempt.isdigit() or not expected_publication_id.isdigit():
         fail("run ID, run attempt, and publication ID must be decimal strings")
-    if type(expected_sequence) is not int or expected_sequence < 1:
-        fail("publication sequence must be a positive integer")
+    if (
+        type(expected_sequence) is not int
+        or not 1 <= expected_sequence <= JSON_SAFE_INTEGER_MAX
+    ):
+        fail("publication sequence must be a safe positive integer")
     if DIGEST_RE.fullmatch(expected_snapshot_digest) is None:
         fail("publication snapshot digest is invalid")
 
@@ -353,11 +379,15 @@ def build_bundle(artifact_dir: Path, *, repository: str, workflow: str,
     launch = read_json(launch_path, "launch evidence")
     observer_bytes = read_bytes_bounded(bundle_path, MAX_FILE_BYTES)
     observer = parse_json_bytes(observer_bytes, "signed observer bundle", max_bytes=MAX_FILE_BYTES)
-    validate_with_schema(launch, LAUNCH_SCHEMA)
+    try:
+        validate_launch_schema(launch, historical=launch.get("schema_version") == 3)
+    except ValueError as error:
+        fail(str(error))
     validate_evidence_redaction(launch, context="canonical launch evidence")
-    if launch["run"].get("mode") != "enforced" or launch["run"].get("runtime_claims") is not True:
+    if (launch.get("schema_version") == 4 and launch.get("evidence_class") != "released_binary") or launch["run"].get("mode") != "enforced" or launch["run"].get("runtime_claims") is not True:
         fail("only enforced runtime launch evidence is publishable")
-    if launch["summary"].get("required_gates_complete") is not True or launch["summary"].get("hero_runtime_results") != 15:
+    gate = "released_binary_gate_complete" if launch.get("schema_version") == 4 else "required_gates_complete"
+    if launch["summary"].get(gate) is not True or launch["summary"].get("hero_runtime_results") != 15:
         fail("launch evidence does not prove the complete stable gate")
     if launch["run"].get("github_sha") != source_digest:
         fail("launch evidence workflow source digest mismatch")
@@ -502,6 +532,41 @@ def attach_attestation_bundle(files: Mapping[str, bytes], body: bytes) -> dict[s
     result = dict(files)
     result.pop("SHA256SUMS", None)
     result[ATTESTATION_BUNDLE_NAME] = body
+    result["SHA256SUMS"] = checksum_bytes(result)
+    validate_bounded_files(result)
+    return result
+
+
+def attach_two_lane_evidence(files: Mapping[str, bytes], policy_body: bytes,
+                             readiness_body: bytes, *, uap_sha: str,
+                             directory_ledger_sha: str, publication_id: str,
+                             publication_sequence: int, publication_snapshot_digest: str,
+                             publication_source_commit: str) -> dict[str, bytes]:
+    """Validate and add gate-only sidecars without projecting policy rows."""
+    result = dict(files)
+    result.pop("SHA256SUMS", None)
+    runtime = parse_json_bytes(result["launch-evidence.json"], "released runtime evidence", max_bytes=MAX_FILE_BYTES)
+    policy = parse_json_bytes(policy_body, "source-policy evidence", max_bytes=MAX_FILE_BYTES)
+    readiness = parse_json_bytes(readiness_body, "two-lane readiness", max_bytes=MAX_FILE_BYTES)
+    if not all(isinstance(item, dict) for item in (runtime, policy, readiness)):
+        fail("two-lane evidence sidecars must be objects")
+    if policy_body != canonical_json(policy) or readiness_body != canonical_json(readiness):
+        fail("two-lane evidence sidecars must be the canonical bytes bound by readiness")
+    uap_sha = require_uap_sha(uap_sha)
+    validate_completed_readiness(
+        readiness, runtime, policy,
+        scenario_digest=policy_sha256_file(ROOT / "tests/e2e/launch-scenarios.json"),
+        harness_digest=policy_sha256_file(ROOT / "tests/e2e/source-policy-tests.json"),
+        overlay_digest=policy_sha256_file(ROOT / "tests/e2e/source-policy-overlay.json"),
+        uap_sha=uap_sha,
+        directory_ledger_sha=directory_ledger_sha,
+        publication_id=publication_id,
+        publication_sequence=publication_sequence,
+        publication_snapshot_digest=publication_snapshot_digest,
+        publication_source_commit=publication_source_commit,
+    )
+    result[POLICY_EVIDENCE_NAME] = policy_body
+    result[READINESS_EVIDENCE_NAME] = readiness_body
     result["SHA256SUMS"] = checksum_bytes(result)
     validate_bounded_files(result)
     return result
@@ -760,28 +825,6 @@ def verify_completed_state(
         fail("completed launch approval target is missing")
     approval_target = approval.stdout.decode().strip()
     evidence_parent = ledger_parents[0]
-    if _git(
-        ledger_repo, ["merge-base", "--is-ancestor", approval_target, evidence_parent], check=False,
-    ).returncode != 0:
-        fail("completed approval target is not an ancestor of the evidence parent")
-    descendants = _git(
-        ledger_repo,
-        ["rev-list", "--reverse", "--ancestry-path", f"{approval_target}..{evidence_parent}"],
-    ).stdout.decode().splitlines()
-    previous = approval_target
-    for descendant in descendants:
-        parents = _git(
-            ledger_repo, ["show", "-s", "--format=%P", descendant],
-        ).stdout.decode().strip().split()
-        if parents != [previous]:
-            fail("completed pre-evidence lineage is not linear")
-        changed = _git(
-            ledger_repo,
-            ["diff-tree", "--no-commit-id", "--name-only", "-r", previous, descendant],
-        ).stdout.decode().splitlines()
-        if not changed or any(not path.startswith("discovery/") for path in changed):
-            fail("completed pre-evidence lineage contains a non-Discovery append")
-        previous = descendant
     ledger_message = _git(ledger_repo, ["show", "-s", "--format=%B", ledger_commit]).stdout.decode()
     match = re.fullmatch(
         r"chore\(evidence\): persist stable launch evidence\n\n"
@@ -812,6 +855,9 @@ def verify_completed_state(
         path.removeprefix(root + "/"): _git(ledger_repo, ["show", f"{ledger_commit}:{path}"]).stdout
         for path in paths
     }
+    launch = parse_json_bytes(files["launch-evidence.json"], "completed launch evidence", max_bytes=MAX_FILE_BYTES)
+    if not isinstance(launch, dict):
+        fail("completed launch evidence must be an object")
     index = load_index(files)
     if (
         index.get("repository") != repository
@@ -826,6 +872,21 @@ def verify_completed_state(
         or index.get("publication_source_commit") != expected_publication_source_commit
     ):
         fail("completed evidence index is not bound to this exact workflow run")
+    sequence_tag = (
+        "refs/tags/directory-publication-schema-1-sequence-"
+        f"{index['publication_sequence']:020d}"
+    )
+    signed = _git(ledger_repo, ["rev-parse", f"{sequence_tag}^{{commit}}"], check=False)
+    if signed.returncode != 0:
+        fail("completed signed publication target is missing")
+    try:
+        materialized = validate_staged_lineage(
+            ledger_repo, evidence_parent, signed.stdout.decode().strip(),
+        )
+    except (CasError, subprocess.SubprocessError) as error:
+        fail(f"completed signed-publication lineage is invalid: {error}")
+    if approval_target != materialized:
+        fail("completed launch approval is not the exact authenticated materialization child")
     with tempfile.TemporaryDirectory(prefix="uap-completed-evidence-") as temporary:
         bundle = Path(temporary)
         for name in (
@@ -854,6 +915,18 @@ def verify_completed_state(
             observer_key_id=observer_key_id, enforce_observer_freshness=False,
         )
         derived = attach_attestation_bundle(derived, files[ATTESTATION_BUNDLE_NAME])
+        if launch.get("schema_version") == 4:
+            if POLICY_EVIDENCE_NAME not in files or READINESS_EVIDENCE_NAME not in files:
+                fail("completed v4 evidence root lacks the canonical two-lane sidecars")
+            derived = attach_two_lane_evidence(
+                derived, files[POLICY_EVIDENCE_NAME], files[READINESS_EVIDENCE_NAME],
+                uap_sha=source_digest,
+                directory_ledger_sha=ledger_parents[0],
+                publication_id=expected_publication_id,
+                publication_sequence=index["publication_sequence"],
+                publication_snapshot_digest=index["publication_snapshot_digest"],
+                publication_source_commit=expected_publication_source_commit,
+            )
         write_bundle(bundle, derived)
     if files != derived:
         fail("completed permanent evidence root is not the exact canonical bundle")
@@ -923,7 +996,7 @@ def common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--expected-caller-ref", required=True)
     parser.add_argument("--expected-caller-workflow-ref", required=True)
     parser.add_argument("--expected-publication-id", required=True)
-    parser.add_argument("--expected-publication-sequence", type=int, required=True)
+    parser.add_argument("--expected-publication-sequence", type=parse_public_sequence, required=True)
     parser.add_argument("--expected-publication-snapshot-digest", required=True)
     parser.add_argument("--expected-publication-source-commit", required=True)
     parser.add_argument("--verify-observer", action="store_true")
@@ -950,6 +1023,9 @@ def main() -> int:
     commit.add_argument("--ledger-parent", required=True)
     commit.add_argument("--approval-target", required=True)
     commit.add_argument("--attestation-bundle", type=Path, required=True)
+    commit.add_argument("--policy-evidence", type=Path, required=True)
+    commit.add_argument("--readiness-evidence", type=Path, required=True)
+    commit.add_argument("--uap-sha", required=True)
     commit.add_argument("--output", type=Path, required=True)
     completed = commands.add_parser("verify-completed")
     completed.add_argument("--source-repo", type=Path, required=True)
@@ -1021,6 +1097,17 @@ def main() -> int:
                 )
                 files = attach_attestation_bundle(
                     files, read_attestation_bundle(args.attestation_bundle),
+                )
+                files = attach_two_lane_evidence(
+                    files,
+                    read_bytes_bounded(args.policy_evidence, MAX_FILE_BYTES),
+                    read_bytes_bounded(args.readiness_evidence, MAX_FILE_BYTES),
+                    uap_sha=args.uap_sha,
+                    directory_ledger_sha=args.ledger_parent,
+                    publication_id=args.expected_publication_id,
+                    publication_sequence=args.expected_publication_sequence,
+                    publication_snapshot_digest=args.expected_publication_snapshot_digest,
+                    publication_source_commit=args.expected_publication_source_commit,
                 )
                 values = materialize_commits(
                     args.source_repo, args.ledger_repo, args.artifact_dir, files,

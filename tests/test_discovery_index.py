@@ -1015,6 +1015,89 @@ class DiscoveryIndexTests(unittest.TestCase):
 
         self.assertIs(discovery_publication.PublicationError, directory_publication.PublicationError)
 
+    def test_public_sequence_schemas_accept_safe_max_and_reject_both_number_aliases(self):
+        fixtures = {
+            discovery_publication.ENVELOPE_SCHEMA: {
+                "envelope_schema_version": 1, "snapshot_schema_version": 1,
+                "sequence": 1, "key_id": "test", "algorithm": "Ed25519",
+                "signature_domain": "UAP-DISCOVERY-INDEX-ED25519-V1",
+                "snapshot_digest": "sha256:" + "a" * 64, "signature": "A" * 88,
+            },
+            discovery_publication.LATEST_SCHEMA: {
+                "pointer_schema_version": 1, "snapshot_schema_version": 1, "sequence": 1,
+                "snapshot_path": "snapshots/00000000000000000001.json",
+                "envelope_path": "snapshots/00000000000000000001.envelope.json",
+                "search_path": "search/00000000000000000001.json",
+                "fetch_contract": {"max_redirects": 0, "latest_max_bytes": 1,
+                                   "snapshot_max_bytes": 1, "envelope_max_bytes": 1,
+                                   "search_max_bytes": 1, "retry_attempts": 1},
+            },
+            discovery_publication.SEARCH_SCHEMA: {
+                "search_schema_version": 1, "sequence": 1,
+                "generated_at": "2026-08-27T00:00:00Z", "records": [],
+            },
+            discovery_publication.SNAPSHOT_SCHEMA: {
+                "discovery_schema_version": 1, "sequence": 1, "publication_id": "test",
+                "source_commit": "a" * 40, "generated_at": "2026-08-27T00:00:00Z",
+                "expires_at": "2026-08-28T00:00:00Z", "complete": True,
+                "query_manifest_digest": "sha256:" + "a" * 64, "partitions": [],
+                "search_projection": {"path": "search/00000000000000000001.json",
+                                      "digest": "sha256:" + "b" * 64, "record_count": 0},
+                "records": [],
+            },
+        }
+        maximum = discovery_publication.JSON_SAFE_INTEGER_MAX
+        for schema, value in fixtures.items():
+            with self.subTest(schema=schema.name, sequence=maximum):
+                discovery_publication.validate_with_schema({**value, "sequence": maximum}, schema)
+            for unsafe in (9_007_199_254_740_992, 9_007_199_254_740_993):
+                with self.subTest(schema=schema.name, sequence=unsafe), self.assertRaises(PublicationError):
+                    discovery_publication.validate_with_schema({**value, "sequence": unsafe}, schema)
+
+    def test_discovery_rollover_stops_before_increment_format_or_signing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            feed = root / "feed"; feed.mkdir()
+            candidate = root / "candidate.json"
+            candidate.write_bytes(canonical_json({
+                "candidate_schema_version": 1, "mode": "refresh",
+                "generated_at": "2026-08-27T00:00:00Z", "complete": True,
+                "query_manifest_digest": "sha256:" + "3" * 64,
+                "partitions": [], "records": [],
+            }))
+            previous = ({"sequence": discovery_publication.JSON_SAFE_INTEGER_MAX}, {})
+            with mock.patch.object(discovery_publication, "load_latest", return_value=previous), \
+                 mock.patch.object(discovery_publication, "ed25519_sign") as sign:
+                with self.assertRaisesRegex(PublicationError, "safe-integer range"):
+                    publish(candidate, feed, root / "unused.json", bytes(range(32)),
+                            "discovery-test", "run", "b" * 40, 3)
+            sign.assert_not_called()
+            self.assertEqual(list(feed.rglob("*")), [])
+
+    def test_discovery_producer_publishes_the_safe_sequence_maximum(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            feed = root / "feed"; feed.mkdir()
+            candidate = root / "candidate.json"
+            candidate.write_bytes(canonical_json({
+                "candidate_schema_version": 1, "mode": "refresh",
+                "generated_at": "2026-08-27T00:00:00Z", "complete": True,
+                "query_manifest_digest": "sha256:" + "3" * 64,
+                "partitions": [], "records": [],
+            }))
+            previous = ({"sequence": discovery_publication.JSON_SAFE_INTEGER_MAX - 1}, {})
+            with mock.patch.object(discovery_publication, "load_latest", return_value=previous), \
+                 mock.patch.object(discovery_publication, "ed25519_sign", return_value=b"0" * 64), \
+                 mock.patch.object(discovery_publication, "verify_bundle"):
+                result = publish(candidate, feed, root / "unused.json", bytes(range(32)),
+                                 "discovery-test", "run", "b" * 40, 3)
+            maximum = discovery_publication.JSON_SAFE_INTEGER_MAX
+            self.assertEqual(result["sequence"], maximum)
+            stem = str(maximum).zfill(20)
+            self.assertTrue((feed / f"snapshots/{stem}.json").is_file())
+            self.assertTrue((feed / f"snapshots/{stem}.envelope.json").is_file())
+            self.assertTrue((feed / f"search/{stem}.json").is_file())
+
     def test_signed_feed_is_append_only_and_search_tampering_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

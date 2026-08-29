@@ -47,6 +47,15 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             jsonschema.Draft202012Validator(schema).validate(broad)
 
+        maximum = 9_007_199_254_740_991
+        boundary = dict(fixture, release_sequence=maximum, snapshot_sequence=maximum)
+        jsonschema.Draft202012Validator(schema).validate(boundary)
+        for field in ("release_sequence", "snapshot_sequence"):
+            with self.subTest(field=field), self.assertRaises(jsonschema.ValidationError):
+                jsonschema.Draft202012Validator(schema).validate({
+                    **boundary, field: maximum + 1,
+                })
+
     def make_fixture(self, root: Path) -> Path:
         artifact = root / "assets" / "evidence" / "proof.txt"
         artifact.parent.mkdir(parents=True)

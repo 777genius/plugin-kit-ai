@@ -277,6 +277,7 @@ TUPLE_FIELDS = {
 }
 DIGEST_FIELDS = {"tree_digest", "manifest_digest", "snapshot_digest", "binary_digest"}
 SEQUENCE_FIELDS = {"release_sequence", "snapshot_sequence"}
+JSON_SAFE_INTEGER_MAX = 9_007_199_254_740_991
 
 
 def source_authority_name(key: Any, *, in_source: bool = False) -> str | None:
@@ -304,7 +305,10 @@ def exact_equal(left: Any, right: Any) -> bool:
 def validate_approved_tuple(value: Any, plugin: str) -> None:
     if not isinstance(value, dict) or set(value) != TUPLE_FIELDS or value.get("product_id") != plugin:
         raise ValueError(f"{plugin}: approved source tuple is not exact")
-    if any(type(value.get(field)) is not int or value[field] < 1 for field in SEQUENCE_FIELDS):
+    if any(
+        type(value.get(field)) is not int or not 1 <= value[field] <= JSON_SAFE_INTEGER_MAX
+        for field in SEQUENCE_FIELDS
+    ):
         raise ValueError(f"{plugin}: approved release sequence is invalid")
     string_fields = TUPLE_FIELDS - SEQUENCE_FIELDS - {"client_version"}
     if (

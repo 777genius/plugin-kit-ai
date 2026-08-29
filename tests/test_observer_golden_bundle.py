@@ -69,7 +69,7 @@ class GoldenObserverBundleTest(unittest.TestCase):
                                 "native_discovery_proof": record["client"] != "chatgpt",
                                 "public_mcp_proof": record["client"] == "chatgpt"},
                 })
-            selected = materialize.selected_rows({"matrix": rows})
+            selected = materialize.selected_rows({"evidence_class": "released_binary", "matrix": rows})
             self.assertEqual(len(selected), 16)
             self.assertEqual(len([materialize.evidence_record(row) for row in selected]), 16)
 

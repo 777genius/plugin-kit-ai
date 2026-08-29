@@ -9,6 +9,7 @@ import os
 import tempfile
 from pathlib import Path
 
+from sequence_boundaries import parse_public_sequence
 from run_launch_evidence_e2e import (
     fetch_staged_directory,
     make_challenge,
@@ -26,7 +27,7 @@ def main() -> int:
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--publication-id", required=True)
-    parser.add_argument("--publication-sequence", type=int, required=True)
+    parser.add_argument("--publication-sequence", type=parse_public_sequence, required=True)
     parser.add_argument("--publication-snapshot-digest", required=True)
     parser.add_argument("--publication-source-commit", required=True)
     parser.add_argument("--publication-ledger-commit", required=True)

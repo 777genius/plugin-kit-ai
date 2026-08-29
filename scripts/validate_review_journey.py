@@ -42,6 +42,7 @@ REQUIRED_PROMOTION_GATES = ("pr_metadata", "repository_identity", "default_histo
 REQUIRED_SUBMISSION_GATES = ("git_fork_branch", "schema", "package", "registry_policy", "bridge_reproduction", "side_effect_boundary")
 CLIENT_IDS = ("codex", "chatgpt", "cursor", "copilot", "vscode", "kiro")
 MAX_PROMOTION_EVIDENCE = 24
+JSON_SAFE_INTEGER_MAX = 9_007_199_254_740_991
 
 
 class JourneyError(Exception):
@@ -262,12 +263,18 @@ def gate(name: str, artifact: object) -> dict[str, Any]:
 
 
 def validate_proposed_release_sequence(directory: dict[str, Any], distribution_id: str, product_id: str, sequence: object) -> None:
+    require(
+        type(sequence) is int and 1 <= sequence <= JSON_SAFE_INTEGER_MAX,
+        "proposed upstream release sequence must be a safe positive integer",
+    )
     distributions = [item for item in directory.get("distributions", []) if item.get("id") == distribution_id]
     require(len(distributions) <= 1, "Directory contains a colliding distribution identity")
     if distributions:
         distribution = distributions[0]
         require(distribution["product_id"] == product_id and distribution["kind"] == "upstream", "distribution identity collides with another product or kind")
-        expected = max(item["sequence"] for item in distribution["releases"]) + 1
+        highest = max(item["sequence"] for item in distribution["releases"])
+        require(highest < JSON_SAFE_INTEGER_MAX, "upstream release sequence exhausted the safe-integer range")
+        expected = highest + 1
     else:
         expected = 1
     require(sequence == expected, f"proposed upstream release sequence must be {expected}")

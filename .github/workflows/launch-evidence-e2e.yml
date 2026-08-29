@@ -8,11 +8,15 @@ on:
       - "scripts/launch_observer_signatures.py"
       - "scripts/prepare_launch_evidence.py"
       - "scripts/materialize_launch_evidence.py"
+      - "scripts/two_lane_evidence.py"
+      - "scripts/run_source_policy_conformance.py"
+      - "scripts/build_two_lane_readiness.py"
       - "scripts/observe_release_facade.py"
       - "tests/e2e/**"
       - "schemas/e2e/**"
       - "tests/test_run_launch_evidence_e2e.py"
       - "tests/test_materialize_launch_evidence.py"
+      - "tests/test_two_lane_evidence.py"
       - "tests/test_workflow_contracts.py"
       - ".github/workflows/launch-evidence-e2e.yml"
   workflow_call:
@@ -28,7 +32,7 @@ on:
       publication_sequence:
         description: Exact staged snapshot sequence produced by the caller
         required: true
-        type: number
+        type: string
       publication_snapshot_digest:
         description: Exact sha256 digest of the caller's signed snapshot bytes
         required: true
@@ -66,6 +70,18 @@ on:
       attestation_artifact_name:
         description: Exact offline GitHub provenance transport artifact
         value: ${{ jobs.attest-stable-evidence.outputs.attestation_artifact_name }}
+      source_policy_artifact_name:
+        description: Exact source-policy conformance artifact
+        value: ${{ jobs.source-policy-conformance.outputs.artifact_name }}
+      source_policy_evidence_digest:
+        description: SHA-256 of canonical source-policy evidence
+        value: ${{ jobs.source-policy-conformance.outputs.evidence_digest }}
+      readiness_artifact_name:
+        description: Exact two-lane readiness artifact
+        value: ${{ jobs.two-lane-readiness.outputs.artifact_name }}
+      readiness_evidence_digest:
+        description: SHA-256 of canonical two-lane readiness envelope
+        value: ${{ jobs.two-lane-readiness.outputs.evidence_digest }}
   workflow_dispatch:
     inputs:
       consent:
@@ -79,7 +95,7 @@ on:
       publication_sequence:
         description: Exact published snapshot sequence to verify
         required: true
-        type: number
+        type: string
       publication_snapshot_digest:
         description: Exact sha256 digest of the signed snapshot bytes
         required: true
@@ -104,6 +120,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-publication-sequence:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
+
   fixture-only-non-runtime:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
@@ -124,12 +157,14 @@ jobs:
         run: |
           run_root="${RUNNER_TEMP}/uap-fixture-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           python scripts/run_launch_evidence_e2e.py --mode fixture-only \
+            --uap-sha "$GITHUB_SHA" \
             --consent tests/e2e/fixtures/fixture-only-consent.json \
             --run-root "$run_root" --output "$run_root/evidence/launch-evidence.json"
           python -m unittest tests.test_run_launch_evidence_e2e tests.test_materialize_launch_evidence tests.test_workflow_contracts
 
   native-release:
-    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    needs: [validate-publication-sequence]
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     strategy:
       fail-fast: false
       matrix:
@@ -148,6 +183,16 @@ jobs:
     outputs:
       evidence_run_attempt: ${{ steps.identity.outputs.run_attempt }}
     steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -196,7 +241,8 @@ jobs:
         run: echo "run_attempt=${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
   node22-npm-facade:
-    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    needs: [validate-publication-sequence]
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -205,6 +251,16 @@ jobs:
     outputs:
       evidence_run_attempt: ${{ steps.identity.outputs.run_attempt }}
     steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -246,10 +302,11 @@ jobs:
             --npm-package-root "$npm_package_root" --npm-binary-cache "$AGENTPLUGINS_CACHE_DIR" \
             --output npm-observation.json
           sha256sum npm-observation.json > npm-observation.SHA256SUMS
-          mkdir prepared-observer-context prepared-producer-inputs
+          mkdir prepared-observer-context prepared-producer-inputs prepared-policy-inputs
           cp "$run_root/context.json" prepared-observer-context/context.json
           cp "$run_root/context.json" prepared-producer-inputs/context.json
           cp -R "$run_root/release" "$run_root/directory" prepared-producer-inputs/
+          cp "$run_root/release/release-manifest.json" "$run_root/release/checksums.txt" prepared-policy-inputs/
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: npm-node22-${{ github.run_id }}-${{ github.run_attempt }}
@@ -275,9 +332,18 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           overwrite: false
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prepared-policy-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            prepared-policy-inputs/release-manifest.json
+            prepared-policy-inputs/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: false
 
   aggregate-one-release:
-    if: always() && inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    if: always() && inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     needs: [native-release, node22-npm-facade]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -287,6 +353,16 @@ jobs:
     outputs:
       evidence_run_attempt: ${{ steps.identity.outputs.run_attempt }}
     steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -343,8 +419,75 @@ jobs:
           test -n "$NATIVE_ATTEMPT" && test -n "$NODE_ATTEMPT"
           echo "run_attempt=${NODE_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
+  source-policy-conformance:
+    needs: [validate-publication-sequence, node22-npm-facade]
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.policy.outputs.artifact_name }}
+      evidence_digest: ${{ steps.policy.outputs.evidence_digest }}
+    steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: 777genius/plugin-kit-ai
+          ref: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
+          path: _plugin-kit-source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with: {go-version: '1.25.13', cache: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: {python-version: "3.13"}
+      - run: python -m pip install check-jsonschema==0.37.4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: prepared-policy-inputs-${{ github.run_id }}-${{ needs.node22-npm-facade.outputs.evidence_run_attempt }}
+          path: prepared
+      - name: Run exact production-source policy tests without editing production source
+        id: policy
+        run: |
+          test "$(git -C _plugin-kit-source rev-parse HEAD)" = 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
+          test "$(git -C _plugin-kit-source describe --tags --exact-match HEAD)" = agentplugins-v0.1.18
+          mkdir source-policy-evidence
+          python scripts/run_source_policy_conformance.py \
+            --source _plugin-kit-source \
+            --release-manifest prepared/release-manifest.json \
+            --release-checksums prepared/checksums.txt \
+            --uap-sha "$GITHUB_SHA" \
+            --output source-policy-evidence/source-policy-conformance.json
+          check-jsonschema --schemafile schemas/e2e/source-policy-conformance.schema.json source-policy-evidence/source-policy-conformance.json
+          artifact_name="source-policy-conformance-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          evidence_digest="sha256:$(sha256sum source-policy-evidence/source-policy-conformance.json | cut -d' ' -f1)"
+          echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "evidence_digest=${evidence_digest}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.policy.outputs.artifact_name }}
+          path: source-policy-evidence/source-policy-conformance.json
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
   protected-observer-inputs:
-    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     needs: [node22-npm-facade, aggregate-one-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -358,6 +501,16 @@ jobs:
       observer_public_key: ${{ steps.observer.outputs.public_key }}
       observer_key_id: ${{ steps.observer.outputs.key_id }}
     steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -551,7 +704,7 @@ jobs:
         run: echo "run_attempt=${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
   enforced-stable-gate:
-    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     needs: [native-release, node22-npm-facade, aggregate-one-release, protected-observer-inputs]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -564,6 +717,16 @@ jobs:
       workflow_source_digest: ${{ steps.bundle.outputs.source_digest }}
       evidence_run_attempt: ${{ steps.bundle.outputs.run_attempt }}
     steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
@@ -654,6 +817,7 @@ jobs:
           EVIDENCE_RUN_ATTEMPT: ${{ needs.protected-observer-inputs.outputs.evidence_run_attempt }}
         run: |
           python scripts/run_launch_evidence_e2e.py --prepared-context "$RUN_ROOT/context.json" \
+            --uap-sha "$GITHUB_SHA" \
             --asset-name agentplugins_0.1.18_linux_amd64 \
             --native-observations native-observations \
             --observer-bundle "$RUN_ROOT/live-inputs/observer-bundle.json" \
@@ -693,7 +857,7 @@ jobs:
           overwrite: false
 
   attest-stable-evidence:
-    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence != '' && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     needs: [enforced-stable-gate]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -710,6 +874,16 @@ jobs:
       evidence_run_attempt: ${{ needs.enforced-stable-gate.outputs.evidence_run_attempt }}
       attestation_artifact_name: ${{ steps.attestation-identity.outputs.artifact_name }}
     steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -761,6 +935,68 @@ jobs:
         with:
           name: ${{ steps.attestation-identity.outputs.artifact_name }}
           path: attestation/github-attestation.jsonl
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
+  two-lane-readiness:
+    if: always() && needs.attest-stable-evidence.result == 'success' && needs.source-policy-conformance.result == 'success'
+    needs: [attest-stable-evidence, source-policy-conformance]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.readiness.outputs.artifact_name }}
+      evidence_digest: ${{ steps.readiness.outputs.evidence_digest }}
+    steps:
+      - name: Validate the unmodified canonical publication sequence
+        shell: bash
+        env:
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          LC_ALL: C
+        run: |
+          value="$PUBLICATION_SEQUENCE"
+          case "$value" in ""|0*|*[!0-9]*) exit 1 ;; esac
+          maximum=9007199254740991
+          test "${#value}" -lt "${#maximum}" || { test "${#value}" -eq "${#maximum}" && test "$value" \< "$maximum" -o "$value" = "$maximum"; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: {python-version: "3.13"}
+      - run: python -m pip install check-jsonschema==0.37.4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.attest-stable-evidence.outputs.evidence_artifact_name }}
+          path: released-runtime
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.source-policy-conformance.outputs.artifact_name }}
+          path: source-policy
+      - name: AND-bind both canonical lanes
+        id: readiness
+        run: |
+          mkdir two-lane-readiness
+          python scripts/build_two_lane_readiness.py \
+            --runtime released-runtime/launch-evidence.json \
+            --policy source-policy/source-policy-conformance.json \
+            --uap-sha "$GITHUB_SHA" \
+            --directory-ledger-sha "${{ inputs.publication_ledger_commit }}" \
+            --publication-id "${{ inputs.publication_id }}" \
+            --publication-sequence "${{ inputs.publication_sequence }}" \
+            --publication-snapshot-digest "${{ inputs.publication_snapshot_digest }}" \
+            --publication-source-commit "${{ inputs.publication_source_commit }}" \
+            --output two-lane-readiness/two-lane-readiness.json
+          check-jsonschema --schemafile schemas/e2e/two-lane-readiness.schema.json two-lane-readiness/two-lane-readiness.json
+          artifact_name="two-lane-readiness-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          evidence_digest="sha256:$(sha256sum two-lane-readiness/two-lane-readiness.json | cut -d' ' -f1)"
+          echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "evidence_digest=${evidence_digest}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.readiness.outputs.artifact_name }}
+          path: two-lane-readiness/two-lane-readiness.json
           if-no-files-found: error
           retention-days: 90
           overwrite: false

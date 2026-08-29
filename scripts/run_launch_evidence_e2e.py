@@ -33,6 +33,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from directory_publication import (  # noqa: E402
+    JSON_SAFE_INTEGER_MAX,
     MAX_ENVELOPE_BYTES,
     MAX_LATEST_BYTES,
     MAX_SNAPSHOT_BYTES,
@@ -57,8 +58,16 @@ from observe_launch_scenario import (  # noqa: E402
     grouped_acquisition_closure_digest,
     installation_receipts,
     selected_manager_installation,
+    scenario_client_targets,
+    scenario_challenge_context_digest,
     strict_json_loads,
+    validate_scenario_target_contract,
     validate_cli_envelope,
+)
+from two_lane_evidence import (  # noqa: E402
+    POLICY_SCENARIO_SET,
+    classified_runtime_lists,
+    reject_policy_scenario_before_effect,
 )
 
 
@@ -265,26 +274,34 @@ DIRECTORY_INPUT_ENVIRONMENT_KEYS = frozenset({
     "AGENTPLUGINS_DIRECTORY_ENVELOPE",
     "AGENTPLUGINS_DIRECTORY_TRUST",
 })
-DIRECTORY_LAUNCH_ENVIRONMENT_KEYS = DIRECTORY_INPUT_ENVIRONMENT_KEYS | {
-    "AGENTPLUGINS_DIRECTORY_CACHE",
-    "AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY",
-}
+DIRECTORY_LAUNCH_ENVIRONMENT_KEYS = frozenset({"AGENTPLUGINS_DIRECTORY_ORIGIN"})
 CHALLENGE_DOMAIN = b"UAP-STABLE-LAUNCH-CHALLENGE-V1\0"
 ATTESTATION_DOMAIN = b"UAP-STABLE-LAUNCH-OBSERVER-V1\0"
 MAX_ATTESTATION_AGE = timedelta(minutes=30)
-EXPECTED_ACCEPTANCE_SCENARIOS = (
+ALL_ACCEPTANCE_SCENARIOS = (
     "retained_data_readd_before_changed_default", "schema_1_0_0_accepted",
     "schema_draft_rejected", "schema_unknown_rejected", "project_scope_zero_mutation",
     "direct_full_sha_immutable", "public_help_no_hidden_yes", "revoked_operations_boundary",
     "readd_sticky_distribution", "repair_sticky_distribution", "missing_runtime_exact_guidance",
     "plugin_data_lifecycle_boundary", "signed_sequence_not_semver",
 )
+EXPECTED_ACCEPTANCE_SCENARIOS = tuple(
+    item for item in ALL_ACCEPTANCE_SCENARIOS
+    if item not in {
+        "retained_data_readd_before_changed_default", "revoked_operations_boundary",
+        "signed_sequence_not_semver",
+    }
+)
+_CANONICAL_SCENARIOS = json.loads(SCENARIOS.read_text())
+_RUNTIME_LISTS = classified_runtime_lists(_CANONICAL_SCENARIOS)
 EXPECTED_COUNTS = {
     "directory_products": 26, "directory_lifecycle_rows": 78,
-    "hero_lifecycle_rows": 15, "hero_runtime_rows": 15,
-    "context7_grouped_rows": 4, "chatgpt_rows": 1,
-    "shared_backend_rows": 1, "acceptance_postcondition_rows": 13,
-    "native_platform_rows": 7, "fault_rows": 23, "journey_rows": 3,
+    "hero_lifecycle_rows": len(_CANONICAL_SCENARIOS["heroes"]) * len(_CANONICAL_SCENARIOS["runtime_clients"]),
+    "hero_runtime_rows": len(_CANONICAL_SCENARIOS["heroes"]) * len(_CANONICAL_SCENARIOS["runtime_clients"]),
+    "context7_grouped_rows": len(_CANONICAL_SCENARIOS["context7_lifecycle"]), "chatgpt_rows": 1,
+    "shared_backend_rows": 1, "acceptance_postcondition_rows": len(_RUNTIME_LISTS["acceptance"]),
+    "native_platform_rows": 7, "fault_rows": len(_RUNTIME_LISTS["fault_adapter_advanced"]),
+    "journey_rows": len(_CANONICAL_SCENARIOS["journeys"]),
 }
 OUTCOMES = {"passed", "failed", "inconclusive", "not_applicable"}
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
@@ -541,7 +558,7 @@ def read_production_config() -> dict[str, Any]:
         or value.get("npm_facade_version") != "0.1.18"
         or value.get("npm_facade_integrity") != "sha512-48UfVVaGrvmniWQpoiXQYZvTS3QqrCN0HFLSQBVCsqQJwPdecRtuK9XEsOs4nTMQuWImjX6ZAflUeY/79biRZg=="
         or value.get("directory_source_digest") != "sha256:e4998f9ed1aca8a76cc2efa9ae5d2945dd4c3410ecf7263df8429d863f84d05d"
-        or value.get("scenario_contract_digest") != "sha256:d62f160de32f9af53d7bb2d7c03fbfa8c3203e2fe5c99e616985b1e583996e66"
+        or value.get("scenario_contract_digest") != "sha256:30a5a44dd6a1a32957dcba1a6d96ccb7c64f4fc7ed042a29bec6108f30011c32"
         or value.get("copilot_cli_package") != "@github/copilot"
         or value.get("copilot_cli_version") != "1.0.80"
         or value.get("copilot_cli_integrity") != "sha512-6tf93ZF56KOiTTAjK/UhLZkl1W543IzaTQly288kockJZFswpRTnQEI00Yvacpb39DTvTYu3/ha9SeKpo/pgZQ=="
@@ -1226,7 +1243,8 @@ def production_identity_from_materialized_ledger(root: Path) -> dict[str, Any]:
     }
     if (
         not isinstance(identity["publication_id"], str) or not identity["publication_id"]
-        or type(identity["sequence"]) is not int or identity["sequence"] < 1
+        or type(identity["sequence"]) is not int
+        or not 1 <= identity["sequence"] <= JSON_SAFE_INTEGER_MAX
         or not DIGEST.fullmatch(identity["snapshot_digest"])
         or not FULL_SHA.fullmatch(str(identity["source_commit"]))
     ):
@@ -1243,7 +1261,13 @@ def fetch_production_directory(
     The trust root is deliberately never fetched. It is copied from the exact
     checked-out repository revision after real Ed25519 verification.
     """
-    if expected_sequence < 1 or not expected_publication_id or not FULL_SHA.fullmatch(expected_source_commit) or not DIGEST.fullmatch(expected_snapshot_digest):
+    if (
+        type(expected_sequence) is not int
+        or not 1 <= expected_sequence <= JSON_SAFE_INTEGER_MAX
+        or not expected_publication_id
+        or not FULL_SHA.fullmatch(expected_source_commit)
+        or not DIGEST.fullmatch(expected_snapshot_digest)
+    ):
         raise ValueError("caller publication identity is incomplete or invalid")
     config = read_production_config()
     origin = config["production_origin"].rstrip("/") + "/"
@@ -1293,7 +1317,13 @@ def fetch_staged_directory(
     """Reacquire and verify one publication from an immutable ledger commit."""
     if repository != TRUSTED_CATALOG_REPOSITORY or not FULL_SHA.fullmatch(ledger_commit):
         raise ValueError("staged publication ledger identity is invalid")
-    if expected_sequence < 1 or not expected_publication_id or not FULL_SHA.fullmatch(expected_source_commit) or not DIGEST.fullmatch(expected_snapshot_digest):
+    if (
+        type(expected_sequence) is not int
+        or not 1 <= expected_sequence <= JSON_SAFE_INTEGER_MAX
+        or not expected_publication_id
+        or not FULL_SHA.fullmatch(expected_source_commit)
+        or not DIGEST.fullmatch(expected_snapshot_digest)
+    ):
         raise ValueError("caller publication identity is incomplete or invalid")
     origin = f"https://raw.githubusercontent.com/{repository}/{ledger_commit}/registry/schemas/1/"
 
@@ -1362,21 +1392,12 @@ def isolated_environment(sandbox: Path, clients: tuple[str, ...], directory_envi
     if directory_environment:
         if set(directory_environment) != DIRECTORY_INPUT_ENVIRONMENT_KEYS:
             raise ValueError("Directory environment must contain the complete origin/snapshot/envelope/trust tuple")
-        fixture_root = sandbox / "config" / "directory-trust"
-        fixture_root.mkdir(parents=True, exist_ok=True)
+        # The released binary receives only the immutable staged origin. The
+        # locally verified snapshot/trust tuple authenticates runner input and
+        # is never forwarded as a production runtime override.
         launch_directory_environment = {
             "AGENTPLUGINS_DIRECTORY_ORIGIN": directory_environment["AGENTPLUGINS_DIRECTORY_ORIGIN"],
         }
-        for key, filename in (
-            ("AGENTPLUGINS_DIRECTORY_SNAPSHOT", "snapshot.json"),
-            ("AGENTPLUGINS_DIRECTORY_ENVELOPE", "envelope.json"),
-            ("AGENTPLUGINS_DIRECTORY_TRUST", "trusted-keys.json"),
-        ):
-            target = fixture_root / filename
-            shutil.copy2(directory_environment[key], target)
-            launch_directory_environment[key] = str(target)
-        launch_directory_environment["AGENTPLUGINS_DIRECTORY_CACHE"] = str(sandbox / "cache" / "directory")
-        launch_directory_environment["AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY"] = "1"
         if set(launch_directory_environment) != DIRECTORY_LAUNCH_ENVIRONMENT_KEYS:
             raise AssertionError("incomplete Directory launch environment")
         env.update(launch_directory_environment)
@@ -1507,6 +1528,11 @@ def external_pr_evidence_valid(
     }
     if not isinstance(binding, dict) or set(binding) != binding_fields:
         return False, "external-fork PR capture binding is non-canonical"
+    if (
+        type(binding.get("directory_sequence")) is not int
+        or not 1 <= binding["directory_sequence"] <= JSON_SAFE_INTEGER_MAX
+    ):
+        return False, "external-fork PR capture Directory sequence is unsafe"
     expected_binding = {
         "catalog_repository": catalog_repository,
         "catalog_sha": catalog_sha,
@@ -1598,6 +1624,7 @@ class LaunchHarness:
         directory_snapshot: Path | None = None,
         directory_envelope: Path | None = None,
         directory_trust: Path | None = None,
+        directory_identity: dict[str, Any] | None = None,
         run_root: Path | None = None,
         consent: Path | None = None,
         notion_oauth: Path | None = None,
@@ -1621,6 +1648,7 @@ class LaunchHarness:
         copilot_metadata: Path | None = None,
     ) -> None:
         self.config = json.loads(SCENARIOS.read_text())
+        self.scenario_targets = validate_scenario_target_contract(self.config)
         if mode not in {"enforced", "fixture-only"}:
             raise ValueError("mode must be enforced or fixture-only")
         self.mode = mode
@@ -1647,6 +1675,7 @@ class LaunchHarness:
         self.directory_environment: dict[str, str] = {}
         self.snapshot: dict[str, Any] = {}
         self.snapshot_digest: str | None = None
+        self.directory_identity = directory_identity or {}
         self.run_root = run_root.resolve() if run_root else None
         self._sandbox_counter = 0
         self.observed_at = utc_now()
@@ -1661,6 +1690,18 @@ class LaunchHarness:
             self.directory_environment, self.snapshot, self.snapshot_digest = validated_directory_environment(
                 str(directory_origin), Path(directory_snapshot), Path(directory_envelope), Path(directory_trust)
             )
+        if mode == "enforced" and self.directory_identity:
+            ledger_commit = self.directory_identity.get("ledger_commit")
+            expected_origin = f"https://raw.githubusercontent.com/{TRUSTED_CATALOG_REPOSITORY}/{ledger_commit}/registry/schemas/1/"
+            if (
+                not FULL_SHA.fullmatch(str(ledger_commit))
+                or self.directory_environment.get("AGENTPLUGINS_DIRECTORY_ORIGIN") != expected_origin
+                or self.directory_identity.get("publication_id") != self.snapshot.get("publication_id")
+                or self.directory_identity.get("sequence") != self.snapshot.get("sequence")
+                or self.directory_identity.get("source_commit") != self.snapshot.get("source_commit")
+                or self.directory_identity.get("digest") != self.snapshot_digest
+            ):
+                raise ValueError("released runtime Directory identity differs from the exact publication tuple")
         self.challenge = challenge
         if mode == "enforced" and self.challenge is None and self.run_root and self.release_manifest_digest and self.snapshot_digest:
             self.challenge = make_challenge(
@@ -2134,6 +2175,8 @@ class LaunchHarness:
         return "passed", value, "isolated CLI command completed"
 
     def driven_scenario(self, scenario: str) -> tuple[str, dict[str, Any] | None, str]:
+        # Must precede sandbox creation, resolution, and subprocess execution.
+        reject_policy_scenario_before_effect(scenario)
         if not self.cli_available or not self.challenge:
             return "inconclusive", None, "fixture-only non-runtime mode: CLI/challenge was not supplied"
         sandbox = self.fresh_sandbox("driver-" + scenario)
@@ -2144,17 +2187,10 @@ class LaunchHarness:
             product_id = source_selection["product_id"]
         if scenario.startswith("hero_lifecycle_"):
             product_id = scenario.removeprefix("hero_lifecycle_").rsplit("_", 1)[0]
-        targets: tuple[str, ...]
-        if scenario == "context7_grouped_lifecycle":
-            targets = tuple(self.config["context7_targets"])
-        elif scenario == "shared_copilot_vscode_backend":
-            targets = tuple(self.config["shared_backend_targets"])
-        elif scenario.startswith("hero_lifecycle_"):
-            targets = (scenario.rsplit("_", 1)[1],)
-        elif scenario.startswith("repair_"):
-            targets = (scenario.removeprefix("repair_"),)
-        else:
-            targets = ("cursor",)
+        try:
+            targets = self.scenario_targets[scenario]
+        except KeyError:
+            raise ValueError("scenario is not in the immutable target contract")
         env = isolated_environment(sandbox, targets, self.directory_environment)
         if "copilot" in targets:
             if not self.copilot_executable:
@@ -2179,12 +2215,16 @@ class LaunchHarness:
             "directory_product": next(item for item in self.snapshot["products"] if item["id"] == product_id),
             "directory_distribution": next(item for item in self.snapshot["distributions"] if item["id"] == release["distribution_id"]),
             "source_identity": source_identity,
+            "scenario_id": scenario,
         }
+        observer_context["context_digest"] = scenario_challenge_context_digest(observer_context)
+        expected_context_digest = observer_context["context_digest"]
         challenge_path.write_text(json.dumps(observer_context, sort_keys=True))
         completed = subprocess.run([
             sys.executable, str(SCENARIO_OBSERVER), "--scenario", scenario,
             "--binary", str(self.binary), "--root", str(sandbox / "workspace"),
             "--challenge-context", str(challenge_path),
+            "--expected-context-digest", expected_context_digest,
         ], cwd=sandbox / "workspace", env=env, text=True, capture_output=True, timeout=240, check=False)
         try:
             value = strict_json_loads(completed.stdout)
@@ -2195,6 +2235,8 @@ class LaunchHarness:
             return "failed", None, "repository-owned observer returned an invalid outcome"
         if value.get("scenario_id") != scenario or value.get("challenge") != self.challenge["value"]:
             return "failed", None, "repository-owned observer result is not challenge-correlated"
+        if value.get("challenge_context_digest") != expected_context_digest:
+            return "failed", None, "repository-owned observer result changed the retained challenge context"
         traces = value.get("command_traces")
         if not isinstance(traces, list) or not traces or not all(trace.get("challenge") == self.challenge["value"] for trace in traces):
             return "failed", None, "repository-owned observer omitted challenge-bound command traces"
@@ -2250,7 +2292,7 @@ class LaunchHarness:
         valid = (
             state.get("schema_version") == 2 and expected == actual
             and (EXTERNAL_PACKAGE / "plugin.json").is_file()
-            and tuple(self.config.get("acceptance_postconditions", ())) == EXPECTED_ACCEPTANCE_SCENARIOS
+            and tuple(self.config.get("acceptance_postconditions", ())) == ALL_ACCEPTANCE_SCENARIOS
             and self.config.get("expected_counts") == EXPECTED_COUNTS
         )
         self.add("fixture_contracts", None, None, "harness", "passed" if valid else "failed", "scenario fixtures are structurally complete" if valid else "scenario fixture mismatch", details={"fault_case_count": len(actual), "external_package_digest": package_digest(EXTERNAL_PACKAGE)})
@@ -2444,7 +2486,7 @@ class LaunchHarness:
                 self.add(f"all_26_{operation}", plugin, client, "discovery" if operation == "info" else "materialization", outcome, reason or "unknown result", tuple_value=tuple_value, details=details)
 
     def context7_multi_target(self) -> None:
-        targets = tuple(self.config["context7_targets"])
+        targets = self.scenario_targets["context7_grouped_lifecycle"]
         target_arg = ",".join(targets)
         release = self.directory_release("context7", targets)
         expected_digest = release["tree_digest"]
@@ -2521,6 +2563,45 @@ class LaunchHarness:
         else:
             self.add("chatgpt_registered_binding", "cloudflare-docs", "chatgpt", "runtime", "failed", "registered app binding, human UI, and public MCP runtime attestation were not supplied", tuple_value=self.evidence_tuple("cloudflare-docs", ["chatgpt"], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"resolution": chatgpt_release})
 
+    def released_directory_override_canary(self) -> None:
+        """Execute a read with poisoned caller overrides that must be dropped."""
+        poison = {
+            "AGENTPLUGINS_DIRECTORY_SNAPSHOT": "/caller-invalid/snapshot.json",
+            "AGENTPLUGINS_DIRECTORY_TRUST": "/caller-invalid/trusted-keys.json",
+            "AGENTPLUGINS_DIRECTORY_CACHE": "/caller-invalid/cache",
+        }
+        previous = {key: os.environ.get(key) for key in poison}
+        os.environ.update(poison)
+        try:
+            sandbox = self.fresh_sandbox("released-directory-override-canary")
+            outcome, value, reason = self.command(
+                ["info", "context7", "--target", "cursor", "--format", "json"],
+                sandbox, ("cursor",),
+            )
+        finally:
+            for key, old in previous.items():
+                if old is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = old
+        origin = self.directory_environment.get("AGENTPLUGINS_DIRECTORY_ORIGIN")
+        exact_origin = isinstance(origin, str) and origin.startswith(
+            f"https://raw.githubusercontent.com/{TRUSTED_CATALOG_REPOSITORY}/"
+        )
+        passed = outcome == "passed" and exact_origin
+        self.add(
+            "released_directory_override_canary", None, "cursor", "harness",
+            "passed" if passed else "failed",
+            "caller snapshot/trust/cache were ignored and the immutable candidate origin executed"
+            if passed else reason,
+            details={
+                "candidate_origin_digest": "sha256:" + hashlib.sha256(str(origin).encode()).hexdigest(),
+                "caller_snapshot_trust_cache_forwarded": False,
+                "writes_confined_to_disposable_root": True,
+                "command_trace": value.get("_launch_command_trace") if isinstance(value, dict) else None,
+            },
+        )
+
     def hero_lifecycle_matrix(self) -> None:
         for plugin in self.config["heroes"]:
             for client in self.config["runtime_clients"]:
@@ -2538,7 +2619,7 @@ class LaunchHarness:
                 self.add("hero_5x3_lifecycle", plugin, client, "materialization", outcome, reason, tuple_value=tuple_value or self.evidence_tuple(plugin, [client], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "operations": sorted(required_operations), "operation_outcomes": operation_outcomes, "command_traces": value.get("command_traces", []) if value else [], "resolution": release})
 
     def shared_backend(self) -> None:
-        targets = tuple(self.config["shared_backend_targets"])
+        targets = self.scenario_targets["shared_copilot_vscode_backend"]
         outcome, value, reason = self.driven_scenario("shared_copilot_vscode_backend")
         valid = bool(value) and value.get("affected_surfaces") == list(targets)
         valid = valid and value.get("physical_mutations") == {"add": 1, "remove": 1}
@@ -2549,15 +2630,16 @@ class LaunchHarness:
         self.add("shared_copilot_vscode_backend", "context7", "copilot,vscode", "materialization", outcome, reason, tuple_value=value.get("tuple") if value else self.evidence_tuple("context7", targets, client_version=None, dependency="copilot-shared-backend"), details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "expected_physical_mutations_per_operation": 1, "operations": ["add", "remove"], "command_traces": value.get("command_traces", []) if value else [], "operation_observations": value.get("operation_observations", []) if value else [], "resolution": release})
 
     def fault_matrix(self) -> None:
-        for scenario in (*self.config["fault_scenarios"], *self.config["adapter_repair_faults"], *self.config["advanced_scenarios"]):
+        for scenario in classified_runtime_lists(self.config)["fault_adapter_advanced"]:
             outcome, value, reason = self.driven_scenario(scenario)
             if outcome == "passed" and not self.driver_proof_valid(scenario, value):
                 outcome, reason = "failed", "scenario driver omitted the required exact proof fields"
             tuple_value = value.get("tuple") if value else None
-            client = scenario.removeprefix("repair_") if scenario.startswith("repair_") else "cursor"
+            targets = self.scenario_targets[scenario]
+            client = ",".join(targets)
             source_selection = self.config.get("source_identity_scenarios", {}).get(scenario)
             product = source_selection["product_id"] if source_selection else "context7"
-            release = self.configured_source_release(scenario, [client]) if source_selection else self.directory_release(product, [client])
+            release = self.configured_source_release(scenario, targets) if source_selection else self.directory_release(product, targets)
             if source_selection:
                 observed = value.get("source_identity") if value else None
                 exact_source_identity = self.source_identity_matches_release(release, observed)
@@ -2570,11 +2652,11 @@ class LaunchHarness:
                 if outcome == "passed":
                     observed_client_version = find_value(value, {"client_version"}) if value else None
                     tuple_value = self.tuple(product_id=observed["product_id"], digest=observed["tree_digest"], manifest_digest=observed["manifest_digest"], distribution_id=observed["distribution_id"], distribution_kind=observed["distribution_kind"], release_sequence=observed["release_sequence"], package_version=release["package_version"], source_repository=observed["source_repository"], source_revision=observed["source_revision"], source_path=observed["source_path"], client_version=observed_client_version if isinstance(observed_client_version, str) else None, dependency=f"signed-directory-source@{observed['source_revision']}")
-            if outcome == "passed" and not source_selection and tuple_value is not None and (not isinstance(tuple_value, dict) or not self.tuple_matches_release(product, [client], tuple_value)):
+            if outcome == "passed" and not source_selection and tuple_value is not None and (not isinstance(tuple_value, dict) or not self.tuple_matches_release(product, targets, tuple_value)):
                 outcome, reason = "failed", "scenario observer tuple differs from authoritative target-aware resolution"
             if tuple_value is None:
                 observed_client_version = find_value(value, {"client_version"}) if value else None
-                tuple_value = None if source_selection else self.evidence_tuple(product, [client], client_version=observed_client_version if isinstance(observed_client_version, str) else None, dependency="repository-owned-fault-observer")
+                tuple_value = None if source_selection else self.evidence_tuple(product, targets, client_version=observed_client_version if isinstance(observed_client_version, str) else None, dependency="repository-owned-fault-observer")
             details = {"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "fixture_contract_present": scenario in self.config["fault_scenarios"], "repository_observer_required": True, "proof": value.get("proof", {}) if value else {}, "command_traces": value.get("command_traces", []) if value else [], "validator_artifact": value.get("validator_artifact") if value else None, "source_identity": value.get("source_identity") if value else None, "resolution": release}
             self.add(scenario, product, client, "materialization", outcome, reason, tuple_value=tuple_value, details=details)
 
@@ -2594,16 +2676,18 @@ class LaunchHarness:
             "plugin_data_lifecycle_boundary": {"update_preserved": True, "repair_preserved": True, "switch_preserved": True, "remove_preserved": True, "explicit_owned_purge_deleted": True},
             "signed_sequence_not_semver": {"higher_sequence_selected": True, "semver_order_ignored": True},
         }
-        for scenario in EXPECTED_ACCEPTANCE_SCENARIOS:
+        for scenario in classified_runtime_lists(self.config)["acceptance"]:
             outcome, value, reason = self.driven_scenario(scenario)
+            targets = self.scenario_targets[scenario]
+            client = ",".join(targets)
             proof = value.get("proof", {}) if value else {}
             observations_present = bool(value and isinstance(value.get("before"), dict) and isinstance(value.get("after"), dict))
             if outcome == "passed" and (not observations_present or any(proof.get(key) != expected for key, expected in required[scenario].items())):
                 outcome, reason = "failed", "repository-owned observer omitted the exact independent postcondition"
             self.add(
-                scenario, "context7", "cursor", "materialization", outcome, reason,
-                tuple_value=self.evidence_tuple("context7", ["cursor"], client_version=find_value(value, {"client_version"}) if value else None, dependency="repository-owned-observer"),
-                details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "expected_postcondition_id": scenario, "command_traces": value.get("command_traces", []) if value else [], "manager_and_native_before_after": observations_present, "resolution": self.directory_release("context7", ["cursor"])},
+                scenario, "context7", client, "materialization", outcome, reason,
+                tuple_value=self.evidence_tuple("context7", targets, client_version=find_value(value, {"client_version"}) if value else None, dependency="repository-owned-observer"),
+                details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "expected_postcondition_id": scenario, "proof": proof, "command_traces": value.get("command_traces", []) if value else [], "manager_and_native_before_after": observations_present, "resolution": self.directory_release("context7", targets)},
             )
 
     def native_platform_matrix(self) -> None:
@@ -2731,8 +2815,9 @@ class LaunchHarness:
             "binary_windows_arm64": {"os": "windows", "architecture": "arm64", "checksum_verified": True},
             "npm_install_node22": {"node_major": 22, "npm_install_verified": True, "binary_checksum_verified": True},
         }
-        if scenario.startswith("repair_"):
-            expected_values = {"fault_injected_once": True, "repair_succeeded": True, "client": scenario.removeprefix("repair_")}
+        if scenario in {"repair_codex", "repair_cursor", "repair_kiro"}:
+            client, = scenario_client_targets(scenario)
+            expected_values = {"fault_injected_once": True, "repair_succeeded": True, "client": client}
         else:
             expected_values = expected.get(scenario)
         return bool(expected_values) and all(value.get(key) == expected_value for key, expected_value in expected_values.items())
@@ -2844,6 +2929,7 @@ class LaunchHarness:
             self.add("fixture_only_non_runtime_contract", None, None, "harness", "passed", "fixture-only mode validates contracts and emits no runtime claim")
         else:
             self.discover_version()
+            self.released_directory_override_canary()
             self.native_platform_matrix()
             self.all_package_matrix()
             self.context7_multi_target()
@@ -2855,18 +2941,20 @@ class LaunchHarness:
             self.journeys()
             self.external_pr_gate()
         counts = Counter(row["outcome"] for row in self.rows)
-        required = [row for row in self.rows if row["level"] != "harness" or row["scenario"].startswith("native_") or row["scenario"] == "first_stable_external_fork_pr"]
+        required = [row for row in self.rows if row["level"] != "harness" or row["scenario"].startswith("native_") or row["scenario"] in {"first_stable_external_fork_pr", "released_directory_override_canary"}]
         complete = self.mode == "enforced" and bool(required) and all(row["outcome"] == "passed" for row in required)
         run_seed = json.dumps([self.observed_at, self.os_name, self.architecture, sha256_file(SCENARIOS)])
-        required_ids = self.config["fault_scenarios"] + self.config["adapter_repair_faults"] + self.config["advanced_scenarios"] + self.config["acceptance_postconditions"] + self.config["journeys"] + ["shared_copilot_vscode_backend"]
+        runtime_lists = classified_runtime_lists(self.config)
+        required_ids = list(runtime_lists["fault_adapter_advanced"] + runtime_lists["acceptance"]) + self.config["journeys"] + ["shared_copilot_vscode_backend"]
         return {
-            "schema_version": 3,
+            "schema_version": 4,
+            "evidence_class": "released_binary" if self.mode == "enforced" else "fixture_contract",
             "run": {"id": hashlib.sha256(run_seed.encode()).hexdigest()[:16], "mode": self.mode, "runtime_claims": self.mode == "enforced", "observed_at": self.observed_at, "platform": self.os_name, "architecture": self.architecture, "disposable": True, "root_id": exported_root_id(self.challenge), "github_sha": self.github_sha, "github_run_id": self.github_run_id, "github_run_attempt": self.github_run_attempt, "caller_event_name": self.caller_event_name, "caller_ref": self.caller_ref, "caller_workflow_ref": self.caller_workflow_ref, "challenge": self.challenge.get("value") if self.challenge else None, "observer_bundle_digest": self.observer_bundle_digest, "cli": {"available": self.cli_available, "version": self.cli_version or self.expected_version, "binary_digest": self.binary_digest}},
             "release": {"repository": read_production_config()["cli_release_repository"] if self.mode == "enforced" else None, "tag": self.release_tag, "tag_commit": self.release_manifest.get("commit"), "release_id": self.release_identity.get("release_id"), "immutable": self.release_identity.get("immutable") if self.mode == "enforced" else None, "manifest_digest": self.release_manifest_digest, "checksums_digest": self.release_checksums_digest},
-            "directory": {"origin": self.directory_environment.get("AGENTPLUGINS_DIRECTORY_ORIGIN"), "snapshot_digest": self.snapshot_digest, "sequence": self.snapshot.get("sequence"), "trust_root_digest": sha256_file(PRODUCTION_DIRECTORY_TRUST) if self.mode == "enforced" else None},
+            "directory": {"origin": self.directory_environment.get("AGENTPLUGINS_DIRECTORY_ORIGIN"), "ledger_commit": self.directory_identity.get("ledger_commit"), "publication_id": self.snapshot.get("publication_id"), "source_commit": self.snapshot.get("source_commit"), "snapshot_digest": self.snapshot_digest, "sequence": self.snapshot.get("sequence"), "trust_root_digest": sha256_file(PRODUCTION_DIRECTORY_TRUST) if self.mode == "enforced" else None},
             "scenario_contract": {"id": self.config["contract_id"], "digest": sha256_file(SCENARIOS), "expected_ids": list(EXPECTED_ACCEPTANCE_SCENARIOS), "required_singleton_ids": required_ids, "expected_counts": EXPECTED_COUNTS},
             "matrix": self.rows,
-            "summary": {**{name: counts[name] for name in ("passed", "failed", "inconclusive", "not_applicable")}, "required_gates_complete": complete, "hero_runtime_results": sum(row["scenario"] == "hero_5x3_runtime" and row["outcome"] == "passed" for row in self.rows)},
+            "summary": {**{name: counts[name] for name in ("passed", "failed", "inconclusive", "not_applicable")}, "required_gates_complete": complete, "released_binary_gate_complete": complete, "hero_runtime_results": sum(row["scenario"] == "hero_5x3_runtime" and row["outcome"] == "passed" for row in self.rows)},
             "privacy": {
                 "redacted_export": not self.consent["no_real_project_proof"]["absolute_paths_exported"] and not self.consent["no_real_project_proof"]["credential_material_exported"],
                 "consent_artifact_digest": self.consent_digest,
@@ -2969,13 +3057,16 @@ def assert_redacted(value: dict[str, Any]) -> None:
     if value.get("run", {}).get("mode") == "enforced":
         scenarios = value.get("scenario_contract", {})
         config = json.loads(SCENARIOS.read_text())
-        required_singletons = config["fault_scenarios"] + config["adapter_repair_faults"] + config["advanced_scenarios"] + config["acceptance_postconditions"] + config["journeys"] + ["shared_copilot_vscode_backend"]
+        runtime_lists = classified_runtime_lists(config)
+        required_singletons = list(runtime_lists["fault_adapter_advanced"] + runtime_lists["acceptance"]) + config["journeys"] + ["shared_copilot_vscode_backend"]
         if tuple(scenarios.get("expected_ids", ())) != EXPECTED_ACCEPTANCE_SCENARIOS or scenarios.get("required_singleton_ids") != required_singletons or scenarios.get("expected_counts") != EXPECTED_COUNTS:
             raise ValueError("enforced evidence scenario IDs/counts differ from the immutable contract")
         challenge = value.get("run", {}).get("challenge")
         if not isinstance(challenge, str) or not re.fullmatch(r"[a-f0-9]{64}", challenge):
             raise ValueError("enforced evidence lacks a GitHub/release/Directory/root-bound challenge")
         rows = value.get("matrix", [])
+        if any(row.get("scenario") in POLICY_SCENARIO_SET for row in rows):
+            raise ValueError("released-binary evidence contains a source-policy conformance row")
         actual_counts = {
             "directory_products": len({row.get("plugin") for row in rows if row.get("scenario", "").startswith("all_26_")}),
             "directory_lifecycle_rows": sum(row.get("scenario", "").startswith("all_26_") for row in rows),
@@ -2984,9 +3075,9 @@ def assert_redacted(value: dict[str, Any]) -> None:
             "context7_grouped_rows": sum(row.get("scenario", "").startswith("context7_three_target_") for row in rows),
             "chatgpt_rows": sum(row.get("scenario") == "chatgpt_registered_binding" for row in rows),
             "shared_backend_rows": sum(row.get("scenario") == "shared_copilot_vscode_backend" for row in rows),
-            "acceptance_postcondition_rows": sum(row.get("scenario") in EXPECTED_ACCEPTANCE_SCENARIOS for row in rows),
+            "acceptance_postcondition_rows": sum(row.get("scenario") in set(runtime_lists["acceptance"]) for row in rows),
             "native_platform_rows": sum(row.get("scenario", "").startswith("native_") for row in rows),
-            "fault_rows": sum(row.get("scenario") in set(config["fault_scenarios"] + config["adapter_repair_faults"] + config["advanced_scenarios"]) for row in rows),
+            "fault_rows": sum(row.get("scenario") in set(runtime_lists["fault_adapter_advanced"]) for row in rows),
             "journey_rows": sum(row.get("scenario") in set(config["journeys"]) for row in rows),
         }
         if actual_counts != EXPECTED_COUNTS:
@@ -3025,7 +3116,8 @@ def assert_redacted(value: dict[str, Any]) -> None:
 
 
 def validate_enforced_scenario_coverage(rows: list[dict[str, Any]], config: dict[str, Any]) -> None:
-    singleton_ids = set(config["fault_scenarios"] + config["adapter_repair_faults"] + config["advanced_scenarios"] + config["acceptance_postconditions"] + config["journeys"] + ["shared_copilot_vscode_backend"])
+    runtime_lists = classified_runtime_lists(config)
+    singleton_ids = set(runtime_lists["fault_adapter_advanced"] + runtime_lists["acceptance"] + tuple(config["journeys"]) + ("shared_copilot_vscode_backend",))
     actual = Counter(row.get("scenario") for row in rows if row.get("scenario") in singleton_ids)
     if set(actual) != singleton_ids or any(count != 1 for count in actual.values()):
         raise ValueError("enforced evidence omitted or duplicated a required scenario family")
@@ -3034,6 +3126,7 @@ def validate_enforced_scenario_coverage(rows: list[dict[str, Any]], config: dict
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("enforced", "fixture-only"), default="enforced")
+    parser.add_argument("--uap-sha", required=True, help="exact universal-agent-plugins source commit")
     parser.add_argument("--binary", type=Path, help="exact Agent Plugins CLI binary")
     parser.add_argument("--binary-digest", help="sha256 checksum of the exact binary")
     parser.add_argument("--expected-version", help="exact stable agentplugins version (0.1.8 or newer)")
@@ -3054,6 +3147,8 @@ def main() -> int:
     parser.add_argument("--consent", type=Path, required=True, help="explicit stable-launch E2E consent artifact")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if FULL_SHA.fullmatch(args.uap_sha) is None:
+        raise ValueError("--uap-sha must be one canonical 40-hex commit")
     release_manifest = None
     release_identity = None
     release_manifest_digest = None
@@ -3083,6 +3178,8 @@ def main() -> int:
         release_checksums_digest = prepared["release_checksums_digest"]
         release_tag = prepared["cli_release_tag"]
         github = prepared["github"]
+        if github.get("sha") != args.uap_sha:
+            raise ValueError("prepared runtime identity differs from --uap-sha")
         challenge = prepared["challenge"]
         if challenge.get("release_manifest_digest") != release_manifest_digest or challenge.get("directory_digest") != prepared["directory"]["digest"] or challenge.get("scenario_contract_digest") != sha256_file(SCENARIOS):
             raise ValueError("prepared challenge is not bound to release and Directory digests")
@@ -3150,6 +3247,7 @@ def main() -> int:
         binary_digest=args.binary_digest, expected_version=args.expected_version,
         directory_origin=args.directory_origin, directory_snapshot=args.directory_snapshot,
         directory_envelope=args.directory_envelope, directory_trust=args.directory_trust,
+        directory_identity=prepared.get("directory"),
         run_root=args.run_root, consent=args.consent, notion_oauth=args.notion_oauth_attestation,
         chatgpt_attestation=args.chatgpt_attestation,
         release_manifest=release_manifest, release_identity=release_identity, release_manifest_digest=release_manifest_digest,

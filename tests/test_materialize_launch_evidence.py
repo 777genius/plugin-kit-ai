@@ -83,7 +83,8 @@ def authoritative_rows() -> list[dict]:
 class LaunchEvidenceBundleTests(unittest.TestCase):
     def launch(self, observer: bytes) -> dict:
         return {
-            "schema_version": 3,
+            "schema_version": 4,
+            "evidence_class": "released_binary",
             "run": {
                 "mode": "enforced", "runtime_claims": True,
                 "github_sha": "a" * 40, "github_run_id": "123",
@@ -99,14 +100,14 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
             "directory": {"sequence": 7, "snapshot_digest": "sha256:" + "b" * 64},
             "scenario_contract": {"digest": "sha256:" + "9" * 64},
             "matrix": authoritative_rows(),
-            "summary": {"required_gates_complete": True, "hero_runtime_results": 15},
+            "summary": {"required_gates_complete": True, "released_binary_gate_complete": True, "hero_runtime_results": 15},
         }
 
     def build(self, root: Path):
         observer = evidence.canonical_json({"schema_version": 1, "signed": True})
         (root / "launch-evidence.json").write_text(json.dumps(self.launch(observer), indent=2) + "\n")
         (root / "signed-observer-bundle.json").write_bytes(observer)
-        with mock.patch.object(evidence, "validate_with_schema"):
+        with mock.patch.object(evidence, "validate_with_schema"), mock.patch.object(evidence, "validate_launch_schema"):
             return evidence.build_bundle(
                 root, repository="owner/repository",
                 workflow="owner/repository/.github/workflows/launch-evidence-e2e.yml",
@@ -121,7 +122,7 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
     def test_selects_only_exact_authoritative_runtime_and_oauth_matrix(self) -> None:
         rows = authoritative_rows()
         rows.append({"scenario": "hero_5x3_lifecycle", "level": "materialization"})
-        selected = evidence.selected_rows({"matrix": rows})
+        selected = evidence.selected_rows({"evidence_class": "released_binary", "matrix": rows})
         self.assertEqual(len(selected), 16)
         self.assertEqual(sum(row["level"] == "runtime" for row in selected), 16)
         self.assertEqual(sum(row["client"] == "chatgpt" and row["level"] == "runtime" for row in selected), 1)
@@ -228,7 +229,7 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
         rows[-1] = dict(rows[-1], id="different")
         rows.append(dict(rows[-1]))
         with self.assertRaisesRegex(evidence.EvidenceError, "expected 16|duplicate"):
-            evidence.selected_rows({"matrix": rows})
+            evidence.selected_rows({"evidence_class": "released_binary", "matrix": rows})
 
     def test_wrong_attempt_event_or_caller_is_rejected(self) -> None:
         observer = evidence.canonical_json({"schema_version": 1, "signed": True})
@@ -348,7 +349,10 @@ class PermanentCommitTests(unittest.TestCase):
         self.temporary.cleanup()
         self.validator_patch.stop()
 
-    def files(self, publication_id: str = "123") -> tuple[str, dict[str, bytes]]:
+    def files(
+        self, publication_id: str = "123", publication_source_commit: str | None = None,
+    ) -> tuple[str, dict[str, bytes]]:
+        publication_source_commit = publication_source_commit or self.parent
         record = {
             "schema_version": 1, "id": "launch/demo/codex/runtime/0123456789abcdef01234567",
             "product_id": "demo", "distribution_id": "publisher/demo", "release_sequence": 1,
@@ -361,7 +365,7 @@ class PermanentCommitTests(unittest.TestCase):
             "dependency_identity": "dependency", "observed_at": "2026-08-23T00:00:00Z",
         }
         path = "directory-evidence/records/demo-codex-runtime.json"
-        launch = evidence.canonical_json({"launch": True})
+        launch = evidence.canonical_json({"schema_version": 4, "launch": True})
         record_body = evidence.canonical_json(record)
         digest = evidence.sha256(launch)
         observer = evidence.canonical_json({"bundle": True})
@@ -376,7 +380,7 @@ class PermanentCommitTests(unittest.TestCase):
             "caller_workflow_ref": "owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
             "publication_id": publication_id, "publication_sequence": 7,
             "publication_snapshot_digest": "sha256:" + "5" * 64,
-            "publication_source_commit": self.parent,
+            "publication_source_commit": publication_source_commit,
             "records": [{"id": record["id"], "path": path, "digest": evidence.sha256(record_body)}],
         }
         files = {
@@ -392,6 +396,8 @@ class PermanentCommitTests(unittest.TestCase):
             "records": index["records"],
         })
         files[evidence.ATTESTATION_BUNDLE_NAME] = b'{"bundle":true}\n'
+        files[evidence.POLICY_EVIDENCE_NAME] = b'{"policy":true}\n'
+        files[evidence.READINESS_EVIDENCE_NAME] = b'{"readiness":true}\n'
         files["SHA256SUMS"] = evidence.checksum_bytes(files)
         return digest, files
 
@@ -456,27 +462,57 @@ class PermanentCommitTests(unittest.TestCase):
         )
 
     def test_whole_run_retry_accepts_only_exact_persisted_state(self) -> None:
-        digest, files = self.files(publication_id="456")
+        publication_source_commit = "6" * 40
+        signed = self.parent
+        (self.repo / "discovery").mkdir()
+        (self.repo / "discovery" / "materialized.json").write_text("{}\n")
+        git(self.repo, "add", "discovery/materialized.json")
+        git(self.repo, "commit", "-qm", "chore(directory): materialize signed production site")
+        materialized = git(self.repo, "rev-parse", "HEAD")
+        discovery_commits = []
+        for sequence in (1, 2):
+            (self.repo / "discovery" / "latest.json").write_text(f'{{"sequence":{sequence}}}\n')
+            git(self.repo, "add", "discovery/latest.json")
+            git(self.repo, "commit", "-qm", f"chore(discovery): publish sequence {sequence}")
+            discovery_commits.append(git(self.repo, "rev-parse", "HEAD"))
+        evidence_parent = discovery_commits[-1]
+        digest, files = self.files(
+            publication_id="456", publication_source_commit=publication_source_commit,
+        )
         result = evidence.materialize_commits(
             self.repo, self.repo, self.repo, files, repository="owner/repository",
-            main_parent=self.parent, ledger_parent=self.parent,
-            approval_target=self.parent, digest=digest,
+            main_parent=evidence_parent, ledger_parent=evidence_parent,
+            approval_target=materialized, digest=digest,
         )
-        git(self.repo, "tag", "directory-publication-schema-1-launch-approved", self.parent)
+        git(
+            self.repo, "tag", "directory-publication-schema-1-sequence-00000000000000000007",
+            signed,
+        )
+        git(self.repo, "tag", "directory-publication-schema-1-launch-approved", materialized)
         git(self.repo, "checkout", "-q", "--detach", result["ledger_commit"])
         base_files = dict(files)
         base_files.pop(evidence.ATTESTATION_BUNDLE_NAME)
         base_files.pop("SHA256SUMS")
         base_files["SHA256SUMS"] = evidence.checksum_bytes(base_files)
+        def attach_sidecars(value, policy, readiness, **_identity):
+            result = dict(value)
+            result.pop("SHA256SUMS", None)
+            result[evidence.POLICY_EVIDENCE_NAME] = policy
+            result[evidence.READINESS_EVIDENCE_NAME] = readiness
+            result["SHA256SUMS"] = evidence.checksum_bytes(result)
+            return result
+
         with mock.patch.object(evidence, "build_bundle", return_value=(digest, base_files)) as build_bundle, mock.patch.object(
             evidence, "verify_attestation",
-        ) as verify_attestation:
+        ) as verify_attestation, mock.patch.object(
+            evidence, "attach_two_lane_evidence", side_effect=attach_sidecars,
+        ) as attach_two_lane_evidence:
             evidence.verify_completed_state(
                 self.repo, self.repo, repository="owner/repository",
-                main_commit=result["main_commit"], main_parent=self.parent,
+                main_commit=result["main_commit"], main_parent=evidence_parent,
                 expected_run_id="123", source_digest="4" * 40,
                 expected_publication_id="456",
-                expected_publication_source_commit=self.parent,
+                expected_publication_source_commit=publication_source_commit,
                 caller_event_name="push", caller_ref="refs/heads/main",
                 caller_workflow_ref="owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
                 approval_tag="refs/tags/directory-publication-schema-1-launch-approved",
@@ -485,10 +521,10 @@ class PermanentCommitTests(unittest.TestCase):
             with self.assertRaisesRegex(evidence.EvidenceError, "exact workflow run"):
                 evidence.verify_completed_state(
                     self.repo, self.repo, repository="owner/repository",
-                    main_commit=result["main_commit"], main_parent=self.parent,
+                    main_commit=result["main_commit"], main_parent=evidence_parent,
                     expected_run_id="999", source_digest="4" * 40,
                     expected_publication_id="456",
-                    expected_publication_source_commit=self.parent,
+                    expected_publication_source_commit=publication_source_commit,
                     caller_event_name="push", caller_ref="refs/heads/main",
                     caller_workflow_ref="owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
                     approval_tag="refs/tags/directory-publication-schema-1-launch-approved",
@@ -500,6 +536,44 @@ class PermanentCommitTests(unittest.TestCase):
                 evidence.ATTESTATION_BUNDLE_NAME,
             )
             self.assertFalse(build_bundle.call_args.kwargs["enforce_observer_freshness"])
+            self.assertEqual(
+                attach_two_lane_evidence.call_args.kwargs["publication_id"], "456",
+            )
+            self.assertEqual(
+                attach_two_lane_evidence.call_args.kwargs["publication_source_commit"],
+                publication_source_commit,
+            )
+            for label, substituted_target in (
+                ("evidence parent", evidence_parent),
+                ("later Discovery-only commit", discovery_commits[0]),
+                ("adjacent signed commit", signed),
+            ):
+                with self.subTest(substituted_approval_target=label):
+                    git(
+                        self.repo, "tag", "-f",
+                        "directory-publication-schema-1-launch-approved", substituted_target,
+                    )
+                    build_bundle.reset_mock()
+                    verify_attestation.reset_mock()
+                    attach_two_lane_evidence.reset_mock()
+                    with self.assertRaisesRegex(
+                        evidence.EvidenceError,
+                        "exact authenticated materialization child",
+                    ):
+                        evidence.verify_completed_state(
+                            self.repo, self.repo, repository="owner/repository",
+                            main_commit=result["main_commit"], main_parent=evidence_parent,
+                            expected_run_id="123", source_digest="4" * 40,
+                            expected_publication_id="456",
+                            expected_publication_source_commit=publication_source_commit,
+                            caller_event_name="push", caller_ref="refs/heads/main",
+                            caller_workflow_ref="owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
+                            approval_tag="refs/tags/directory-publication-schema-1-launch-approved",
+                            observer_public_key="trusted-key", observer_key_id="observer-v1",
+                        )
+                    build_bundle.assert_not_called()
+                    verify_attestation.assert_not_called()
+                    attach_two_lane_evidence.assert_not_called()
 
     def test_existing_immutable_digest_root_is_rejected(self) -> None:
         digest, files = self.files()
@@ -562,6 +636,7 @@ class ProtectedWorkflowChainTests(unittest.TestCase):
                 bundle_identity_digest=evidence.sha256(files["bundle-identity.json"]),
             )
             with mock.patch.object(evidence, "validate_with_schema"), \
+             mock.patch.object(evidence, "validate_launch_schema"), \
              mock.patch.object(prepare.Path, "is_file", return_value=True), \
              mock.patch.object(prepare.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
                 prepare.verify_evidence_trust(
@@ -575,6 +650,44 @@ class ProtectedWorkflowChainTests(unittest.TestCase):
         self.assertIn("--source-digest", command)
         self.assertIn(source_digest, command)
         self.assertNotEqual(source_digest, ledger_revision)
+
+        authenticated = {
+            **record,
+            "artifact": pointer["artifact"],
+            "trust": pointer["trust"],
+        }
+        projected = prepare.public_evidence_projection(authenticated)
+        self.assertEqual(projected["trust"], {
+            "kind": "github_actions",
+            "workflow": workflow,
+            "source_ref": "refs/heads/main",
+            "source_digest": ledger_revision,
+        })
+        self.assertNotIn("bundle_manifest", projected["trust"])
+        product = {
+            "id": record["product_id"],
+            "default_distribution": record["distribution_id"],
+            "minimum_capabilities": {"mcp": "optional"},
+        }
+        distribution = {
+            "id": record["distribution_id"],
+            "kind": "community_bridge",
+            "status": "active",
+            "releases": [{
+                "sequence": record["release_sequence"],
+                "tree_digest": record["package_tree_digest"],
+                "components": ["mcp"],
+            }],
+            "release_policies": [{
+                "release_sequence": record["release_sequence"],
+                "status": "active",
+                "targets": [{"client": record["client"]}],
+                "current_evidence": [projected["id"]],
+            }],
+        }
+        prepare.validate_upstream_default_evidence(
+            [product], [distribution], [projected], config,
+        )
 
 
 class RealDirectoryValidationTests(unittest.TestCase):

@@ -10,7 +10,7 @@
   "npm_facade_version": "0.1.18",
   "npm_facade_integrity": "sha512-48UfVVaGrvmniWQpoiXQYZvTS3QqrCN0HFLSQBVCsqQJwPdecRtuK9XEsOs4nTMQuWImjX6ZAflUeY/79biRZg==",
   "directory_source_digest": "sha256:e4998f9ed1aca8a76cc2efa9ae5d2945dd4c3410ecf7263df8429d863f84d05d",
-  "scenario_contract_digest": "sha256:d62f160de32f9af53d7bb2d7c03fbfa8c3203e2fe5c99e616985b1e583996e66",
+  "scenario_contract_digest": "sha256:30a5a44dd6a1a32957dcba1a6d96ccb7c64f4fc7ed042a29bec6108f30011c32",
   "copilot_cli_integrity": "sha512-6tf93ZF56KOiTTAjK/UhLZkl1W543IzaTQly288kockJZFswpRTnQEI00Yvacpb39DTvTYu3/ha9SeKpo/pgZQ==",
   "copilot_cli_package": "@github/copilot",
   "copilot_cli_version": "1.0.80",

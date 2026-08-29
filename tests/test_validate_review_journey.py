@@ -372,11 +372,31 @@ class PromotionReadinessTests(unittest.TestCase):
         journey.validate_proposed_release_sequence(directory, "owner/demo", "demo", 4)
         with self.assertRaisesRegex(journey.JourneyError, "must be 4"):
             journey.validate_proposed_release_sequence(directory, "owner/demo", "demo", 3)
+        boundary = {"distributions": [{
+            "id": "owner/demo", "product_id": "demo", "kind": "upstream",
+            "releases": [{"sequence": 9_007_199_254_740_990}],
+        }]}
+        journey.validate_proposed_release_sequence(
+            boundary, "owner/demo", "demo", 9_007_199_254_740_991,
+        )
+        for unsafe in (9_007_199_254_740_992, 9_007_199_254_740_993):
+            with self.subTest(unsafe=unsafe), self.assertRaisesRegex(journey.JourneyError, "safe positive integer"):
+                journey.validate_proposed_release_sequence(boundary, "owner/demo", "demo", unsafe)
+        exhausted = copy.deepcopy(boundary)
+        exhausted["distributions"][0]["releases"][0]["sequence"] = 9_007_199_254_740_991
+        with self.assertRaisesRegex(journey.JourneyError, "exhausted"):
+            journey.validate_proposed_release_sequence(
+                exhausted, "owner/demo", "demo", 9_007_199_254_740_991,
+            )
         for field, value in (("product_id", "other"), ("kind", "community_bridge")):
             collision = copy.deepcopy(directory)
             collision["distributions"][0][field] = value
             with self.assertRaisesRegex(journey.JourneyError, "collides"):
                 journey.validate_proposed_release_sequence(collision, "owner/demo", "demo", 4)
+
+        schema = journey.read_object(ROOT / "schemas/promotion-candidate.schema.json")
+        self.assertEqual(schema["properties"]["release"]["properties"]["sequence"]["maximum"],
+                         9_007_199_254_740_991)
 
 
 if __name__ == "__main__":

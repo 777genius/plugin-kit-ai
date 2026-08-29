@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source-policy conformance evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evidence_class", "runtime_claims", "released_binary_executed", "fixture_key_id", "identities", "results", "production_source_unchanged", "policy_conformance_gate_complete"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "evidence_class": {"const": "source_policy_conformance"},
+    "runtime_claims": {"const": false},
+    "released_binary_executed": {"const": false},
+    "fixture_key_id": {"const": "launch-conformance-only"},
+    "identities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plugin_kit_repository", "plugin_kit_tag", "plugin_kit_commit", "release_manifest_digest", "release_checksums_digest", "uap_sha", "scenario_digest", "harness_digest", "overlay_digest", "production_source_tree_before", "production_source_tree_after"],
+      "properties": {
+        "plugin_kit_repository": {"const": "777genius/plugin-kit-ai"},
+        "plugin_kit_tag": {"const": "agentplugins-v0.1.18"},
+        "plugin_kit_commit": {"const": "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"},
+        "release_manifest_digest": {"const": "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57"},
+        "release_checksums_digest": {"const": "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8"},
+        "uap_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "scenario_digest": {"$ref": "#/$defs/digest"},
+        "harness_digest": {"$ref": "#/$defs/digest"},
+        "overlay_digest": {"$ref": "#/$defs/digest"},
+        "production_source_tree_before": {"const": "sha256:4a64cddbf6680d55270a8bec9b3810673995b7328d8ff62feab8421a65378607"},
+        "production_source_tree_after": {"const": "sha256:4a64cddbf6680d55270a8bec9b3810673995b7328d8ff62feab8421a65378607"}
+      }
+    },
+    "results": {
+      "type": "array", "minItems": 11, "maxItems": 11,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "outcome", "test", "proof", "proof_digest"],
+        "properties": {
+          "id": {"enum": ["retained_data_readd_before_changed_default", "revoked_operations_boundary", "signed_sequence_not_semver", "directory_offline", "directory_expired", "directory_tampered", "directory_sequence_rollback", "upstream_owned_short_name", "community_bridge_short_name", "distribution_sticky_update", "external_activation_failure"]},
+          "outcome": {"const": "passed"},
+          "test": {"type": "object", "additionalProperties": false, "required": ["package", "name", "passed", "transcript_digest"], "properties": {"package": {"type": "string"}, "name": {"type": "string"}, "passed": {"const": true}, "transcript_digest": {"$ref": "#/$defs/digest"}}},
+          "proof": {"type": "object", "additionalProperties": false, "required": ["id", "source_test", "fixture_key_id", "overlay_digest", "runtime_evidence_eligible"], "properties": {"id": {"type": "string"}, "source_test": {"type": "object"}, "fixture_key_id": {"const": "launch-conformance-only"}, "overlay_digest": {"$ref": "#/$defs/digest"}, "runtime_evidence_eligible": {"const": false}, "unit_oracle": {"type": "object"}}},
+          "proof_digest": {"$ref": "#/$defs/digest"}
+        },
+        "allOf": [
+            {"if": {"properties": {"id": {"const": "retained_data_readd_before_changed_default"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryRecordedReAddRetainsExactRelease"}}}}}},
+            {"if": {"properties": {"id": {"const": "revoked_operations_boundary"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/usecase"}, "name": {"const": "TestDirectorySuspensionAndRevocationOperationBoundaries"}}}}}},
+            {"if": {"properties": {"id": {"const": "signed_sequence_not_semver"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryDeclaredDefaultFallbackQualifiedAndSequence"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_offline"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_expired"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_tampered"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_sequence_rollback"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "upstream_owned_short_name"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryUpstreamMaterializationAndExactFailedTuple"}}}}}},
+            {"if": {"properties": {"id": {"const": "community_bridge_short_name"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryDeclaredDefaultPrecedesKindAndFallbackUsesKindOrder"}}}}}},
+            {"if": {"properties": {"id": {"const": "distribution_sticky_update"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./cli/plugin-kit-ai/internal/agentpluginscli"}, "name": {"const": "TestDirectoryUpdateAllowsHigherReleaseOwnImmutableSourceIdentity"}}}}}},
+            {"if": {"properties": {"id": {"const": "external_activation_failure"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./cli/plugin-kit-ai/internal/agentpluginscli"}, "name": {"const": "TestSwitchSynthesizesRemoteChatGPTAndRecoversAfterActivationFailure"}}}}}}
+        ]
+      }
+    },
+    "production_source_unchanged": {"const": true},
+    "policy_conformance_gate_complete": {"const": true}
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}
+}

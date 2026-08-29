@@ -17,6 +17,7 @@ from directory_publication import (
     MAX_CANDIDATE_BYTES,
     MAX_SNAPSHOT_BYTES,
     LEDGER_CONTRACT_NAME,
+    WIRE_EVIDENCE_CUTOVER_SEQUENCE,
     PublicationError,
     atomic_write,
     candidate_digest,
@@ -40,6 +41,48 @@ from directory_publication import (
     validate_latest,
     validate_snapshot_semantics,
 )
+from publication_trust_policy import (
+    load_publication_trust_config,
+    validate_publication_eligibility_trust,
+)
+from sequence_boundaries import next_public_sequence, parse_public_sequence
+
+
+ROOT = Path(__file__).resolve().parents[1]
+TRUST_CONFIG = ROOT / "registry" / "publication" / "config.json"
+
+
+def snapshot_evidence_for_sequence(
+    evidence: list[dict[str, object]], distributions: list[dict[str, object]], sequence: int,
+) -> list[dict[str, object]]:
+    """Project wire-only candidates into the immutable pre-cutover ledger shape."""
+    if sequence >= WIRE_EVIDENCE_CUTOVER_SEQUENCE:
+        return copy.deepcopy(evidence)
+    distribution_map = {distribution["id"]: distribution for distribution in distributions}
+    release_map = {
+        (distribution["id"], release["sequence"]): release
+        for distribution in distributions
+        for release in distribution["releases"]  # type: ignore[index]
+    }
+    projected: list[dict[str, object]] = []
+    for record in evidence:
+        distribution_id = record["distribution_id"]
+        identity = (distribution_id, record["release_sequence"])
+        require(distribution_id in distribution_map, f"{record['id']}: evidence distribution is missing")
+        require(identity in release_map, f"{record['id']}: evidence release is missing")
+        distribution = distribution_map[distribution_id]
+        release = release_map[identity]
+        source = release["package_source"]
+        legacy = {key: copy.deepcopy(value) for key, value in record.items() if key != "trust"}
+        legacy.update({
+            "product_id": distribution["product_id"],
+            "manifest_digest": release["manifest_digest"],
+            "source_repository": source["repository"],
+            "source_revision": source["revision"],
+            "source_path": source["path"],
+        })
+        projected.append(legacy)
+    return projected
 
 
 def assign_release_publication_times(
@@ -129,6 +172,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate", type=Path, required=True)
     parser.add_argument("--candidate-digest", required=True)
+    parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--trusted-keys", type=Path, required=True)
     parser.add_argument("--key-id", required=True)
@@ -136,7 +180,7 @@ def main() -> int:
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--initialize-ledger", action="store_true")
     parser.add_argument("--ledger-seed-commit")
-    parser.add_argument("--ledger-sequence-floor", type=int)
+    parser.add_argument("--ledger-sequence-floor", type=parse_public_sequence)
     args = parser.parse_args()
     try:
         candidate_body = read_bytes_bounded(args.candidate, MAX_CANDIDATE_BYTES)
@@ -145,6 +189,15 @@ def main() -> int:
         validate_bound_candidate(candidate)
         require(canonical_json(candidate) == candidate_body, "candidate is not canonical JSON")
         require(candidate_digest(candidate_body) == args.candidate_digest, "candidate digest mismatch")
+        require(
+            args.config.resolve() == TRUST_CONFIG.resolve(),
+            f"--config must name the trusted-source publication config {TRUST_CONFIG}",
+        )
+        config = load_publication_trust_config(TRUST_CONFIG)
+        validate_publication_eligibility_trust(
+            candidate["products"], candidate["distributions"],
+            candidate["evidence"], config,
+        )
         now = parse_timestamp(args.now, "now")
         trusted = load_public_keys(args.trusted_keys)
         require(args.key_id in trusted, f"active key ID {args.key_id!r} is not trusted")
@@ -179,7 +232,10 @@ def main() -> int:
                 == timedelta(days=candidate["lifetime_days"]),
                 "publication ID was reused with another lifetime",
             )
-            require(matched["products"] == candidate["products"] and matched["distributions"] == distributions and matched["evidence"] == candidate["evidence"] and matched["revocations"] == candidate["revocations"], "publication ID was reused for different candidate content")
+            expected_evidence = snapshot_evidence_for_sequence(
+                candidate["evidence"], distributions, matched["sequence"],  # type: ignore[arg-type]
+            )
+            require(matched["products"] == candidate["products"] and matched["distributions"] == distributions and matched["evidence"] == expected_evidence and matched["revocations"] == candidate["revocations"], "publication ID was reused for different candidate content")
             result = {"reused": True, "sequence": matched["sequence"], "snapshot_digest": sha256_digest(canonical_json(matched))}
             atomic_write(args.result, canonical_json(result))
             print(f"reused sequence {matched['sequence']}")
@@ -188,7 +244,7 @@ def main() -> int:
             require(int(candidate["publication_id"]) > int(previous["publication_id"]), "publication run ID is older than current latest")
         require(not args.initialize_ledger or previous is None, "initialization rerun publication ID differs from the original sequence 1 publication")
 
-        sequence = 1 if previous is None else previous["sequence"] + 1
+        sequence = next_public_sequence(None if previous is None else previous["sequence"])
         snapshot = {
             "snapshot_schema_version": candidate["snapshot_schema_version"],
             "sequence": sequence,
@@ -198,7 +254,9 @@ def main() -> int:
             "expires_at": format_timestamp(now + timedelta(days=candidate["lifetime_days"])),
             "products": candidate["products"],
             "distributions": distributions,
-            "evidence": candidate["evidence"],
+            "evidence": snapshot_evidence_for_sequence(
+                candidate["evidence"], distributions, sequence,  # type: ignore[arg-type]
+            ),
             "revocations": candidate["revocations"],
         }
         validate_snapshot_semantics(snapshot, previous, historical_evidence, validate_schema=False)

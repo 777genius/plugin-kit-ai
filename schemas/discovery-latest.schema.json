@@ -15,7 +15,7 @@
   "properties": {
     "pointer_schema_version": { "const": 1 },
     "snapshot_schema_version": { "const": 1 },
-    "sequence": { "type": "integer", "minimum": 1 },
+    "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "snapshot_path": { "type": "string", "pattern": "^snapshots/[0-9]{20}\\.json$" },
     "envelope_path": { "type": "string", "pattern": "^snapshots/[0-9]{20}\\.envelope\\.json$" },
     "search_path": { "type": "string", "pattern": "^search/[0-9]{20}\\.json$" },

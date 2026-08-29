@@ -299,9 +299,10 @@ function parsePointer(bytes: Uint8Array): DiscoveryPointer {
   const value = parseCanonical<DiscoveryPointer>(bytes, 'pointer')
   assertKeys(value, ['pointer_schema_version', 'snapshot_schema_version', 'sequence', 'snapshot_path', 'envelope_path', 'search_path', 'fetch_contract'], 'pointer')
   assertKeys(value.fetch_contract, ['max_redirects', 'latest_max_bytes', 'snapshot_max_bytes', 'envelope_max_bytes', 'search_max_bytes', 'retry_attempts'], 'fetch contract')
+  requirePublicSequence(value.sequence, 'pointer')
   const stem = String(value.sequence).padStart(20, '0')
   const contract = value.fetch_contract
-  if (value.pointer_schema_version !== 1 || value.snapshot_schema_version !== 1 || !Number.isSafeInteger(value.sequence) || value.sequence < 1
+  if (value.pointer_schema_version !== 1 || value.snapshot_schema_version !== 1
     || value.snapshot_path !== `snapshots/${stem}.json` || value.envelope_path !== `snapshots/${stem}.envelope.json`
     || value.search_path !== `search/${stem}.json` || contract.max_redirects !== 0 || contract.retry_attempts < 1 || contract.retry_attempts > 3
     || contract.latest_max_bytes < 1 || contract.latest_max_bytes > 16 << 10 || contract.snapshot_max_bytes < 1 || contract.snapshot_max_bytes > 16 << 20
@@ -313,6 +314,7 @@ function parsePointer(bytes: Uint8Array): DiscoveryPointer {
 
 function assertEnvelope(value: DiscoveryEnvelope, trust: DiscoveryTrust) {
   assertKeys(value, ['envelope_schema_version', 'snapshot_schema_version', 'sequence', 'key_id', 'algorithm', 'signature_domain', 'snapshot_digest', 'signature'], 'envelope')
+  requirePublicSequence(value.sequence, 'envelope')
   if (value.envelope_schema_version !== 1 || value.snapshot_schema_version !== 1 || value.key_id !== trust.keyID
     || value.algorithm !== 'Ed25519' || value.signature_domain !== 'UAP-DISCOVERY-INDEX-ED25519-V1'
     || !digestPattern.test(value.snapshot_digest) || !/^[A-Za-z0-9+/]{86}==$/.test(value.signature)) {
@@ -323,7 +325,8 @@ function assertEnvelope(value: DiscoveryEnvelope, trust: DiscoveryTrust) {
 function assertSnapshot(value: DiscoverySnapshot) {
   assertKeys(value, ['discovery_schema_version', 'sequence', 'publication_id', 'source_commit', 'generated_at', 'expires_at', 'complete', 'query_manifest_digest', 'partitions', 'search_projection', 'records'], 'snapshot')
   assertKeys(value.search_projection, ['path', 'digest', 'record_count'], 'search projection')
-  if (value.discovery_schema_version !== 1 || !value.complete || !Number.isSafeInteger(value.sequence) || value.sequence < 1
+  requirePublicSequence(value.sequence, 'snapshot')
+  if (value.discovery_schema_version !== 1 || !value.complete
     || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value.publication_id)
     || !revisionPattern.test(value.source_commit) || !digestPattern.test(value.query_manifest_digest)
     || value.search_projection.path !== `search/${String(value.sequence).padStart(20, '0')}.json`
@@ -344,7 +347,8 @@ function assertSnapshot(value: DiscoverySnapshot) {
 
 function assertSearch(value: DiscoverySearch) {
   assertKeys(value, ['search_schema_version', 'sequence', 'generated_at', 'records'], 'search')
-  if (value.search_schema_version !== 1 || !integer(value.sequence) || value.sequence < 1 || value.records.length > 10_000) {
+  requirePublicSequence(value.sequence, 'search')
+  if (value.search_schema_version !== 1 || value.records.length > 10_000) {
     throw new Error('Discovery search projection is invalid')
   }
   assertRecords(value.records, false, parseTimestamp(value.generated_at))
@@ -460,6 +464,10 @@ function orderedEnums(values: readonly string[], allowed: readonly string[]) {
 }
 
 function integer(value: number) { return Number.isSafeInteger(value) }
+
+function requirePublicSequence(value: number, label: string) {
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error(`Discovery ${label} sequence is invalid`)
+}
 
 function assertKeys(value: object, expected: string[], label: string) {
   const actual = Object.keys(value).sort()

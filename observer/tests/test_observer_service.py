@@ -3594,6 +3594,9 @@ class FixedAdapterContractTests(unittest.TestCase):
 
     def test_full_sealed_tuple_constructs_runtime_tuple_and_partial_extra_bool_fail(self) -> None:
         approved = sealed_tuple("context7")
+        boundary = {**approved, "release_sequence": 9_007_199_254_740_991,
+                    "snapshot_sequence": 9_007_199_254_740_991}
+        fixed_adapters.validate_release_tuple(boundary, "context7")
         fixed_adapters.validate_release_tuple(approved, "context7")
         completed = fixed_adapters.complete_tuple(
             {"plugin": "context7", "tuple": approved},
@@ -3606,6 +3609,10 @@ class FixedAdapterContractTests(unittest.TestCase):
             {**approved, "unexpected": 1},
             {**approved, "release_sequence": True},
             {**approved, "snapshot_sequence": False},
+            {**approved, "release_sequence": 9_007_199_254_740_992},
+            {**approved, "release_sequence": 9_007_199_254_740_993},
+            {**approved, "snapshot_sequence": 9_007_199_254_740_992},
+            {**approved, "snapshot_sequence": 9_007_199_254_740_993},
             {**approved, "client_version": "fabricated"},
         )
         for value in malformed:
@@ -6243,6 +6250,15 @@ class FixedAdapterContractTests(unittest.TestCase):
             specification.loader.exec_module(sealer)
             approved = matrix[0]["tuple"]
             sealer.validate_approved_tuple(approved, matrix[0]["plugin"])
+            sealer.validate_approved_tuple({
+                **approved,
+                "release_sequence": 9_007_199_254_740_991,
+                "snapshot_sequence": 9_007_199_254_740_991,
+            }, matrix[0]["plugin"])
+            for field in ("release_sequence", "snapshot_sequence"):
+                for unsafe in (9_007_199_254_740_992, 9_007_199_254_740_993):
+                    with self.subTest(field=field, unsafe=unsafe), self.assertRaisesRegex(ValueError, "sequence"):
+                        sealer.validate_approved_tuple({**approved, field: unsafe}, matrix[0]["plugin"])
             for extra in (
                 {"revision": approved["source_revision"]},
                 {"source": f'{approved["source_repository"]}//{approved["source_path"]}'},
@@ -6674,6 +6690,16 @@ class ProfileProvisioningTests(unittest.TestCase):
         body["payload_sha256"] = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         with self.assertRaisesRegex(ValueError, "marker is invalid"):
             self.helper.validate_transaction(json.dumps(body).encode(), "codex")
+
+    def test_release_tuple_sequence_is_cross_runtime_safe(self) -> None:
+        approved = sealed_tuple("context7")
+        boundary = {**approved, "release_sequence": 9_007_199_254_740_991,
+                    "snapshot_sequence": 9_007_199_254_740_991}
+        self.helper.validate_release_tuple(boundary, "context7")
+        for field in ("release_sequence", "snapshot_sequence"):
+            for unsafe in (9_007_199_254_740_992, 9_007_199_254_740_993):
+                with self.subTest(field=field, unsafe=unsafe), self.assertRaisesRegex(ValueError, "sequence"):
+                    self.helper.validate_release_tuple({**approved, field: unsafe}, "context7")
 
     def test_staging_tree_removal_fsyncs_parent_before_cleanup_continues(self) -> None:
         calls = []

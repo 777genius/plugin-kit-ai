@@ -92,6 +92,7 @@ MAX_FILE = 4 << 20
 MAX_STDOUT = 1 << 20
 MAX_SSE_RECORDS = 64
 MAX_SSE_LINE = 256 << 10
+JSON_SAFE_INTEGER_MAX = 9_007_199_254_740_991
 KILL_WAIT_SECONDS = 2.0
 COMMAND_SECONDS = 45
 HUMAN_WAIT_SECONDS = 300
@@ -124,7 +125,10 @@ def validate_release_tuple(value: Any, plugin: str, *, sealed: bool = True) -> d
     """Validate the one exact tuple shape shared by sealing and runtime output."""
     if not isinstance(value, dict) or set(value) != TUPLE_FIELDS or value.get("product_id") != plugin:
         raise ValueError("fixed client tuple is incomplete")
-    if any(type(value.get(field)) is not int or value[field] < 1 for field in TUPLE_SEQUENCE_FIELDS):
+    if any(
+        type(value.get(field)) is not int or not 1 <= value[field] <= JSON_SAFE_INTEGER_MAX
+        for field in TUPLE_SEQUENCE_FIELDS
+    ):
         raise ValueError("fixed client tuple sequence is invalid")
     strings = TUPLE_FIELDS - TUPLE_SEQUENCE_FIELDS - {"client_version"}
     if any(type(value.get(field)) is not str or not value[field] for field in strings):

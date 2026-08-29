@@ -9,6 +9,10 @@ import { pluginCommands } from '../utils/commands.ts'
 const fixture = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/registry.valid.json', import.meta.url)), 'utf8')) as unknown
 const snapshotFixture = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/directory.snapshot.json', import.meta.url)), 'utf8')) as unknown
 const blockedNewestFixture = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/directory.blocked-newest.snapshot.json', import.meta.url)), 'utf8')) as unknown
+const protectedWorkflowProjection = JSON.parse(readFileSync(fileURLToPath(new URL('../../tests/fixtures/directory-publication/protected-workflow-projection.json', import.meta.url)), 'utf8')) as {
+  private_source_digest: string
+  public_evidence: SnapshotFixture['evidence'][number]
+}
 const resolverGolden = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/resolver-golden.json', import.meta.url)), 'utf8')) as {
   vectors: Array<{ id: string, changes: string[], targets: Array<'codex' | 'cursor' | 'kiro'>, expected: { distribution_id: string | null, release_sequence: number | null, fallback_reason: string | null, unavailable_reason?: string } }>
 }
@@ -129,6 +133,61 @@ describe('registry parsing', () => {
     assert.equal(expectedDistribution(supersededPlugin, ['codex'])?.id, 'example/demo-bridge')
   })
 
+  it('selects the highest active compatible release regardless of source ordering', () => {
+    const raw = signedFixture()
+    const distribution = raw.distributions[0]!
+    const newestRelease = structuredClone(distribution.releases[0]!)
+    const newestPolicy = structuredClone(distribution.release_policies[0]!)
+    const olderRelease = structuredClone(newestRelease)
+    const olderPolicy = structuredClone(newestPolicy)
+    olderRelease.sequence = 1
+    olderRelease.package_version = '9.0.0'
+    olderPolicy.release_sequence = 1
+    distribution.releases = [olderRelease, newestRelease]
+    distribution.release_policies = [olderPolicy, newestPolicy]
+
+    const parsed = parseDirectoryData(raw, 'published_snapshot').plugins[0]!
+    const selected = parsed.distributions.find(item => item.id === distribution.id)!
+    assert.equal(selected.release_sequence, 2)
+    assert.equal(expectedDistribution(parsed, ['codex'])?.release_sequence, 2)
+  })
+
+  it('accepts the safe sequence boundary and rejects every unsafe signed identity', () => {
+    const maximum = 9_007_199_254_740_991
+    const boundary = signedFixture()
+    boundary.sequence = maximum
+    const distribution = boundary.distributions[0]!
+    distribution.releases[0]!.sequence = maximum
+    distribution.release_policies[0]!.release_sequence = maximum
+    for (const evidence of boundary.evidence.filter(item => item.distribution_id === distribution.id)) {
+      evidence.release_sequence = maximum
+    }
+    assert.equal(parseDirectoryData(boundary, 'published_snapshot').snapshot_sequence, maximum)
+
+    const unsafe = maximum + 1
+    const mutations: Array<(value: SnapshotFixture & Record<string, unknown>) => void> = [
+      value => { value.sequence = unsafe },
+      value => { value.distributions[0]!.releases[0]!.sequence = unsafe },
+      value => { value.distributions[0]!.release_policies[0]!.release_sequence = unsafe },
+      value => { value.evidence[0]!.release_sequence = unsafe },
+      value => { value.revocations.push({ distribution_id: 'example/demo', release_sequence: unsafe }) },
+    ]
+    for (const mutate of mutations) {
+      const value = signedFixture()
+      mutate(value)
+      assert.throws(() => parseDirectoryData(value, 'published_snapshot'), /safe positive integer/)
+    }
+  })
+
+  it('rejects unsafe release identities before JavaScript can compare an aliased pair', () => {
+    const collision = JSON.parse('{"release":9007199254740992,"policy":9007199254740993}') as { release: number, policy: number }
+    assert.equal(collision.release, collision.policy, 'the regression requires the known JSON/Number alias')
+    const raw = signedFixture()
+    raw.distributions[0]!.releases[0]!.sequence = collision.release
+    raw.distributions[0]!.release_policies[0]!.release_sequence = collision.policy
+    assert.throws(() => parseDirectoryData(raw, 'published_snapshot'), /safe positive integer/)
+  })
+
   it('matches authoritative blocking-evidence fallback decisions', () => {
     for (const level of ['materialization', 'discovery', 'runtime']) {
       const raw = signedFixture()
@@ -147,16 +206,46 @@ describe('registry parsing', () => {
     }
   })
 
-  it('matches the CLI by ignoring untrusted materialization evidence', () => {
-    for (const mutation of ['missing', 'mismatched-source']) {
+  it('matches the signer-vouched CLI policy for repository-bound github_actions materialization evidence', () => {
+    for (const mutation of ['missing', 'mismatched-source', 'reviewed-external']) {
       const raw = signedFixture()
       for (const observation of raw.evidence.filter(item => item.level === 'materialization')) {
         if (mutation === 'missing') delete (observation as unknown as Record<string, unknown>).trust
-        else observation.trust.source_digest = '0'.repeat(40)
+        else if (mutation === 'mismatched-source') observation.trust.source_digest = '0'.repeat(40)
+        else observation.trust = { kind: 'reviewed_external' }
       }
       const plugin = parseDirectoryData(raw, 'published_snapshot').plugins[0]!
       assert.equal(expectedDistribution(plugin, ['codex'])?.id, 'example/demo-bridge', mutation)
     }
+  })
+
+  it('accepts the artifact-bound projection of authenticated protected-workflow evidence', () => {
+    const raw = signedFixture()
+    const projected = structuredClone(protectedWorkflowProjection.public_evidence)
+    assert.notEqual(protectedWorkflowProjection.private_source_digest, projected.artifact.revision)
+    assert.equal(projected.trust.source_digest, projected.artifact.revision)
+    raw.evidence = raw.evidence.filter(item => item.id !== 'materialization-demo-codex')
+    raw.evidence.push(projected)
+    const policy = raw.distributions[0]!.release_policies[0]!
+    policy.current_evidence = policy.current_evidence.map(id =>
+      id === 'materialization-demo-codex' ? projected.id : id,
+    )
+    const plugin = parseDirectoryData(raw, 'published_snapshot').plugins[0]!
+    assert.equal(expectedDistribution(plugin, ['codex'])?.id, 'example/demo')
+    assert.equal(
+      plugin.evidence.find(item => item.id === projected.id)?.trusted_for_eligibility,
+      true,
+    )
+  })
+
+  it('never trusts review-preview observations for distribution eligibility', () => {
+    const raw = signedFixture()
+    const preview = parseDirectoryData(raw, 'review_preview').plugins[0]!
+    const published = parseDirectoryData(raw, 'published_snapshot').plugins[0]!
+    assert.equal(expectedDistribution(published, ['codex'])?.id, 'example/demo')
+    assert.equal(expectedDistribution(preview, ['codex'])?.id, 'example/demo-bridge')
+    assert.ok(preview.distributions.flatMap(item => item.evidence).every(item => !item.trusted_for_eligibility))
+    assert.ok(preview.distributions.flatMap(item => item.package_evidence).every(item => !item.trusted_for_eligibility))
   })
 
   it('does not let unsigned, stale, or non-blocking evidence affect eligibility', () => {
@@ -406,7 +495,8 @@ describe('registry parsing', () => {
     ;(unresolved.distributions as Array<{ releases: Array<{ package_source: { revision: string | null } }> }>)[0]!.releases[0]!.package_source.revision = null
     const preview = parseDirectoryData(unresolved, 'review_preview')
     assert.equal(preview.data_source, 'review_preview')
-    assert.equal(preview.plugins[0]?.source.revision, null)
+    assert.equal(preview.plugins[0]?.distributions.find(item => item.id === 'example/demo')?.source.revision, null)
+    assert.equal(preview.plugins[0]?.default_distribution, 'example/demo-bridge')
     assert.throws(() => parseDirectoryData(unresolved, 'published_snapshot'), /signed sequence, generated_at, and expires_at/)
     assert.throws(() => parseDirectoryData(fixture, 'published_snapshot'), /requires signed snapshot products and distributions/)
   })

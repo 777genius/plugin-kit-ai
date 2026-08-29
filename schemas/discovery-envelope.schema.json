@@ -16,7 +16,7 @@
   "properties": {
     "envelope_schema_version": { "const": 1 },
     "snapshot_schema_version": { "const": 1 },
-    "sequence": { "type": "integer", "minimum": 1 },
+    "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "key_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$" },
     "algorithm": { "const": "Ed25519" },
     "signature_domain": { "const": "UAP-DISCOVERY-INDEX-ED25519-V1" },

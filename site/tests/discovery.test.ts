@@ -123,6 +123,36 @@ class MemoryCache implements DiscoveryCache {
 }
 
 describe('signed public Discovery Index', () => {
+  it('accepts the safe sequence maximum and rejects both JSON/Number aliases', async () => {
+    const maximum = 9_007_199_254_740_991
+    const boundary = fixture(maximum)
+    assert.equal((await verifyDiscovery(boundary.bytes, boundary.trust, {}, now)).snapshot.sequence, maximum)
+    const aliases = JSON.parse('[9007199254740992,9007199254740993]') as number[]
+    assert.equal(aliases[0], aliases[1], 'the regression requires the known JSON/Number alias')
+    for (const unsafe of aliases) {
+      const data = fixture(unsafe)
+      await assert.rejects(verifyDiscovery(data.bytes, data.trust, {}, now), /non-integer number|invalid/)
+    }
+  })
+
+  it('rejects each unsafe sequence field independently before alias comparison or path use', async () => {
+    const aliases = [Number.MAX_SAFE_INTEGER + 1, Number.MAX_SAFE_INTEGER + 2]
+    for (const artifact of ['pointer', 'envelope', 'snapshot', 'search'] as const) {
+      for (const unsafe of aliases) {
+        const data = fixture(7)
+        const bytes = structuredClone(data.bytes)
+        const value = JSON.parse(new TextDecoder().decode(bytes[artifact])) as Record<string, unknown>
+        value.sequence = unsafe
+        bytes[artifact] = canonical(value)
+        await assert.rejects(
+          verifyDiscovery(bytes, data.trust, {}, now),
+          /sequence is invalid|non-integer number/,
+          `${artifact} must reject unsafe sequence ${unsafe} independently`,
+        )
+      }
+    }
+  })
+
   it('verifies exact bytes and maps one unreviewed package to a publisher-qualified command', async () => {
     const data = fixture()
     const bundle = await verifyDiscovery(data.bytes, data.trust, {}, now)

@@ -11,7 +11,14 @@ on:
       - "scripts/directory_publication.py"
       - "scripts/directory_publication_cas.py"
       - "scripts/materialize_launch_evidence.py"
+      - "scripts/two_lane_evidence.py"
+      - "scripts/build_two_lane_readiness.py"
+      - "scripts/run_source_policy_conformance.py"
+      - "tests/e2e/source-policy-*.json"
+      - "schemas/e2e/*policy*.schema.json"
+      - "schemas/e2e/two-lane-readiness.schema.json"
       - "scripts/prepare_directory_publication.py"
+      - "scripts/publication_trust_policy.py"
       - "scripts/sign_directory_publication.py"
   schedule:
     - cron: "17 4 * * 1"
@@ -220,11 +227,16 @@ jobs:
             seed_commit="$(python3 -c 'import json; print(json.load(open("_publication-ledger/registry/schemas/1/ledger-contract.json"))["seed_commit"])')"
             [[ "${seed_commit}" =~ ^[0-9a-f]{40}$ ]]
             git -C _publication-ledger merge-base --is-ancestor "${seed_commit}" HEAD
-            sequence_floor=0
+            sequence_floor=
             for tag in "${tags[@]}"; do
               [[ "${tag}" =~ ^${tag_prefix}([0-9]{20})$ ]]
-              tag_sequence="$((10#${BASH_REMATCH[1]}))"
-              test "${tag_sequence}" -eq "$((sequence_floor + 1))"
+              tag_sequence="$(python3 scripts/sequence_boundaries.py tag-value "${BASH_REMATCH[1]}")"
+              successor_args=()
+              if test -n "${sequence_floor}"; then
+                successor_args+=(--current "${sequence_floor}")
+              fi
+              expected_sequence="$(python3 scripts/sequence_boundaries.py successor "${successor_args[@]}")"
+              test "${tag_sequence}" = "${expected_sequence}"
               git -C _publication-ledger merge-base --is-ancestor "refs/tags/${tag}" HEAD
               sequence_floor="${tag_sequence}"
             done
@@ -485,6 +497,7 @@ jobs:
           /usr/bin/python3 -I scripts/sign_directory_publication.py \
             --candidate ../candidate/candidate.json \
             --candidate-digest "${EXPECTED_CANDIDATE_DIGEST}" \
+            --config registry/publication/config.json \
             --ledger ../ledger \
             --trusted-keys registry/publication/trusted-keys.json \
             --key-id "${DIRECTORY_SIGNING_KEY_ID}" \
@@ -964,6 +977,7 @@ jobs:
           AGENTPLUGINS_COMMIT: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
           AGENTPLUGINS_VERSION: 0.1.18
           EXPECTED_SEQUENCE: ${{ needs.sign.outputs.sequence }}
+          EXPECTED_SOURCE_COMMIT: ${{ needs.sign.outputs.marker_commit }}
           EXPECTED_LEDGER_HEAD: ${{ needs.materialize_site.outputs.ledger_commit }}
         run: |
           release_dir="${RUNNER_TEMP}/agentplugins-release"
@@ -1012,6 +1026,7 @@ jobs:
           "${isolated[@]}" "${binary}" add context7 --dry-run --target cursor --format json > "${run_root}/evidence/add.json"
           python3 - "${run_root}/evidence" "${EXPECTED_SEQUENCE}" <<'PY'
           import json
+          import os
           import sys
           from pathlib import Path
 
@@ -1023,6 +1038,10 @@ jobs:
           assert search["data"]["snapshot_sequence"] == expected_sequence
           result = next(item for item in search["data"]["results"] if item["product_id"] == "context7")
           assert result["status"] == "available"
+          assert result["distribution_id"] == "777genius/context7"
+          assert result["repository"] == "777genius/universal-agent-plugins"
+          assert result["revision"] == os.environ["EXPECTED_SOURCE_COMMIT"]
+          assert result["package_path"] == "plugins/context7"
           assert add["result"] == "success"
           assert add["data"]["targets"][0]["target"] == "cursor"
           assert add["data"]["targets"][0]["output"]["plugin"] == "context7"
@@ -1037,7 +1056,7 @@ jobs:
     with:
       consent: true
       publication_id: ${{ needs.sign.outputs.publication_id }}
-      publication_sequence: ${{ fromJSON(needs.sign.outputs.sequence) }}
+      publication_sequence: ${{ needs.sign.outputs.sequence }}
       publication_snapshot_digest: ${{ needs.sign.outputs.snapshot_digest }}
       publication_source_commit: ${{ needs.sign.outputs.marker_commit }}
       publication_ledger_commit: ${{ needs.materialize_site.outputs.ledger_commit }}
@@ -1087,6 +1106,14 @@ jobs:
         with:
           name: ${{ needs.required_stable_launch_evidence.outputs.attestation_artifact_name }}
           path: launch-attestation
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.required_stable_launch_evidence.outputs.source_policy_artifact_name }}
+          path: source-policy-evidence
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.required_stable_launch_evidence.outputs.readiness_artifact_name }}
+          path: two-lane-readiness
       - name: Validate exact launch lineage, bundle, and workflow attestation
         env:
           EXPECTED_LEDGER_COMMIT: ${{ needs.materialize_site.outputs.ledger_commit }}
@@ -1097,6 +1124,8 @@ jobs:
           EXPECTED_SOURCE_COMMIT: ${{ needs.sign.outputs.marker_commit }}
           EXPECTED_MAIN_PARENT: ${{ needs.sign.outputs.main_parent }}
           EXPECTED_EVIDENCE_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.launch_evidence_digest }}
+          EXPECTED_POLICY_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.source_policy_evidence_digest }}
+          EXPECTED_READINESS_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.readiness_evidence_digest }}
           EXPECTED_EVIDENCE_RUN_ATTEMPT: ${{ needs.required_stable_launch_evidence.outputs.evidence_run_attempt }}
           WORKFLOW_SOURCE_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.workflow_source_digest }}
         run: |
@@ -1120,6 +1149,18 @@ jobs:
             --verify-attestation --attestation-bundle launch-attestation/github-attestation.jsonl \
             --output verified-evidence.json
           test "$(python3 -c 'import json; print(json.load(open("verified-evidence.json"))["launch_evidence_digest"])')" = "${EXPECTED_EVIDENCE_DIGEST}"
+          test "sha256:$(sha256sum source-policy-evidence/source-policy-conformance.json | cut -d' ' -f1)" = "${EXPECTED_POLICY_DIGEST}"
+          test "sha256:$(sha256sum two-lane-readiness/two-lane-readiness.json | cut -d' ' -f1)" = "${EXPECTED_READINESS_DIGEST}"
+          python3 trusted-source/scripts/build_two_lane_readiness.py \
+            --runtime launch-evidence/launch-evidence.json \
+            --policy source-policy-evidence/source-policy-conformance.json \
+            --uap-sha "${WORKFLOW_SOURCE_DIGEST}" \
+            --directory-ledger-sha "${EXPECTED_LEDGER_COMMIT}" \
+            --publication-id "${EXPECTED_PUBLICATION_ID}" \
+            --publication-sequence "${EXPECTED_PUBLICATION_SEQUENCE}" \
+            --publication-snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}" \
+            --publication-source-commit "${EXPECTED_SOURCE_COMMIT}" \
+            --completed two-lane-readiness/two-lane-readiness.json
           python3 trusted-source/registry/publication/launch_approval.py \
             --repo approved-ledger \
             --contract trusted-source/registry/publication/launch-approved-marker.json \
@@ -1143,6 +1184,7 @@ jobs:
           WORKFLOW_SOURCE_DIGEST: ${{ needs.required_stable_launch_evidence.outputs.workflow_source_digest }}
         run: |
           python3 trusted-source/scripts/materialize_launch_evidence.py commit \
+            --uap-sha "${WORKFLOW_SOURCE_DIGEST}" \
             --artifact-dir launch-evidence --repository "${GITHUB_REPOSITORY}" \
             --workflow "${GITHUB_REPOSITORY}/.github/workflows/launch-evidence-e2e.yml" \
             --source-ref refs/heads/main --source-digest "${WORKFLOW_SOURCE_DIGEST}" \
@@ -1157,6 +1199,8 @@ jobs:
             --main-parent "${EXPECTED_MAIN_PARENT}" --ledger-parent "${EXPECTED_LEDGER_COMMIT}" \
             --approval-target "${EXPECTED_PUBLICATION_COMMIT}" \
             --attestation-bundle launch-attestation/github-attestation.jsonl \
+            --policy-evidence source-policy-evidence/source-policy-conformance.json \
+            --readiness-evidence two-lane-readiness/two-lane-readiness.json \
             --output persistence.json
           main_commit="$(python3 -c 'import json; print(json.load(open("persistence.json"))["main_commit"])')"
           ledger_commit="$(python3 -c 'import json; print(json.load(open("persistence.json"))["ledger_commit"])')"

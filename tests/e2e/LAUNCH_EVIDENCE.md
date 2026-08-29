@@ -148,6 +148,7 @@ PR contract run:
 ```bash
 run_root="$(mktemp -u /tmp/uap-fixture-XXXXXXXX)"
 python3 scripts/run_launch_evidence_e2e.py --mode fixture-only \
+  --uap-sha "$(git rev-parse HEAD)" \
   --consent tests/e2e/fixtures/fixture-only-consent.json \
   --run-root "$run_root" --output "$run_root/evidence/launch-evidence.json"
 ```

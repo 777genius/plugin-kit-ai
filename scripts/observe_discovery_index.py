@@ -25,6 +25,7 @@ from scripts.directory_publication import (
     validate_with_schema,
 )
 from scripts.discovery_publication import LATEST_SCHEMA, MAX_LATEST_BYTES, load_latest
+from scripts.sequence_boundaries import parse_public_sequence, require_public_sequence
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -53,6 +54,7 @@ def fetch(opener: urllib.request.OpenerDirector, url: str, maximum: int) -> byte
 
 
 def observe_once(origin: str, trusted_keys: Path, minimum_sequence: int) -> dict[str, object]:
+    minimum_sequence = require_public_sequence(minimum_sequence, "minimum sequence")
     opener = urllib.request.build_opener(NoRedirect())
     origin = origin.rstrip("/")
     latest_body = fetch(opener, origin + "/latest.json", MAX_LATEST_BYTES)
@@ -106,11 +108,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", required=True)
     parser.add_argument("--trusted-keys", required=True, type=Path)
-    parser.add_argument("--minimum-sequence", required=True, type=int)
+    parser.add_argument("--minimum-sequence", required=True, type=parse_public_sequence)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--attempts", type=int, default=6)
     args = parser.parse_args()
-    if not args.origin.startswith("https://") or not 1 <= args.attempts <= 6 or args.minimum_sequence < 1:
+    if not args.origin.startswith("https://") or not 1 <= args.attempts <= 6:
         print("Discovery observation failed: invalid observer arguments", file=sys.stderr)
         return 2
     error: Exception | None = None

@@ -695,7 +695,7 @@ def native_projection(encoded,suffix,profile,proof):
     def release_tuple(item,plugin):
         strings=tuple_fields-{"release_sequence","snapshot_sequence","client_version"}
         if (not isinstance(item,dict) or set(item)!=tuple_fields or item.get("product_id")!=plugin
-            or any(type(item.get(field)) is not int or item[field]<1 for field in ("release_sequence","snapshot_sequence"))
+            or any(type(item.get(field)) is not int or not 1<=item[field]<=9007199254740991 for field in ("release_sequence","snapshot_sequence"))
             or any(type(item.get(field)) is not str or not item[field] for field in strings)
             or item.get("client_version") is not None
             or re.fullmatch(r"[a-f0-9]{40}",str(item.get("source_revision",""))) is None

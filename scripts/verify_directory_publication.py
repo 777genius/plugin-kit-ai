@@ -24,6 +24,7 @@ from directory_publication import (
     validate_snapshot_semantics,
     verify_envelope,
 )
+from sequence_boundaries import parse_public_sequence, require_public_sequence
 
 
 def main() -> int:
@@ -31,10 +32,11 @@ def main() -> int:
     parser.add_argument("--feed", type=Path, required=True, help="registry/schemas/1 directory")
     parser.add_argument("--trusted-keys", type=Path, required=True)
     parser.add_argument("--now", required=True)
-    parser.add_argument("--minimum-sequence", type=int, default=1)
+    parser.add_argument("--minimum-sequence", type=parse_public_sequence, default=1)
     parser.add_argument("--allow-expired-ledger", action="store_true", help="publisher recovery only; never client eligibility")
     args = parser.parse_args()
     try:
+        minimum_sequence = require_public_sequence(args.minimum_sequence, "minimum sequence")
         latest_body = read_bytes_bounded(args.feed / "latest.json", MAX_LATEST_BYTES)
         latest = parse_json_bytes(latest_body, "latest pointer", max_bytes=MAX_LATEST_BYTES)
         require(isinstance(latest, dict), "latest pointer must be an object")
@@ -58,7 +60,7 @@ def main() -> int:
         require(isinstance(snapshot, dict), "snapshot must be an object")
         validate_snapshot_semantics(snapshot)
         require(snapshot["sequence"] == envelope["sequence"] == latest["sequence"], "artifact sequence mismatch")
-        require(snapshot["sequence"] >= args.minimum_sequence, f"snapshot sequence {snapshot['sequence']} is below local floor {args.minimum_sequence}")
+        require(snapshot["sequence"] >= minimum_sequence, f"snapshot sequence {snapshot['sequence']} is below local floor {minimum_sequence}")
         now = parse_timestamp(args.now, "now")
         generated = parse_timestamp(snapshot["generated_at"], "generated_at")
         expires = parse_timestamp(snapshot["expires_at"], "expires_at")

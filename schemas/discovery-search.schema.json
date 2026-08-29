@@ -6,7 +6,7 @@
   "required": ["search_schema_version", "sequence", "generated_at", "records"],
   "properties": {
     "search_schema_version": { "const": 1 },
-    "sequence": { "type": "integer", "minimum": 1 },
+    "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
     "generated_at": { "type": "string", "format": "date-time" },
     "records": {
       "type": "array",

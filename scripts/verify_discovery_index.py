@@ -10,21 +10,25 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.directory_publication import PublicationError, parse_timestamp
 from scripts.discovery_publication import load_latest
+from scripts.sequence_boundaries import parse_public_sequence, require_public_sequence
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--feed", type=Path, required=True)
     parser.add_argument("--trusted-keys", type=Path, required=True)
-    parser.add_argument("--minimum-sequence", type=int, default=0)
+    parser.add_argument("--minimum-sequence", type=parse_public_sequence, default=None)
     parser.add_argument("--now")
     args = parser.parse_args()
     try:
+        minimum_sequence = None if args.minimum_sequence is None else require_public_sequence(
+            args.minimum_sequence, "minimum sequence",
+        )
         loaded = load_latest(args.feed, args.trusted_keys)
         if loaded is None:
             raise PublicationError("Discovery latest pointer is missing")
         snapshot, _latest = loaded
-        if snapshot["sequence"] < args.minimum_sequence:
+        if minimum_sequence is not None and snapshot["sequence"] < minimum_sequence:
             raise PublicationError("Discovery sequence is below the required floor")
         if args.now:
             now = parse_timestamp(args.now, "now")
