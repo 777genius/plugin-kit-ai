@@ -1,6 +1,6 @@
 # E2E and Competitive Launch Plan
 
-Status: implementation plan and evidence record, updated 2026-08-28
+Status: implementation plan and evidence record, updated 2026-08-29
 
 ## 1. Goal
 
@@ -112,11 +112,14 @@ them.
    The accepted protected hero matrix remains bound to `0.1.18` until all four
    consent-bound rows pass and a new exact tuple is approved.
 3. Signed production Directory sequence 13 is live and verifies. Signed
-   sequence 16 is staged but is not production: the protected observer gate
-   correctly blocked promotion. The staged snapshot digest is
-   `sha256:80718f74941c948ec7731a7b4a8de63e381b70d0ce96e23be80fa4542c7907d8`,
-   its source marker is `6ccc54978e06b73f2758b052b505de51362522b6`,
-   and its ledger commit is `16ff04cac59756c15413b267ea5c6398a2df2c8f`.
+   sequence 19 is staged but is not production: attempt 1 of
+   [run 33222000093](https://github.com/777genius/universal-agent-plugins/actions/runs/33222000093)
+   correctly failed the protected observer gate and skipped deployment. The
+   staged snapshot digest is
+   `sha256:7f6c83a740ce04bd21b3bb45791b4e27015c43d20c19df566f0491b06d545998`,
+   its source marker is `495c47e0608554fe89c6fa40d03d5350073732e2`,
+   and its immutable ledger tag resolves to
+   `e3c492454610335411290c550c9a45e45bc1ef11`.
 4. The scheduled fixture, production Directory observation, and public-read
    jobs passed together on exact `main` commit
    `8934d258ecc1ef15d05b5bc8ef075e5dffd902cc` in
@@ -144,19 +147,24 @@ them.
    through production sequence 13 and public `0.1.19` passed one grouped
    Codex/Cursor/Kiro dry-run with no mutation and tree digest
    `sha256:2b1d984194324b50b756a893a576f3d795262bd7edfec6d7167863ca8be93a2c`.
-9. Signed production Discovery sequence 3 was generated from exact `main`
-   commit `a8488d99da04545ad53c61c48e1c91a1edc00805` and published in
-   [run 33195617464](https://github.com/777genius/universal-agent-plugins/actions/runs/33195617464).
-   It contains 2,437 unpadded conformant package paths, is marked complete,
-   expires at `2026-08-31T17:38:56Z`, and has snapshot digest
-   `sha256:02c2bf79ba440f4dc4af7125ecd28cb41a8b3e75d664de7f80bbe08afda41705`.
-   The ledger branch and immutable sequence tag both resolve to commit
-   `002261860bb342f7bff4f9f1da22534ab6d4df3b`; independent verification from
-   the public Pages assets passed with the pinned Discovery key.
-10. The live website returned HTTP 200 with no browser console errors, rendered
-    `2437 unreviewed packages from signed index 3`, and found the exact
-    `discovery:upstash/context7//plugins/agent-plugins/context7` selector after a
-    real Chromium search for `context7`.
+9. Signed production Discovery sequence 8 was generated from exact `main`
+   commit `5b74547f03737d22cb1a2b1b8f68d86501b49ea1` and published in
+   [run 33238863839](https://github.com/777genius/universal-agent-plugins/actions/runs/33238863839).
+   It contains 2,461 unpadded conformant package paths, is marked complete, and
+   has snapshot digest
+   `sha256:887e17a2857ee180d1b218a82de919e7dd46f0c598a86816892bfa987db91dba`.
+   The immutable sequence tag resolves to ledger commit
+   `b676246c8f249520ba38a76473a36239e60e96fe`. The workflow reacquired the
+   public Pages assets, verified the pinned Discovery signature, and stored a
+   production observation bound to publication `33238863839-1`.
+10. The live website rendered
+    `2461 unreviewed packages from signed index 8`, found the external Context7
+    package after a real browser search, and generated the exact multi-target
+    command for Codex, Cursor, and Kiro. Desktop and mobile functional and
+    visual checks found no horizontal overflow; the isolated mobile pass had no
+    console, page, response, or request failures. A transient macOS host network
+    change interrupted a later desktop asset retry and is not counted as clean
+    browser-error evidence.
 11. Public `universal-agent-plugins@0.1.21` passed one fresh disposable Linux
     lifecycle against that discovered upstream package for explicit
     `codex,cursor,kiro` targets: one acquisition, 3/3 add, a shared installation
@@ -176,13 +184,26 @@ them.
     and no managed files or installation state were created. This proves that
     Discovery conformance is metadata, not permission to bypass the CLI's full
     package validation.
+13. Public `0.1.21` cannot consume current legacy Directory evidence documents
+    that include optional trust-era keys and therefore falls back to its
+    embedded snapshot. The two-lane parser fix merged in
+    [plugin-kit-ai PR #67](https://github.com/777genius/plugin-kit-ai/pull/67)
+    at exact `main` commit
+    `af0cf035b0fac91aab8fd0cd3f44fe60e51002bb`. An exact-main
+    `0.1.22-dev` binary then consumed production Directory sequence 13 and
+    Discovery sequence 8, reported both exact digests, and found
+    `discovery:upstash/context7//plugins/agent-plugins/context7` in a disposable
+    local state root. Stable `0.1.22` publication remains gated on explicit
+    owner approval for that exact version.
 
 ### 3.3 Implementation checkpoint
 
 - Exact `0.1.18` release tuple: complete.
 - Latest public CLI release `0.1.21`: public-release evidence only, outside the
   protected hero tuple; published, provenance-verified, and clean-registry
-  lifecycle-verified.
+  lifecycle-verified. Exact-main `0.1.22-dev` contains the current legacy/trust
+  Directory parser fix; stable publication is still pending exact-version
+  approval.
 - Capability-specific native projection (`skill` versus `mcp`): implemented.
 - Real disposable Agent Code Navigator skill runtime: passed in Codex 0.147.0,
   Cursor 2026.08.25, and Kiro CLI 2.20.0. Cursor also passed a native Context7
@@ -195,10 +216,10 @@ them.
   `c4db619984795998f0a40a9f391f52534f6eb382`.
 - Production identity tracking is monotonic and protected by publisher-only
   creation/update plus a no-bypass deletion guard. Production remains signed
-  sequence 13; signed sequence 16 remains staged.
-- Production Discovery is independently signed in its own domain. Sequence 3
-  is live with 2,437 records and is consumed successfully by both the website
-  and public CLI. This does not change the reviewed Directory sequence.
+  sequence 13; signed sequence 19 remains staged.
+- Production Discovery is independently signed in its own domain. Sequence 8
+  is live with 2,461 records and is consumed successfully by both the website
+  and the exact-main CLI. This does not change the reviewed Directory sequence.
 - Observer first-install import was fixed in
   [PR #94](https://github.com/777genius/universal-agent-plugins/pull/94).
   A real Kiro run then exposed an ACP readiness race: the prompt was sent before
@@ -854,16 +875,16 @@ Kill switches:
 - [ ] Protected E2E is green for the exact final evidence tuple.
 - [ ] Five heroes pass 15/15 across Codex, Cursor, and Kiro.
 - [ ] Notion evidence is separately authenticated and sanitized.
-- [ ] Cloudflare Docs ChatGPT claim stays within the proved personal-app scope.
+- [x] Cloudflare Docs ChatGPT claim stays within the proved personal-app scope.
 - [x] Signed production Directory sequence 13 is publicly reachable and
       fail-closed.
-- [ ] The current staged sequence 16 is promoted only after protected evidence
+- [ ] The current staged sequence 19 is promoted only after protected evidence
       passes.
 - [x] `install`, `search`, `validate`, `outdated`, and `update --all` are
       shipped.
 - [x] Reviewed Directory and unreviewed Discovery Index are visibly distinct
       in labels, provenance text, commands, and browser-tested cards.
-- [x] Production Discovery sequence 3 covers 2,437 reproducibly found,
+- [x] Production Discovery sequence 8 covers 2,461 reproducibly found,
       conformant package paths without padding and verifies from public assets.
 - [x] Public `0.1.21` installs one exact-SHA discovered package across explicit
       Codex, Cursor, and Kiro targets from one acquisition.
@@ -872,12 +893,17 @@ Kill switches:
 - [x] Malformed unreviewed packages fail before mutation.
 - [x] Website search and client multi-select pass 16 desktop/mobile browser E2E
       cases in isolated profiles.
-- [x] The production site consumes sequence 3, finds the tested external
-      selector, and emits no browser console errors.
+- [x] The production site consumes sequence 8 and finds the tested external
+      selector. Mobile emitted no browser errors; desktop functional and visual
+      checks passed, while one later asset retry was interrupted by host network
+      churn and is recorded separately above.
 - [x] No install telemetry, analytics, or tracking scripts are introduced.
 - [x] Three upstream Agent Plugins 1.0 PRs are open with exact-SHA lifecycle
       evidence.
-- [ ] Existing installs never change source implicitly.
+- [x] Existing installs never change source implicitly. The focused
+      `agentpluginscli` Directory/source suite proves alias rotation and default
+      distribution changes retain the recorded source; only explicit `switch`
+      changes it.
 - [x] No real user project or identity was used for the public Discovery and
       lifecycle E2E recorded above.
 
