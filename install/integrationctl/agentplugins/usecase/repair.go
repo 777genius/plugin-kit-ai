@@ -215,6 +215,23 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	}
 	result.Mutated = true
 	result.Activation = verifiedState
+	if input.Client.ClientID == domain.ClientClaude {
+		outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{
+			Client: input.Client, Plan: plan,
+			Delivery:     domain.StagedDelivery{ClientID: delivery.ClientID, OwnedBase: delivery.OwnedBase, ActivePath: delivery.ActivePath, ArtifactDigest: delivery.ArtifactDigest, NativeObjects: delivery.NativeObjects},
+			DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, VerifyOnly: true,
+		})
+		result.Activation = outcome
+		if _, updateErr := service.updateLifecycle(installation.InstallationID, clientKey, outcome); updateErr != nil {
+			if activationErr != nil {
+				return result, fmt.Errorf("verify repaired Claude Code plugin: %v; persist verification state: %w", activationErr, updateErr)
+			}
+			return result, updateErr
+		}
+		if activationErr != nil {
+			return result, activationErr
+		}
+	}
 	return result, nil
 }
 

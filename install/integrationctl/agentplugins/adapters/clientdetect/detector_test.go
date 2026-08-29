@@ -83,6 +83,25 @@ func TestDetectorFindsNewCLIClientsFromOfficialHomeAndXDGSurfaces(t *testing.T) 
 	}
 }
 
+func TestDetectorRespectsClaudeConfigDirectory(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	configRoot := filepath.Join(home, "isolated-claude")
+	if err := os.MkdirAll(configRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, map[string]string{"claude": filepath.Join(home, "bin", "claude")})
+	detector.Environment["CLAUDE_CONFIG_DIR"] = configRoot
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	claude := clientOf(clients, domain.ClientClaude)
+	if claude.ConfigRoot != configRoot || claude.Status != domain.DetectionDetected {
+		t.Fatalf("Claude detection = %+v", claude)
+	}
+}
+
 func TestDetectorFindsClineOnlyFromSupportedEditorSurfaces(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()

@@ -559,7 +559,7 @@ func clientVerifierAvailable(input AddInput, plan domain.DeliveryPlan) bool {
 		return false
 	}
 	switch input.Client.ClientID {
-	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+	case domain.ClientCodex, domain.ClientClaude, domain.ClientCopilot, domain.ClientVSCode:
 		return true
 	case domain.ClientKiro:
 		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") || len(plan.Components) == 0 {
@@ -707,7 +707,7 @@ func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput,
 		return domain.ActivationOutcome{}, nil
 	}
 	switch input.Client.ClientID {
-	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+	case domain.ClientCodex, domain.ClientClaude, domain.ClientCopilot, domain.ClientVSCode:
 	case domain.ClientKiro:
 		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") {
 			return domain.ActivationOutcome{}, nil

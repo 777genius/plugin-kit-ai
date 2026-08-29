@@ -72,11 +72,14 @@ func (observer NativeIdentityObserver) observeIdentity(ctx context.Context, clie
 	}
 
 	prepared, preparedErr := inspectPreparedRegistry(plan, name, managed != nil)
+	if client.ClientID == domain.ClientClaude {
+		prepared, preparedErr = inspectClaudeSkillsRegistry(plan, name, managed != nil)
+	}
 	if preparedErr != nil {
 		prepared = registryIndeterminate
 	}
 	nativeAttempted := includeNativeRegistry && observer.Runner != nil && strings.TrimSpace(plan.NativeRegistryExecutable) != "" &&
-		(client.ClientID == domain.ClientCodex || client.ClientID == domain.ClientCopilot || client.ClientID == domain.ClientVSCode)
+		(client.ClientID == domain.ClientCodex || client.ClientID == domain.ClientClaude || client.ClientID == domain.ClientCopilot || client.ClientID == domain.ClientVSCode)
 	native := registryClear
 	if includeNativeRegistry {
 		nativeCtx := ctx
@@ -160,6 +163,33 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 			return observer.inspectCodexCLI(ctx, plan, managed)
 		}
 		return inspectCodexFiles(plan, managed)
+	case domain.ClientClaude:
+		if strings.TrimSpace(plan.NativeRegistryExecutable) == "" || observer.Runner == nil {
+			return registryIndeterminate, nil
+		}
+		result, err := observer.runNativeRegistry(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list", "--json"}})
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return registryIndeterminate, ctxErr
+			}
+			return registryIndeterminate, err
+		}
+		if result.ExitCode != 0 {
+			return registryIndeterminate, fmt.Errorf("Claude Code plugin registry command failed with exit code %d", result.ExitCode)
+		}
+		switch claudePluginStatus(result.Stdout, plan.DeclaredName, plan.ActivePath) {
+		case claudeStatusInstalled:
+			if managed == nil {
+				return registryCollision, nil
+			}
+			return registryExpected, nil
+		case claudeStatusAbsent:
+			return registryClear, nil
+		case claudeStatusCollision:
+			return registryCollision, nil
+		default:
+			return registryIndeterminate, nil
+		}
 	case domain.ClientChatGPT:
 		// ChatGPT's installed-plugin registry is remote and this adapter has no
 		// authenticated read-only API. A signed explicit app binding authorizes
@@ -531,6 +561,54 @@ func inspectPreparedRegistry(plan domain.DeliveryPlan, name string, owned bool) 
 	return inspectUnqualifiedPluginRoot(plan.TargetRoot, name, plan.ActivePath, owned)
 }
 
+func inspectClaudeSkillsRegistry(plan domain.DeliveryPlan, name string, owned bool) (registryFinding, error) {
+	root := strings.TrimSpace(plan.TargetRoot)
+	if root == "" {
+		return registryIndeterminate, nil
+	}
+	entries, err := os.ReadDir(root)
+	if os.IsNotExist(err) {
+		return registryClear, nil
+	}
+	if err != nil {
+		return registryIndeterminate, err
+	}
+	finding := registryClear
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".agentplugins-staging-") {
+			continue
+		}
+		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
+			return registryIndeterminate, nil
+		}
+		path := filepath.Join(root, entry.Name())
+		manifest := filepath.Join(path, ".claude-plugin", "plugin.json")
+		manifestName, readErr := readJSONManifestName(manifest)
+		if os.IsNotExist(readErr) {
+			// Plain skills legitimately share this directory and do not claim a
+			// plugin identity.
+			if _, skillErr := os.Lstat(filepath.Join(path, "SKILL.md")); skillErr == nil {
+				continue
+			} else if !os.IsNotExist(skillErr) {
+				return registryIndeterminate, skillErr
+			}
+			return registryIndeterminate, nil
+		}
+		if readErr != nil {
+			return registryIndeterminate, readErr
+		}
+		if manifestName != name {
+			continue
+		}
+		if sameCleanPath(path, plan.ActivePath) && owned {
+			finding = registryExpected
+			continue
+		}
+		return registryCollision, nil
+	}
+	return finding, nil
+}
+
 func inspectUnqualifiedPluginRoot(root, name, activePath string, owned bool) (registryFinding, error) {
 	if strings.TrimSpace(root) == "" {
 		return registryIndeterminate, nil
@@ -597,7 +675,7 @@ func nativeManifestIdentity(root string) (name string, qualified bool, namespace
 			return "", false, "", readErr
 		}
 	}
-	for _, manifest := range []string{filepath.Join(root, "plugin.json"), filepath.Join(root, ".cursor-plugin", "plugin.json"), filepath.Join(root, ".codex-plugin", "plugin.json")} {
+	for _, manifest := range []string{filepath.Join(root, ".claude-plugin", "plugin.json"), filepath.Join(root, "plugin.json"), filepath.Join(root, ".cursor-plugin", "plugin.json"), filepath.Join(root, ".codex-plugin", "plugin.json")} {
 		name, readErr := readJSONManifestName(manifest)
 		if readErr == nil {
 			return name, false, "", nil

@@ -237,7 +237,10 @@ func (detector Detector) detectKiro(ctx context.Context, probeVersion bool) doma
 }
 
 func (detector Detector) detectClaude(ctx context.Context, probeVersion bool) domain.DetectedClient {
-	configRoot := filepath.Join(detector.HomeDir, ".claude")
+	configRoot := strings.TrimSpace(detector.Environment["CLAUDE_CONFIG_DIR"])
+	if configRoot == "" {
+		configRoot = filepath.Join(detector.HomeDir, ".claude")
+	}
 	surfaces := []domain.ClientSurface{
 		detector.binarySurface("claude_cli", "claude"),
 		detector.directorySurface("claude_config", configRoot),

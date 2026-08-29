@@ -82,6 +82,13 @@ func (planner Planner) Plan(
 		plan.Warnings = append(plan.Warnings, "scope_not_supported")
 		return plan, nil
 	}
+	if client.ClientID == domain.ClientClaude && strings.TrimSpace(client.ExecutablePath) == "" {
+		plan.Status = domain.PlanUnsupported
+		plan.Activation = domain.ActivationFailed
+		plan.Warnings = append(plan.Warnings, "trusted_claude_cli_required")
+		plan.UserActions = append(plan.UserActions, "install Claude Code CLI so agentplugins can verify the exact @skills-dir identity")
+		return plan, nil
+	}
 	target, err := planner.ResolveTarget(ctx, client, scope, physicalArtifactID)
 	if err != nil {
 		return domain.DeliveryPlan{}, err
@@ -154,6 +161,8 @@ func (planner Planner) Plan(
 	switch client.ClientID {
 	case domain.ClientCodex:
 		plan.UserActions = append(plan.UserActions, "finish installation in Codex Plugins, then start a new session")
+	case domain.ClientClaude:
+		plan.UserActions = append(plan.UserActions, "start a new Claude Code session or run /reload-plugins")
 	case domain.ClientChatGPT:
 		if hasSupportedKind(plan.Components, domain.ComponentApp) {
 			plan.UserActions = append(plan.UserActions, "install the prepared plugin from ChatGPT Plugins, verify its registered app connection, then start a new chat")
@@ -311,7 +320,13 @@ func Capabilities(clientID domain.ClientID) (domain.ClientCapabilities, bool) {
 
 func (planner Planner) targetRoot(client domain.DetectedClient, mode domain.PackageMode) (string, string, error) {
 	var anchor, root string
-	if client.ClientID == domain.ClientCursor && mode == domain.PackageNative {
+	if client.ClientID == domain.ClientClaude && mode == domain.PackageProjection {
+		if strings.TrimSpace(client.ConfigRoot) == "" {
+			return "", "", fmt.Errorf("Claude Code config root is unavailable")
+		}
+		anchor = client.ConfigRoot
+		root = filepath.Join(client.ConfigRoot, "skills")
+	} else if client.ClientID == domain.ClientCursor && mode == domain.PackageNative {
 		if strings.TrimSpace(client.ConfigRoot) == "" {
 			return "", "", fmt.Errorf("Cursor config root is unavailable")
 		}

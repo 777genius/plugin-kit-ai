@@ -175,6 +175,10 @@ func (stager Stager) stage(
 			if err := projectOpenAI(stagingPath, envelope, plan, hints, pluginDataPath); err != nil {
 				return domain.StagedDelivery{}, err
 			}
+		case domain.ClientClaude:
+			if err := projectClaude(stagingPath, envelope, plan, pluginDataPath); err != nil {
+				return domain.StagedDelivery{}, err
+			}
 		case domain.ClientChatGPT:
 			if err := projectChatGPT(stagingPath, envelope, plan, hints, pluginDataPath); err != nil {
 				return domain.StagedDelivery{}, err

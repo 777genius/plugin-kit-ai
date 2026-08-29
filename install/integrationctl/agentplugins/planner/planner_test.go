@@ -279,9 +279,13 @@ func TestOnlyChatGPTProjectsRegisteredAppBindings(t *testing.T) {
 	}
 }
 
-func TestPlannerReadsNewPreparedCapabilitiesFromClientRegistry(t *testing.T) {
+func TestPlannerReadsNewClientCapabilitiesFromRegistry(t *testing.T) {
 	t.Parallel()
-	for _, client := range []domain.ClientID{domain.ClientClaude, domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf} {
+	claude, ok := Capabilities(domain.ClientClaude)
+	if !ok || claude.PackageMode != domain.PackageProjection || claude.ActivationMode != domain.ActivationAutomatic || claude.SkillSupport != domain.SupportProjected || claude.MCPTransports["stdio"] != domain.SupportProjected {
+		t.Fatalf("Claude capabilities = %+v", claude)
+	}
+	for _, client := range []domain.ClientID{domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf} {
 		capabilities, ok := Capabilities(client)
 		if !ok || capabilities.PackageMode != domain.PackagePrepared || capabilities.SkillSupport != domain.SupportPrepared || capabilities.MCPTransports["stdio"] != domain.SupportPrepared {
 			t.Fatalf("%s capabilities = %+v", client, capabilities)

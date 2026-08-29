@@ -63,6 +63,32 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 	switch request.Client.ClientID {
 	case domain.ClientCursor:
 		return outcome, nil
+	case domain.ClientClaude:
+		// The official @skills-dir flow is removed by the transaction kernel's
+		// owned-directory removal. A confirmed mutation first verifies the exact
+		// id and installPath through the trusted Claude CLI; previews stay inert.
+		if !request.Confirmed {
+			outcome.UserActions = append(outcome.UserActions, "agentplugins will verify and remove its managed Claude Code @skills-dir plugin")
+			return outcome, nil
+		}
+		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
+			return outcome, fmt.Errorf("trusted Claude Code CLI is required for exact removal verification")
+		}
+		listed, err := activator.runClientResult(ctx, "Claude Code CLI", request.BackendExecutable, "plugin", "list", "--json")
+		if err != nil {
+			return outcome, fmt.Errorf("verify Claude Code plugin before removal: %w", err)
+		}
+		switch claudePluginStatus(listed.Stdout, request.DeclaredName, request.ManagedArtifactPath) {
+		case claudeStatusInstalled:
+		case claudeStatusAbsent:
+			if request.CurrentActivation == domain.ActivationActive {
+				return outcome, fmt.Errorf("%w: managed Claude Code plugin is absent before removal", errRecognizedNegativeEvidence)
+			}
+		default:
+			return outcome, fmt.Errorf("Claude Code plugin identity is not exact before removal")
+		}
+		outcome.ExternalRemovalComplete = true
+		return outcome, nil
 	case domain.ClientCodex:
 		if !request.ExternalUninstalled {
 			return requireExternalUninstall(outcome, false, "uninstall the plugin in Codex, then rerun remove with `--external-uninstalled` (also use the flag if it was never activated)"), nil
@@ -219,6 +245,16 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 				return manualCodexVerification(outcome, request), nil
 			}
 			return failedActivation(outcome, fmt.Sprintf("run Codex activation again for the prepared package at %s, then verify with `%s plugin list --json`", request.Delivery.ActivePath, request.BackendExecutable), err)
+		}
+		outcome.Activation = domain.ActivationActive
+		outcome.Verification = domain.VerificationInstalled
+		return outcome, nil
+	case domain.ClientClaude:
+		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
+			return failedActivation(outcome, "install Claude Code CLI and retry exact @skills-dir verification", fmt.Errorf("trusted Claude Code CLI is required"))
+		}
+		if err := activator.verifyClaude(ctx, request); err != nil {
+			return failedActivation(outcome, fmt.Sprintf("verify with `%s plugin list --json`", request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
@@ -389,6 +425,21 @@ func (activator Activator) verifyCodex(ctx context.Context, request domain.Activ
 		return fmt.Errorf("%w: verify Codex plugin listing: %s is not installed and enabled", errRecognizedNegativeEvidence, pluginSpec)
 	default:
 		return fmt.Errorf("%w: verify Codex plugin listing", errCodexListContractUnknown)
+	}
+}
+
+func (activator Activator) verifyClaude(ctx context.Context, request domain.ActivationRequest) error {
+	listed, err := activator.runClientResult(ctx, "Claude Code CLI", request.BackendExecutable, "plugin", "list", "--json")
+	if err != nil {
+		return fmt.Errorf("verify Claude Code plugin listing: %w", err)
+	}
+	switch claudePluginStatus(listed.Stdout, request.DeclaredName, request.Delivery.ActivePath) {
+	case claudeStatusInstalled:
+		return nil
+	case claudeStatusAbsent, claudeStatusCollision:
+		return fmt.Errorf("%w: verify Claude Code plugin listing: %s@skills-dir is not enabled at the managed path", errRecognizedNegativeEvidence, request.DeclaredName)
+	default:
+		return fmt.Errorf("Claude Code plugin list output is not recognized")
 	}
 }
 
@@ -565,6 +616,67 @@ func codexPluginStatus(body []byte, name, marketplace string) codexStatus {
 	return codexStatusAbsent
 }
 
+type claudeStatus int
+
+const (
+	claudeStatusUnknown claudeStatus = iota
+	claudeStatusInstalled
+	claudeStatusAbsent
+	claudeStatusCollision
+)
+
+func claudePluginStatus(body []byte, name, activePath string) claudeStatus {
+	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder.UseNumber()
+	parsed, err := decodeUniqueJSONValue(decoder)
+	if err != nil {
+		return claudeStatusUnknown
+	}
+	if _, tokenErr := decoder.Token(); !errors.Is(tokenErr, io.EOF) {
+		return claudeStatusUnknown
+	}
+	entries, ok := parsed.([]any)
+	if !ok {
+		return claudeStatusUnknown
+	}
+	expectedID := name + "@skills-dir"
+	expectedPath := filepath.Clean(activePath)
+	seen := map[string]struct{}{}
+	found := false
+	for _, value := range entries {
+		entry, ok := value.(map[string]any)
+		if !ok {
+			return claudeStatusUnknown
+		}
+		id, idOK := entry["id"].(string)
+		scope, scopeOK := entry["scope"].(string)
+		enabled, enabledOK := entry["enabled"].(bool)
+		installPath, pathOK := entry["installPath"].(string)
+		if !idOK || !scopeOK || !enabledOK || !pathOK || id == "" || scope == "" || !filepath.IsAbs(installPath) {
+			return claudeStatusUnknown
+		}
+		identity := id + "\x00" + scope + "\x00" + filepath.Clean(installPath)
+		if _, duplicate := seen[identity]; duplicate {
+			return claudeStatusUnknown
+		}
+		seen[identity] = struct{}{}
+		if id != expectedID {
+			continue
+		}
+		if filepath.Clean(installPath) != expectedPath || scope != "user" {
+			return claudeStatusCollision
+		}
+		if found {
+			return claudeStatusUnknown
+		}
+		found = enabled
+	}
+	if found {
+		return claudeStatusInstalled
+	}
+	return claudeStatusAbsent
+}
+
 func decodeUniqueJSONValue(decoder *json.Decoder) (any, error) {
 	token, err := decoder.Token()
 	if err != nil {
@@ -721,7 +833,7 @@ func activationObservable(request domain.ActivationRequest, runner CommandRunner
 		return false
 	}
 	switch request.Client.ClientID {
-	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+	case domain.ClientCodex, domain.ClientClaude, domain.ClientCopilot, domain.ClientVSCode:
 		return true
 	case domain.ClientKiro:
 		if !kiroNativeComponents(request.Plan.Components) || !isKiroCLI(request.BackendExecutable) {

@@ -63,6 +63,29 @@ func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.
 	}
 }
 
+func TestStagerProjectsClaudeSkillsDirectoryPluginWithRootMCP(t *testing.T) {
+	t.Parallel()
+	envelope := stagingEnvelope(t)
+	plan := stagingPlan(t, domain.ClientClaude, domain.PackageProjection)
+	delivery, err := (Stager{}).Stage(context.Background(), envelope, plan, "operation-claude", domain.CompatibilityHints{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := readObject(t, filepath.Join(delivery.StagingPath, ".claude-plugin", "plugin.json"))
+	if manifest["name"] != "demo" || manifest["skills"] != "./skills/" || manifest["mcpServers"] != "./.mcp.json" {
+		t.Fatalf("Claude manifest = %+v", manifest)
+	}
+	mcp := readObject(t, filepath.Join(delivery.StagingPath, ".mcp.json"))
+	notion := mcp["notion"].(map[string]any)
+	if notion["type"] != "http" || notion["url"] != "https://mcp.notion.com/mcp" {
+		t.Fatalf("Claude root MCP = %+v", mcp)
+	}
+	assertMissing(t, filepath.Join(delivery.StagingPath, "mcp.json"))
+	if _, err := os.Stat(filepath.Join(delivery.StagingPath, "skills", "good", "SKILL.md")); err != nil {
+		t.Fatalf("Claude skill missing: %v", err)
+	}
+}
+
 func TestStagerProjectsExactOwnedPluginDataContract(t *testing.T) {
 	t.Parallel()
 	envelope := stagingEnvelope(t)

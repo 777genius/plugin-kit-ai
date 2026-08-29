@@ -74,11 +74,16 @@ var clientDefinitions = []ClientDefinition{
 	clientDefinition(ClientCopilot, "GitHub Copilot CLI", "github-copilot", "managed", "native", true, PackageNative, SupportNative, SupportNative, SupportNative),
 	clientDefinition(ClientVSCode, "Visual Studio Code", "github-copilot", "prepared", "prepared", true, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
 	clientDefinition(ClientKiro, "Kiro", "kiro", "managed", "native", true, PackageNative, SupportNative, SupportNative, SupportUnsupported),
-	clientDefinition(ClientClaude, "Claude Code", "claude", "prepared", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
+	withActivation(clientDefinition(ClientClaude, "Claude Code", "claude", "managed", "projected", false, PackageProjection, SupportProjected, SupportProjected, SupportUnsupported), ActivationAutomatic),
 	clientDefinition(ClientGemini, "Gemini CLI", "gemini", "prepared", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
 	clientDefinition(ClientOpenCode, "OpenCode", "opencode", "prepared", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
 	clientDefinition(ClientCline, "Cline", "cline", "prepared", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
 	clientDefinition(ClientWindsurf, "Windsurf / Devin", "windsurf", "prepared", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
+}
+
+func withActivation(definition ClientDefinition, activation ActivationMode) ClientDefinition {
+	definition.Capabilities.ActivationMode = activation
+	return definition
 }
 
 func clientDefinition(id ClientID, displayName, backendFamily, delivery, catalogPackage string, legacyRequired bool, packageMode PackageMode, skill, mcp, extension SupportLevel) ClientDefinition {
