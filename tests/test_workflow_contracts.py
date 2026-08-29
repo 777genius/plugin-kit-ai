@@ -1390,6 +1390,9 @@ class WorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn(f'"{field}"', body)
         self.assertIn("claim mismatch", body)
+        self.assertIn("GITHUB_REPOSITORY_OWNER_ID", body)
+        self.assertIn("GITHUB_REPOSITORY_ID", body)
+        self.assertIn("immutable_subject", body)
         self.assertNotIn("print(claims", body)
         self.assertNotIn("print(token", body)
 

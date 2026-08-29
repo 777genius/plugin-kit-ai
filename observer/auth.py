@@ -208,8 +208,14 @@ class OidcVerifier:
             if any(str(claims[key]) != str(github[key]) for key in ("sha", "run_id", "run_attempt")):
                 raise AuthenticationError("request and OIDC GitHub identities differ")
         for policy in self.config.policies:
-            owner = policy.repository.split("/", 1)[0]
-            expected_sub = f"repo:{policy.repository}:environment:{policy.environment}"
+            owner, separator, repository_name = policy.repository.partition("/")
+            if not separator:
+                continue
+            expected_sub = (
+                f"repo:{owner}@{policy.repository_owner_id}/"
+                f"{repository_name}@{policy.repository_id}:"
+                f"environment:{policy.environment}"
+            )
             exact = {
                 "repository": policy.repository, "repository_owner": owner,
                 "repository_id": policy.repository_id,

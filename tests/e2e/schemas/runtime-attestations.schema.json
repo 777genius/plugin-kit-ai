@@ -69,7 +69,7 @@
             "type": "object",
             "required": ["subject", "repository", "repository_owner", "repository_id", "repository_owner_id", "ref", "environment", "workflow_ref", "job_workflow_ref", "sha", "run_id", "run_attempt", "workflow", "job", "challenge"],
             "properties": {
-              "subject": {"const": "repo:777genius/universal-agent-plugins:environment:stable-launch-e2e"},
+              "subject": {"const": "repo:777genius@13103045/universal-agent-plugins@1326737541:environment:stable-launch-e2e"},
               "repository": {"const": "777genius/universal-agent-plugins"},
               "repository_owner": {"const": "777genius"},
               "repository_id": {"const": "1326737541"},

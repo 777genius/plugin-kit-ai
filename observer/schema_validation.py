@@ -15,7 +15,7 @@ from .canonical import ARTIFACT_NAMES
 SCHEMA_ROOT = Path(__file__).parents[1] / "tests" / "e2e" / "schemas"
 BASE_URI = "https://uap.invalid/schemas/"
 GITHUB_ATTESTATION_IDENTITY = {
-    "subject": "repo:777genius/universal-agent-plugins:environment:stable-launch-e2e",
+    "subject": "repo:777genius@13103045/universal-agent-plugins@1326737541:environment:stable-launch-e2e",
     "repository": "777genius/universal-agent-plugins",
     "repository_owner": "777genius",
     "repository_id": "1326737541",

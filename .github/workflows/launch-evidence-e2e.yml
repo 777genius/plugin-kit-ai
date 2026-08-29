@@ -435,10 +435,16 @@ jobs:
           except (ValueError, UnicodeError, json.JSONDecodeError):
               raise SystemExit("OIDC self-check failed: payload JSON") from None
           repository = os.environ["GITHUB_REPOSITORY"]
+          owner, repository_name = repository.split("/", 1)
+          immutable_subject = (
+              f"repo:{owner}@{os.environ['GITHUB_REPOSITORY_OWNER_ID']}/"
+              f"{repository_name}@{os.environ['GITHUB_REPOSITORY_ID']}:"
+              "environment:stable-launch-e2e"
+          )
           expected = {
               "iss": "https://token.actions.githubusercontent.com",
               "aud": "stable-launch-observer",
-              "sub": f"repo:{repository}:environment:stable-launch-e2e",
+              "sub": immutable_subject,
               "repository": repository,
               "repository_owner": os.environ["GITHUB_REPOSITORY_OWNER"],
               "repository_id": os.environ["GITHUB_REPOSITORY_ID"],

@@ -144,7 +144,7 @@ class Fixture:
     def claims(self, *, jti: str = "fixture-jti-0001", **changes: Any) -> dict[str, Any]:
         claims = {
             "iss": self.config.issuer, "aud": self.config.audience,
-            "sub": "repo:777genius/universal-agent-plugins:environment:stable-launch-e2e",
+            "sub": "repo:777genius@13103045/universal-agent-plugins@1326737541:environment:stable-launch-e2e",
             "iat": self.now - 10, "nbf": self.now - 10, "exp": self.now + 300, "jti": jti,
             "repository": self.policy.repository, "repository_owner": "777genius",
             "repository_id": self.policy.repository_id,
@@ -202,7 +202,7 @@ def artifacts(challenge: str = "a" * 64) -> dict[str, Any]:
     digest = "sha256:" + "9" * 64
     observed = "2026-08-23T12:00:00Z"
     github = {
-        "subject": "repo:777genius/universal-agent-plugins:environment:stable-launch-e2e",
+        "subject": "repo:777genius@13103045/universal-agent-plugins@1326737541:environment:stable-launch-e2e",
         "repository": "777genius/universal-agent-plugins", "repository_owner": "777genius",
         "repository_id": "1326737541", "repository_owner_id": "13103045",
         "ref": "refs/heads/main", "environment": "stable-launch-e2e",
@@ -469,6 +469,16 @@ class ObserverTests(unittest.TestCase):
         service, _, _ = self.service()
         with self.assertRaisesRegex(AuthenticationError, "not allowlisted"):
             service.observe(self.fixture.request(), self.fixture.token(ref="refs/heads/feature"))
+
+    def test_legacy_name_only_subject_is_rejected(self) -> None:
+        service, _, _ = self.service()
+        with self.assertRaisesRegex(AuthenticationError, "not allowlisted"):
+            service.observe(
+                self.fixture.request(),
+                self.fixture.token(
+                    sub="repo:777genius/universal-agent-plugins:environment:stable-launch-e2e"
+                ),
+            )
 
     def test_wrong_run_claim_is_rejected_before_execution(self) -> None:
         def stale_attempt_fetch(url: str) -> Any:
