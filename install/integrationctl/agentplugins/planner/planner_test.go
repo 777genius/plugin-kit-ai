@@ -285,11 +285,15 @@ func TestPlannerReadsNewClientCapabilitiesFromRegistry(t *testing.T) {
 	if !ok || claude.PackageMode != domain.PackageProjection || claude.ActivationMode != domain.ActivationAutomatic || claude.SkillSupport != domain.SupportProjected || claude.MCPTransports["stdio"] != domain.SupportProjected {
 		t.Fatalf("Claude capabilities = %+v", claude)
 	}
-	for _, client := range []domain.ClientID{domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf} {
+	for _, client := range []domain.ClientID{domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf} {
 		capabilities, ok := Capabilities(client)
 		if !ok || capabilities.PackageMode != domain.PackagePrepared || capabilities.SkillSupport != domain.SupportPrepared || capabilities.MCPTransports["stdio"] != domain.SupportPrepared {
 			t.Fatalf("%s capabilities = %+v", client, capabilities)
 		}
+	}
+	gemini, ok := Capabilities(domain.ClientGemini)
+	if !ok || gemini.PackageMode != domain.PackageNative || gemini.SkillSupport != domain.SupportNative || gemini.MCPTransports["stdio"] != domain.SupportNative {
+		t.Fatalf("Gemini capabilities = %+v", gemini)
 	}
 }
 

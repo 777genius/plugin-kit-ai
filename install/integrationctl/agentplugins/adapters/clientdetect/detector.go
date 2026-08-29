@@ -249,7 +249,11 @@ func (detector Detector) detectClaude(ctx context.Context, probeVersion bool) do
 }
 
 func (detector Detector) detectGemini(ctx context.Context, probeVersion bool) domain.DetectedClient {
-	configRoot := filepath.Join(detector.HomeDir, ".gemini")
+	homeRoot := detector.HomeDir
+	if configured := strings.TrimSpace(detector.Environment["GEMINI_CLI_HOME"]); configured != "" {
+		homeRoot = configured
+	}
+	configRoot := filepath.Join(homeRoot, ".gemini")
 	surfaces := []domain.ClientSurface{
 		detector.binarySurface("gemini_cli", "gemini"),
 		detector.directorySurface("gemini_config", configRoot),

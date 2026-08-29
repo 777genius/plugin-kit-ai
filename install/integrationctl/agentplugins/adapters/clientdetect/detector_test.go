@@ -615,6 +615,26 @@ func TestDetectorFindsLinuxGUIOnlyFromExactDesktopEntry(t *testing.T) {
 	}
 }
 
+func TestDetectorRespectsGeminiCLIHomeWithoutTouchingRealHome(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	geminiHome := filepath.Join(t.TempDir(), "isolated-gemini-home")
+	configRoot := filepath.Join(geminiHome, ".gemini")
+	if err := os.MkdirAll(configRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, nil)
+	detector.Environment["GEMINI_CLI_HOME"] = geminiHome
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gemini := clientOf(clients, domain.ClientGemini)
+	if gemini.Status != domain.DetectionDetected || gemini.ConfigRoot != configRoot {
+		t.Fatalf("Gemini isolated detection = %+v", gemini)
+	}
+}
+
 func testDetector(home string, binaries map[string]string) Detector {
 	applications := filepath.Join(home, "system-applications")
 	return Detector{

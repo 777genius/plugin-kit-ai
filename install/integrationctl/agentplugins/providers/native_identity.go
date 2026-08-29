@@ -229,6 +229,8 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		// the package identity. Exact entry collision and ownership checks happen
 		// transactionally in the native config provider after staging.
 		return registryClear, nil
+	case domain.ClientGemini:
+		return inspectGeminiRegistry(plan, managed)
 	default:
 		return registryIndeterminate, nil
 	}

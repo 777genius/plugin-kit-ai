@@ -162,6 +162,11 @@ func (planner Planner) Plan(
 		plan.Status = domain.PlanReady
 		plan.Activation = domain.ActivationPrepared
 	}
+	if plan.Status != domain.PlanUnsupported && client.ClientID == domain.ClientGemini &&
+		strings.TrimSpace(client.ConfigRoot) != "" && geminiNativePlanComponents(plan.Components) {
+		plan.Status = domain.PlanReady
+		plan.Activation = domain.ActivationPrepared
+	}
 
 	switch client.ClientID {
 	case domain.ClientCodex:
@@ -184,6 +189,8 @@ func (planner Planner) Plan(
 		}
 	case domain.ClientKiro:
 		plan.UserActions = append(plan.UserActions, "agentplugins will install and verify the package's global Kiro skills and MCP servers automatically")
+	case domain.ClientGemini:
+		plan.UserActions = append(plan.UserActions, "agentplugins will install and verify Gemini CLI skills and MCP servers automatically; reload them in a running session or restart Gemini CLI")
 	case domain.ClientVSCode:
 		if strings.TrimSpace(planner.Detected[domain.ClientCopilot].ExecutablePath) != "" {
 			plan.UserActions = append(plan.UserActions, "agentplugins will install through GitHub Copilot CLI; VS Code discovers it automatically")
@@ -194,6 +201,20 @@ func (planner Planner) Plan(
 		plan.UserActions = append(plan.UserActions, "agentplugins will install the package's skills and MCP servers; restart OpenCode when complete")
 	}
 	return plan, nil
+}
+
+func geminiNativePlanComponents(components []domain.ComponentDecision) bool {
+	has := false
+	for _, component := range components {
+		if component.Support == domain.SupportUnsupported {
+			continue
+		}
+		if component.Kind != domain.ComponentSkill && component.Kind != domain.ComponentMCPServer {
+			return false
+		}
+		has = true
+	}
+	return has
 }
 
 func (planner Planner) setNativeRegistry(plan *domain.DeliveryPlan, client domain.DetectedClient) {

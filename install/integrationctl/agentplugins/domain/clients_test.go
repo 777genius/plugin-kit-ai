@@ -29,7 +29,7 @@ func TestClientRegistryReturnsDefensiveCapabilityCopies(t *testing.T) {
 }
 
 func TestNewClientsUsePreparedReadOnlyFoundation(t *testing.T) {
-	for _, id := range []ClientID{ClientGemini, ClientCline, ClientWindsurf} {
+	for _, id := range []ClientID{ClientCline, ClientWindsurf} {
 		definition, ok := ClientDefinitionFor(id)
 		if !ok || definition.Capabilities.PackageMode != PackagePrepared || definition.DirectoryDelivery != "prepared" || definition.LegacyCatalogRequired {
 			t.Fatalf("new client definition %s = %+v", id, definition)
@@ -42,5 +42,9 @@ func TestNewClientsUsePreparedReadOnlyFoundation(t *testing.T) {
 	openCode, ok := ClientDefinitionFor(ClientOpenCode)
 	if !ok || openCode.Capabilities.PackageMode != PackagePrepared || openCode.Capabilities.ActivationMode != ActivationAutomatic || openCode.DirectoryDelivery != "managed" || openCode.LegacyCatalogRequired {
 		t.Fatalf("OpenCode native lifecycle definition = %+v", openCode)
+	}
+	gemini, ok := ClientDefinitionFor(ClientGemini)
+	if !ok || gemini.Capabilities.PackageMode != PackageNative || gemini.DirectoryDelivery != "managed" || gemini.CatalogPackage != "native" || gemini.LegacyCatalogRequired {
+		t.Fatalf("Gemini client definition = %+v", gemini)
 	}
 }

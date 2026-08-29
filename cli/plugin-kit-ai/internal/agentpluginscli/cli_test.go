@@ -72,7 +72,7 @@ func TestHelpKeepsAutomationConfirmationFlagOutOfUserFlow(t *testing.T) {
 	if strings.Contains(stdout, "--yes") {
 		t.Fatalf("user-facing help exposed the automation-only flag: %s", stdout)
 	}
-	if !strings.Contains(stdout, "codex, claude, chatgpt, cursor") {
+	if !strings.Contains(stdout, "codex, chatgpt, cursor") || !strings.Contains(stdout, "claude, gemini") {
 		t.Fatalf("user-facing help omitted the distinct ChatGPT target: %s", stdout)
 	}
 }
@@ -922,7 +922,7 @@ func TestCommaSeparatedTargetsRejectUnsafeValues(t *testing.T) {
 		"duplicate":    "codex,cursor,codex",
 		"all":          "all",
 		"ambiguous":    "openai,cursor",
-		"unsupported":  "gemini,cursor",
+		"unsupported":  "unknown-agent,cursor",
 		"legacy_mixed": "legacy-all,cursor",
 	} {
 		name, value := name, value

@@ -195,6 +195,14 @@ func (stager Stager) stage(
 			return domain.StagedDelivery{}, err
 		}
 	}
+	var geminiObjects []domain.NativeObjectOwnership
+	if plan.ClientID == domain.ClientGemini {
+		var err error
+		geminiObjects, err = buildGeminiNativeObjects(stagingPath, envelope, plan, pluginDataPath)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
 	if plan.ClientID == domain.ClientCursor {
 		if err := projectCursor(stagingPath, envelope, plan, pluginDataPath); err != nil {
 			return domain.StagedDelivery{}, err
@@ -242,6 +250,7 @@ func (stager Stager) stage(
 		}
 		objects = append(objects, openCodeObjects...)
 	}
+	objects = append(objects, geminiObjects...)
 	return domain.StagedDelivery{
 		ClientID:       plan.ClientID,
 		OwnedBase:      plan.TargetRoot,

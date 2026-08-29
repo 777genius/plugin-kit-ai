@@ -29,8 +29,11 @@ type Activator struct {
 // CLI for this exact request. Runtime preflight consumes this same predicate so
 // it cannot drift from the provider's activation paths.
 func (activator Activator) AutomaticallyActivates(request domain.ActivationRequest) bool {
-	if request.Client.ClientID == domain.ClientOpenCode {
+	switch request.Client.ClientID {
+	case domain.ClientOpenCode:
 		return strings.TrimSpace(request.Client.ConfigRoot) != "" && openCodeNativeComponents(request.Plan.Components)
+	case domain.ClientGemini:
+		return strings.TrimSpace(request.Client.ConfigRoot) != "" && geminiNativeComponents(request.Plan.Components)
 	}
 	if request.Client.ClientID == domain.ClientKiro {
 		if strings.TrimSpace(request.Client.ConfigRoot) == "" || !kiroNativeComponents(request.Plan.Components) {
@@ -141,6 +144,16 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			return outcome, nil
 		}
 		if err := deactivateOpenCodeNative(ctx, request); err != nil {
+			return outcome, err
+		}
+		outcome.ExternalRemovalComplete = true
+		return outcome, nil
+	case domain.ClientGemini:
+		if !request.Confirmed {
+			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove its managed Gemini CLI skills and MCP entries automatically")
+			return outcome, nil
+		}
+		if err := deactivateGeminiNative(ctx, request); err != nil {
 			return outcome, err
 		}
 		outcome.ExternalRemovalComplete = true
@@ -335,6 +348,23 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
 		outcome.UserActions = append(outcome.UserActions, "restart OpenCode to load the installed plugin")
+		return outcome, nil
+	case domain.ClientGemini:
+		if !activator.AutomaticallyActivates(request) {
+			outcome.Activation = domain.ActivationManual
+			outcome.UserActions = append(outcome.UserActions, "install Gemini CLI and rerun add with an isolated writable Gemini config root")
+			return outcome, nil
+		}
+		if request.VerifyOnly {
+			if err := verifyGeminiNativeObjects(request.Client.ConfigRoot, request.Delivery.NativeObjects, false); err != nil {
+				return failedActivation(outcome, "repair the managed Gemini CLI skills and MCP configuration", err)
+			}
+		} else if err := activateGeminiNative(ctx, request); err != nil {
+			return failedActivation(outcome, "retry the managed Gemini CLI native installation", err)
+		}
+		outcome.Activation = domain.ActivationActive
+		outcome.Verification = domain.VerificationInstalled
+		outcome.UserActions = append(outcome.UserActions, "in a running Gemini CLI session use `/mcp reload` and `/skills reload`, or restart Gemini CLI")
 		return outcome, nil
 	case domain.ClientCopilot, domain.ClientVSCode:
 		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
