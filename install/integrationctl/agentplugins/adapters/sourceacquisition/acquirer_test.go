@@ -61,7 +61,11 @@ func TestAcquireGitHubRepositoryRootExcludesGitDirectoryAndSubmoduleContent(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer packagedigest.Remove(snapshot)
+	t.Cleanup(func() {
+		if err := packagedigest.Remove(snapshot); err != nil {
+			t.Errorf("remove repository-root snapshot: %v", err)
+		}
+	})
 	if snapshot.FileCount != 2 || snapshot.Source.RequestedSource != "example/root-plugin@"+revision || strings.HasSuffix(snapshot.Source.CanonicalSource, "//") {
 		t.Fatalf("root snapshot identity = %+v", snapshot)
 	}
