@@ -3928,6 +3928,94 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                     home, uid=os.geteuid(), gid=os.getegid(),
                 )
 
+    @requires_disposable_observer_host
+    def test_terminated_adapter_invocation_is_reclaimed_before_read_and_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            invocation = root / "adapter-0-codex"
+            invocation.mkdir(mode=0o700)
+            output = invocation / "artifact.json"
+            output.write_text("{}")
+            output.chmod(0o600)
+            adapter = pwd.getpwnam("uap-observer-codex")
+            uid, gid = adapter.pw_uid, adapter.pw_gid
+            os.chown(output, uid, gid)
+            os.chown(invocation, uid, gid)
+
+            fixed_runner.reclaim_adapter_invocation(invocation, uid=uid, gid=gid)
+            fixed_runner.reclaim_adapter_output(output, uid=uid, gid=gid)
+
+            self.assertEqual((invocation.stat().st_uid, invocation.stat().st_gid), (0, 0))
+            self.assertEqual((output.stat().st_uid, output.stat().st_gid), (0, 0))
+            self.assertEqual(
+                fixed_runner.read_owned_regular(output, 32, owner_uid=0, exact_mode=0o600),
+                b"{}",
+            )
+            shutil.rmtree(invocation)
+            self.assertFalse(invocation.exists())
+
+    @requires_disposable_observer_host
+    def test_adapter_reclamation_rejects_untrusted_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            invocation = Path(temporary) / "adapter-0-codex"
+            invocation.mkdir(mode=0o755)
+            with self.assertRaisesRegex(ValueError, "directory metadata differs"):
+                fixed_runner.reclaim_adapter_invocation(
+                    invocation, uid=os.geteuid(), gid=os.getegid(),
+                )
+
+    def _protected_runner_for_pre_spawn_cleanup(self, root: Path) -> ReviewedRunner:
+        body = b"reviewed adapter"
+        executable = root / "adapter"
+        executable.write_bytes(body)
+        executable.chmod(0o755)
+        config = root / "config.json"
+        config.write_bytes(b"{}")
+        config.chmod(0o640)
+        runner = object.__new__(ReviewedRunner)
+        runner.adapters = (Adapter(
+            "runtime-attestations.json", executable,
+            "sha256:" + hashlib.sha256(body).hexdigest(), config,
+            "sha256:" + hashlib.sha256(config.read_bytes()).hexdigest(),
+        ),)
+        runner.state_root = root / "state"
+        runner.protected = True
+        runner._owner_uid = 0
+        adapter = pwd.getpwnam("uap-observer-codex")
+        runner._identities = {"codex": (adapter.pw_uid, adapter.pw_gid)}
+        runner._config_gid = adapter.pw_gid
+        return runner
+
+    def test_pre_spawn_deadline_reclaims_transferred_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runner = self._protected_runner_for_pre_spawn_cleanup(root)
+            clock = iter((0.0, fixed_runner.RUNNER_TOTAL_SECONDS + 1.0))
+            with (
+                mock.patch.object(fixed_runner, "read_owned_regular", return_value=b"reviewed adapter"),
+                mock.patch.object(fixed_runner, "revalidate_client_proofs"),
+                mock.patch.object(fixed_runner.time, "monotonic", side_effect=lambda: next(clock)),
+                self.assertRaisesRegex(TimeoutError, "total deadline"),
+            ):
+                runner.execute({"request": {}, "github_attestation": {}})
+            self.assertEqual(list(runner.state_root.iterdir()), [])
+
+    def test_pre_spawn_cgroup_failure_reclaims_transferred_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runner = self._protected_runner_for_pre_spawn_cleanup(root)
+            with (
+                mock.patch.object(fixed_runner, "read_owned_regular", return_value=b"reviewed adapter"),
+                mock.patch.object(fixed_runner, "revalidate_client_proofs"),
+                mock.patch.object(
+                    fixed_runner, "delegated_job_cgroup",
+                    side_effect=ValueError("injected cgroup failure"),
+                ),
+                self.assertRaisesRegex(ValueError, "injected cgroup failure"),
+            ):
+                runner.execute({"request": {}, "github_attestation": {}})
+            self.assertEqual(list(runner.state_root.iterdir()), [])
+
     def test_fixed_runner_socket_executes_only_injected_reviewed_adapters(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

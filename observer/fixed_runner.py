@@ -555,6 +555,44 @@ def write_new_owned(path: Path, value: bytes, *, uid: int | None = None, gid: in
         os.close(parent_fd)
 
 
+def reclaim_adapter_invocation(path: Path, *, uid: int, gid: int) -> None:
+    """Return a terminated adapter's private invocation directory to root."""
+    info = os.lstat(path)
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != uid or info.st_gid != gid
+        or stat.S_IMODE(info.st_mode) != 0o700
+    ):
+        raise ValueError("adapter invocation directory metadata differs")
+    os.chown(path, 0, 0, follow_symlinks=False)
+    reclaimed = os.lstat(path)
+    if (
+        not stat.S_ISDIR(reclaimed.st_mode)
+        or reclaimed.st_uid != 0 or reclaimed.st_gid != 0
+        or stat.S_IMODE(reclaimed.st_mode) != 0o700
+    ):
+        raise ValueError("adapter invocation directory was not reclaimed")
+
+
+def reclaim_adapter_output(path: Path, *, uid: int, gid: int) -> None:
+    """Validate and transfer a terminated adapter's output for root-only reading."""
+    info = os.lstat(path)
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_uid != uid or info.st_gid != gid
+        or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
+    ):
+        raise ValueError("adapter output metadata differs")
+    os.chown(path, 0, 0, follow_symlinks=False)
+    reclaimed = os.lstat(path)
+    if (
+        not stat.S_ISREG(reclaimed.st_mode)
+        or reclaimed.st_uid != 0 or reclaimed.st_gid != 0
+        or stat.S_IMODE(reclaimed.st_mode) != 0o600 or reclaimed.st_nlink != 1
+    ):
+        raise ValueError("adapter output was not reclaimed")
+
+
 def revalidate_client_proofs(
     config_path: Path, config_digest: str, client: str, uid: int, gid: int,
 ) -> None:
@@ -860,6 +898,7 @@ class ReviewedRunner:
         run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=self.state_root))
         os.chmod(run_dir, 0o711)
         deadline = time.monotonic() + RUNNER_TOTAL_SECONDS
+        execution_error: BaseException | None = None
         try:
             artifacts: dict[str, Any] = {}
             for index, adapter in enumerate(self.adapters):
@@ -874,52 +913,78 @@ class ReviewedRunner:
                     invocation_dir.mkdir(mode=0o700)
                     context_path, output = invocation_dir / "context.json", invocation_dir / "artifact.json"
                     write_new_owned(context_path, canonical_json(context), uid=uid if self.protected else None, gid=gid if self.protected else None)
-                    if self.protected:
-                        os.chown(invocation_dir, uid, gid)
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        raise TimeoutError("reviewed adapters exceeded total deadline")
-                    job_cgroup = delegated_job_cgroup() if self.protected else None
+                    invocation_transferred = False
                     primary_error: BaseException | None = None
+                    finalization_error: BaseException | None = None
+                    job_cgroup: Path | None = None
                     try:
-                        def contain_and_drop_privileges() -> None:
-                            if job_cgroup is not None:
-                                (job_cgroup / "cgroup.procs").write_text(str(os.getpid()))
-                            if self.protected:
-                                os.setgroups([self._config_gid])
-                                os.setgid(gid)
-                                os.setuid(uid)
-                        process = subprocess.Popen(
-                            [str(adapter.executable), "--context", str(context_path), "--output", str(output)],
-                            cwd=invocation_dir,
-                            env=adapter_environment(
-                                adapter.config_digest, identity, protected=self.protected,
-                            ),
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            start_new_session=True,
-                            preexec_fn=contain_and_drop_privileges if self.protected else None,
-                            shell=False,
-                        )
+                        if self.protected:
+                            os.chown(invocation_dir, uid, gid)
+                            invocation_transferred = True
                         try:
-                            return_code = process.wait(timeout=remaining)
-                        except subprocess.TimeoutExpired:
-                            kill_process_group(process)
-                            raise TimeoutError("reviewed adapter exceeded deadline") from None
-                        finally:
-                            kill_process_group(process)
-                        if return_code != 0:
-                            raise ValueError("reviewed adapter failed")
-                    except BaseException as error:
-                        primary_error = error
-                        raise
-                    finally:
-                        revalidate = None
-                        if self.protected and identity in {"codex", "cursor", "kiro"}:
-                            revalidate = lambda: revalidate_client_proofs(
-                                adapter.config, adapter.config_digest, identity, uid, gid,
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                raise TimeoutError("reviewed adapters exceeded total deadline")
+                            job_cgroup = delegated_job_cgroup() if self.protected else None
+                            def contain_and_drop_privileges() -> None:
+                                if job_cgroup is not None:
+                                    (job_cgroup / "cgroup.procs").write_text(str(os.getpid()))
+                                if self.protected:
+                                    os.setgroups([self._config_gid])
+                                    os.setgid(gid)
+                                    os.setuid(uid)
+                            process = subprocess.Popen(
+                                [str(adapter.executable), "--context", str(context_path), "--output", str(output)],
+                                cwd=invocation_dir,
+                                env=adapter_environment(
+                                    adapter.config_digest, identity, protected=self.protected,
+                                ),
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                start_new_session=True,
+                                preexec_fn=contain_and_drop_privileges if self.protected else None,
+                                shell=False,
                             )
-                        finalize_client_job(job_cgroup, revalidate, primary_error)
-                    partials.append(strict_json_loads(read_owned_regular(output, MAX_ADAPTER_OUTPUT, owner_uid=uid)))
+                            try:
+                                return_code = process.wait(timeout=remaining)
+                            except subprocess.TimeoutExpired:
+                                kill_process_group(process)
+                                raise TimeoutError("reviewed adapter exceeded deadline") from None
+                            finally:
+                                kill_process_group(process)
+                            if return_code != 0:
+                                raise ValueError("reviewed adapter failed")
+                        except BaseException as error:
+                            primary_error = error
+                        finally:
+                            revalidate = None
+                            if self.protected and identity in {"codex", "cursor", "kiro"}:
+                                revalidate = lambda: revalidate_client_proofs(
+                                    adapter.config, adapter.config_digest, identity, uid, gid,
+                                )
+                            try:
+                                finalize_client_job(job_cgroup, revalidate, primary_error)
+                            except BaseException as error:
+                                finalization_error = error
+                    finally:
+                        if invocation_transferred:
+                            try:
+                                reclaim_adapter_invocation(invocation_dir, uid=uid, gid=gid)
+                            except BaseException as error:
+                                if primary_error is not None or finalization_error is not None:
+                                    raise ValueError("adapter invocation reclamation failed after termination") from error
+                                raise
+                    if finalization_error is not None:
+                        raise finalization_error
+                    if primary_error is not None:
+                        raise primary_error
+                    output_owner = uid
+                    if self.protected:
+                        reclaim_adapter_output(output, uid=uid, gid=gid)
+                        output_owner = 0
+                    partials.append(strict_json_loads(read_owned_regular(
+                        output, MAX_ADAPTER_OUTPUT, owner_uid=output_owner,
+                        exact_mode=0o600 if self.protected else None,
+                    )))
                 if len(partials) == 1:
                     artifacts[adapter.artifact] = partials[0]
                 else:
@@ -937,8 +1002,18 @@ class ReviewedRunner:
             if self.protected:
                 transition_records(context["request"]["challenge"]["value"], "reserve")
             return result
+        except BaseException as error:
+            execution_error = error
+            raise
         finally:
-            shutil.rmtree(run_dir, ignore_errors=True)
+            try:
+                shutil.rmtree(run_dir)
+            except FileNotFoundError:
+                pass
+            except BaseException as cleanup_error:
+                if execution_error is not None:
+                    raise ValueError("runner job cleanup failed after execution error") from cleanup_error
+                raise
 
 
 def read_exact(stream: socket.socket, size: int) -> bytes:
