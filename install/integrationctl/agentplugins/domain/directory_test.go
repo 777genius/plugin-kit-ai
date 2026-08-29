@@ -80,6 +80,31 @@ func TestResolveDirectoryDeclaredDefaultFallbackQualifiedAndSequence(t *testing.
 	}
 }
 
+func TestResolveDirectoryAcceptsReleaseBoundLegacyEvidence(t *testing.T) {
+	snapshot := testDirectory()
+	snapshot.Sequence = 13
+	upstream := snapshot.Distributions[2]
+	for index := range snapshot.Evidence {
+		evidence := &snapshot.Evidence[index]
+		for _, release := range upstream.Releases {
+			if release.Sequence != evidence.ReleaseSequence {
+				continue
+			}
+			evidence.ProductID = upstream.ProductID
+			evidence.ManifestDigest = release.ManifestDigest
+			evidence.SourceRepository = release.PackageSource.Repository
+			evidence.SourceRevision = release.PackageSource.Revision
+			evidence.SourcePath = release.PackageSource.Path
+			evidence.AdapterVersion = "0.1.13"
+			evidence.Trust = nil
+		}
+	}
+	selected, err := ResolveDirectory(snapshot, request("owner/tool", ClientCodex))
+	if err != nil || selected.ReleaseSequence != 3 {
+		t.Fatalf("legacy upstream evidence was not eligible: %+v %v", selected, err)
+	}
+}
+
 func TestResolveDirectoryRejectsUnknownAndMismatchedDelivery(t *testing.T) {
 	for _, test := range []struct {
 		name, delivery string
