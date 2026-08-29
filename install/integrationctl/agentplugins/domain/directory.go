@@ -139,14 +139,20 @@ type DirectoryAppBinding struct {
 type DirectoryEvidence struct {
 	SchemaVersion      int                       `json:"schema_version"`
 	ID                 string                    `json:"id"`
+	ProductID          string                    `json:"product_id,omitempty"`
 	DistributionID     string                    `json:"distribution_id"`
 	ReleaseSequence    uint64                    `json:"release_sequence"`
 	PackageTreeDigest  string                    `json:"package_tree_digest"`
+	ManifestDigest     string                    `json:"manifest_digest,omitempty"`
+	SourceRepository   string                    `json:"source_repository,omitempty"`
+	SourceRevision     string                    `json:"source_revision,omitempty"`
+	SourcePath         string                    `json:"source_path,omitempty"`
 	Level              string                    `json:"level"`
 	Outcome            string                    `json:"outcome"`
 	Client             ClientID                  `json:"client,omitempty"`
 	ClientVersion      string                    `json:"client_version,omitempty"`
 	InstallerVersion   string                    `json:"installer_version,omitempty"`
+	AdapterVersion     string                    `json:"adapter_version,omitempty"`
 	OS                 string                    `json:"os,omitempty"`
 	Architecture       string                    `json:"architecture,omitempty"`
 	DependencyIdentity string                    `json:"dependency_identity,omitempty"`
@@ -155,11 +161,17 @@ type DirectoryEvidence struct {
 	Trust              *DirectoryEvidenceTrust   `json:"trust,omitempty"`
 }
 
+const DirectoryEvidenceTrustCutoverSequence uint64 = 15
+
 type DirectoryEvidenceTrust struct {
-	Kind         string `json:"kind"`
-	Workflow     string `json:"workflow,omitempty"`
-	SourceRef    string `json:"source_ref,omitempty"`
-	SourceDigest string `json:"source_digest,omitempty"`
+	Kind             string                     `json:"kind"`
+	Workflow         string                     `json:"workflow,omitempty"`
+	SourceRef        string                     `json:"source_ref,omitempty"`
+	SourceDigest     string                     `json:"source_digest,omitempty"`
+	BundleManifest   *DirectoryEvidenceArtifact `json:"bundle_manifest,omitempty"`
+	LaunchArtifact   *DirectoryEvidenceArtifact `json:"launch_artifact,omitempty"`
+	ObserverArtifact *DirectoryEvidenceArtifact `json:"observer_artifact,omitempty"`
+	EvidenceIndex    *DirectoryEvidenceArtifact `json:"evidence_index,omitempty"`
 }
 
 type DirectoryEvidenceArtifact struct {
@@ -194,10 +206,23 @@ func (e DirectoryEvidence) HasTrustedProvenance() bool {
 		workflowPrefix := e.Artifact.Repository + "/.github/workflows/"
 		return strings.HasPrefix(e.Trust.Workflow, workflowPrefix) && e.Artifact.Revision == e.Trust.SourceDigest
 	case "reviewed_external":
-		return e.Trust.Workflow == "" && e.Trust.SourceRef == "" && e.Trust.SourceDigest == ""
+		return e.Trust.Workflow == "" && e.Trust.SourceRef == "" && e.Trust.SourceDigest == "" &&
+			e.Trust.BundleManifest == nil && e.Trust.LaunchArtifact == nil && e.Trust.ObserverArtifact == nil && e.Trust.EvidenceIndex == nil
 	default:
 		return false
 	}
+}
+
+// HasTrustedProvenanceAtSequence recognizes both immutable schema-1 evidence
+// lanes. Sequences 1-14 used release-bound legacy identity fields; sequence 15
+// and later use the explicit trust object. A populated trust object always uses
+// the current path so domain-only fixtures cannot accidentally become legacy.
+func (e DirectoryEvidence) HasTrustedProvenanceAtSequence(sequence uint64) bool {
+	if e.Trust != nil {
+		return e.HasTrustedProvenance()
+	}
+	return sequence > 0 && sequence < DirectoryEvidenceTrustCutoverSequence && e.ProductID != "" && e.ManifestDigest != "" &&
+		e.SourceRepository != "" && e.SourceRevision != "" && e.SourcePath != ""
 }
 
 // HasTrustedEligibilityProvenance applies the schema-1 compatibility rule for
@@ -210,6 +235,18 @@ func (e DirectoryEvidence) HasTrustedEligibilityProvenance() bool {
 	}
 	if e.Level == "schema" || e.Level == "materialization" {
 		return e.Trust.Kind == "github_actions"
+	}
+	return e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth"
+}
+
+// HasTrustedEligibilityProvenanceAtSequence applies the eligibility-level
+// rules after recognizing the historical or current provenance lane.
+func (e DirectoryEvidence) HasTrustedEligibilityProvenanceAtSequence(sequence uint64) bool {
+	if !e.HasTrustedProvenanceAtSequence(sequence) {
+		return false
+	}
+	if e.Level == "schema" || e.Level == "materialization" {
+		return e.Trust == nil || e.Trust.Kind == "github_actions"
 	}
 	return e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth"
 }
@@ -520,7 +557,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 		}
 	}
 	for _, evidenceID := range policy.CurrentEvidence {
-		if e := evidenceByID(snapshot, evidenceID); e != nil && e.HasTrustedEligibilityProvenance() && directoryEvidenceApplies(*e, distribution, release, "", request) && e.Level == "schema" && e.Outcome == "failed" {
+		if e := evidenceByID(snapshot, evidenceID); e != nil && e.HasTrustedEligibilityProvenanceAtSequence(snapshot.Sequence) && directoryEvidenceApplies(*e, distribution, release, "", request) && e.Level == "schema" && e.Outcome == "failed" {
 			return &eligibilityReason{"blocking_evidence", "current trusted schema evidence failed"}
 		}
 	}
@@ -537,7 +574,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 			return &eligibilityReason{"upstream_materialization_required", "upstream release lacks current passed materialization evidence for " + string(target)}
 		}
 		for _, evidenceID := range policy.CurrentEvidence {
-			if e := evidenceByID(snapshot, evidenceID); e != nil && e.HasTrustedEligibilityProvenance() && directoryEvidenceApplies(*e, distribution, release, target, request) && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth") && e.Outcome == "failed" {
+			if e := evidenceByID(snapshot, evidenceID); e != nil && e.HasTrustedEligibilityProvenanceAtSequence(snapshot.Sequence) && directoryEvidenceApplies(*e, distribution, release, target, request) && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth") && e.Outcome == "failed" {
 				return &eligibilityReason{"blocking_evidence", "current trusted " + e.Level + " evidence failed for " + string(target)}
 			}
 		}
@@ -577,7 +614,7 @@ func directoryEligibilityTargets(targets []ClientID) []ClientID {
 func hasPassedUpstreamMaterialization(snapshot DirectorySnapshot, distribution DirectoryDistribution, release DirectoryRelease, policy DirectoryReleasePolicy, client ClientID) bool {
 	for _, evidenceID := range policy.CurrentEvidence {
 		evidence := evidenceByID(snapshot, evidenceID)
-		if evidence != nil && evidence.HasTrustedEligibilityProvenance() && evidence.DistributionID == distribution.ID && evidence.ReleaseSequence == release.Sequence &&
+		if evidence != nil && evidence.HasTrustedEligibilityProvenanceAtSequence(snapshot.Sequence) && evidence.DistributionID == distribution.ID && evidence.ReleaseSequence == release.Sequence &&
 			evidence.PackageTreeDigest == release.TreeDigest && evidence.Client == client && evidence.Level == "materialization" && evidence.Outcome == "passed" {
 			return true
 		}

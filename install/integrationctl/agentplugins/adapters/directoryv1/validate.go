@@ -242,6 +242,7 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 	}
 
 	evidence := map[string]domain.DirectoryEvidence{}
+	legacyEvidence := v.Sequence < domain.DirectoryEvidenceTrustCutoverSequence
 	for i, e := range v.Evidence {
 		where := fmt.Sprintf("evidence[%d]", i)
 		if e.SchemaVersion != 1 || !evidenceIDPattern.MatchString(e.ID) || !distributionPattern.MatchString(e.DistributionID) || e.ReleaseSequence < 1 || !digestPattern.MatchString(e.PackageTreeDigest) {
@@ -253,6 +254,18 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 		r, ok := releases[releaseKey(e.DistributionID, e.ReleaseSequence)]
 		if !ok || r.TreeDigest != e.PackageTreeDigest {
 			return strictError("%s release/digest mismatch", where)
+		}
+		distribution := distributions[e.DistributionID]
+		if legacyEvidence {
+			if e.Trust != nil || e.ProductID != distribution.ProductID || e.ManifestDigest != r.ManifestDigest ||
+				e.SourceRepository != r.PackageSource.Repository || e.SourceRevision != r.PackageSource.Revision || e.SourcePath != r.PackageSource.Path {
+				return strictError("%s legacy evidence source identity mismatch", where)
+			}
+			if e.AdapterVersion != "" && strings.TrimSpace(e.AdapterVersion) == "" {
+				return strictError("%s invalid adapter version", where)
+			}
+		} else if e.ProductID != "" || e.ManifestDigest != "" || e.SourceRepository != "" || e.SourceRevision != "" || e.SourcePath != "" || e.AdapterVersion != "" {
+			return strictError("%s legacy evidence fields after cutover", where)
 		}
 		if !oneOf(e.Level, "schema", "materialization", "discovery", "runtime", "oauth") || !oneOf(e.Outcome, "passed", "failed", "inconclusive", "not_tested", "not_applicable") {
 			return strictError("%s invalid result", where)
@@ -278,11 +291,17 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 				if !workflowPattern.MatchString(e.Trust.Workflow) || !sourceRefPattern.MatchString(e.Trust.SourceRef) || !shaPattern.MatchString(e.Trust.SourceDigest) || !e.HasTrustedProvenance() {
 					return strictError("%s invalid trust", where)
 				}
-			} else if e.Trust.Kind != "reviewed_external" || e.Trust.Workflow != "" || e.Trust.SourceRef != "" || e.Trust.SourceDigest != "" {
+				for _, artifact := range []*domain.DirectoryEvidenceArtifact{e.Trust.BundleManifest, e.Trust.LaunchArtifact, e.Trust.ObserverArtifact, e.Trust.EvidenceIndex} {
+					if artifact != nil && (!repositoryPattern.MatchString(artifact.Repository) || !shaPattern.MatchString(artifact.Revision) || artifact.Path == "" || !digestPattern.MatchString(artifact.Digest)) {
+						return strictError("%s invalid trust artifact", where)
+					}
+				}
+			} else if e.Trust.Kind != "reviewed_external" || e.Trust.Workflow != "" || e.Trust.SourceRef != "" || e.Trust.SourceDigest != "" ||
+				e.Trust.BundleManifest != nil || e.Trust.LaunchArtifact != nil || e.Trust.ObserverArtifact != nil || e.Trust.EvidenceIndex != nil {
 				return strictError("%s invalid trust", where)
 			}
 		}
-		if !e.HasTrustedProvenance() {
+		if !e.HasTrustedProvenanceAtSequence(v.Sequence) {
 			return strictError("%s lacks recognized trusted provenance", where)
 		}
 		evidence[e.ID] = e
@@ -468,6 +487,11 @@ func requireSnapshotFields(body []byte) error {
 	if err := requiredMap(root, "snapshot_schema_version", "sequence", "publication_id", "source_commit", "generated_at", "expires_at", "products", "distributions", "evidence", "revocations"); err != nil {
 		return err
 	}
+	var sequence uint64
+	if err := json.Unmarshal(root["sequence"], &sequence); err != nil {
+		return err
+	}
+	legacyEvidence := sequence < domain.DirectoryEvidenceTrustCutoverSequence
 	var products []map[string]json.RawMessage
 	if err := json.Unmarshal(root["products"], &products); err != nil {
 		return err
@@ -559,7 +583,21 @@ func requireSnapshotFields(body []byte) error {
 		return err
 	}
 	for _, e := range evidence {
-		if err := requiredMap(e, "schema_version", "id", "distribution_id", "release_sequence", "package_tree_digest", "level", "outcome", "artifact"); err != nil {
+		required := []string{"schema_version", "id", "distribution_id", "release_sequence", "package_tree_digest", "level", "outcome", "artifact"}
+		if legacyEvidence {
+			if _, present := e["trust"]; present {
+				return fmt.Errorf("legacy evidence cannot contain trust")
+			}
+			required = append(required, "product_id", "manifest_digest", "source_repository", "source_revision", "source_path")
+		} else {
+			for _, field := range []string{"product_id", "manifest_digest", "source_repository", "source_revision", "source_path", "adapter_version"} {
+				if _, present := e[field]; present {
+					return fmt.Errorf("wire evidence cannot contain legacy field %q", field)
+				}
+			}
+			required = append(required, "trust")
+		}
+		if err := requiredMap(e, required...); err != nil {
 			return err
 		}
 		var artifact map[string]json.RawMessage
@@ -568,6 +606,26 @@ func requireSnapshotFields(body []byte) error {
 		}
 		if err := requiredMap(artifact, "repository", "revision", "path", "digest"); err != nil {
 			return err
+		}
+		if raw, ok := e["trust"]; ok {
+			var trust map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &trust); err != nil {
+				return err
+			}
+			if err := requiredMap(trust, "kind"); err != nil {
+				return err
+			}
+			for _, field := range []string{"bundle_manifest", "launch_artifact", "observer_artifact", "evidence_index"} {
+				if artifactRaw, present := trust[field]; present {
+					var trustArtifact map[string]json.RawMessage
+					if err := json.Unmarshal(artifactRaw, &trustArtifact); err != nil {
+						return err
+					}
+					if err := requiredMap(trustArtifact, "repository", "revision", "path", "digest"); err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 	var revocations []map[string]json.RawMessage

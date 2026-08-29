@@ -40,9 +40,66 @@ func fixtureSnapshot(sequence uint64) domain.DirectorySnapshot {
 	release := domain.DirectoryRelease{Sequence: 9, PackageVersion: "not-semver", ManifestName: "tool", AgentPluginsSchema: supportedPluginSchema, PackageSource: domain.DirectorySource{Repository: "owner/repo", Revision: "0123456789012345678901234567890123456789", Path: "plugin"}, TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ManifestDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Components: []string{"mcp", "skills"}, PublishedAt: "2026-08-20T10:00:00Z"}
 	policy := domain.DirectoryReleasePolicy{ReleaseSequence: 9, Status: domain.ReleaseActive, MinimumInstallerVersion: "1.0.0", Targets: []domain.DirectoryTarget{{Client: domain.ClientCodex, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}, {Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}}, CurrentEvidence: []string{"schema-pass"}}
 	evidence := domain.DirectoryEvidence{SchemaVersion: 1, ID: "schema-pass", DistributionID: "owner/tool", ReleaseSequence: 9, PackageTreeDigest: release.TreeDigest, Level: "schema", Outcome: "passed", Artifact: domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: "abcdefabcdefabcdefabcdefabcdefabcdefabcd", Path: "evidence/schema.json", Digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}, Trust: &domain.DirectoryEvidenceTrust{Kind: "github_actions", Workflow: "owner/evidence/.github/workflows/directory.yml", SourceRef: "refs/heads/main", SourceDigest: "abcdefabcdefabcdefabcdefabcdefabcdefabcd"}}
+	if sequence < domain.DirectoryEvidenceTrustCutoverSequence {
+		evidence.ProductID = "tool"
+		evidence.ManifestDigest = release.ManifestDigest
+		evidence.SourceRepository = release.PackageSource.Repository
+		evidence.SourceRevision = release.PackageSource.Revision
+		evidence.SourcePath = release.PackageSource.Path
+		evidence.AdapterVersion = "0.1.13"
+		evidence.Trust = nil
+	}
 	product := domain.DirectoryProduct{SchemaVersion: 1, ID: "tool", DisplayName: "Tool", Description: "Tool description", ManifestName: "tool", Aliases: []string{"tool"}, ReservedAliases: []string{"tool"}, Categories: []string{"tools"}, MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "required"}, DefaultDistribution: "owner/tool", Distributions: []string{"owner/tool"}}
 	distribution := domain.DirectoryDistribution{SchemaVersion: 1, ID: "owner/tool", ProductID: "tool", Kind: domain.DistributionUpstream, Status: domain.DistributionActive, Packager: "owner", Releases: []domain.DirectoryRelease{release}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy}}
 	return domain.DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: sequence, PublicationID: fmt.Sprintf("publication-%d", sequence), SourceCommit: "abcdefabcdefabcdefabcdefabcdefabcdefabcd", GeneratedAt: "2026-08-20T11:00:00Z", ExpiresAt: "2026-09-19T11:00:00Z", Products: []domain.DirectoryProduct{product}, Distributions: []domain.DirectoryDistribution{distribution}, Evidence: []domain.DirectoryEvidence{evidence}, Revocations: []domain.DirectoryRevocation{}}
+}
+
+func TestSnapshotEvidenceCutoverAcceptsBothStrictShapes(t *testing.T) {
+	legacy := fixtureSnapshot(13)
+	legacyBody, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseSnapshot(legacyBody); err != nil {
+		t.Fatalf("legacy production evidence rejected: %v", err)
+	}
+
+	legacy.Evidence[0].SourceRevision = strings.Repeat("f", 40)
+	legacyBody, _ = json.Marshal(legacy)
+	if _, err := ParseSnapshot(legacyBody); !errors.Is(err, ErrStrictJSON) {
+		t.Fatalf("legacy source rebind accepted: %v", err)
+	}
+
+	wire := fixtureSnapshot(15)
+	wireBody, _ := json.Marshal(wire)
+	if _, err := ParseSnapshot(wireBody); err != nil {
+		t.Fatalf("wire evidence rejected: %v", err)
+	}
+	wire.Evidence[0].AdapterVersion = "0.1.13"
+	wireBody, _ = json.Marshal(wire)
+	if _, err := ParseSnapshot(wireBody); !errors.Is(err, ErrStrictJSON) {
+		t.Fatalf("legacy field accepted after cutover: %v", err)
+	}
+
+	wire = fixtureSnapshot(15)
+	var raw map[string]any
+	if err := json.Unmarshal(encodeSnapshot(t, wire), &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["evidence"].([]any)[0].(map[string]any)["product_id"] = ""
+	wireBody, _ = json.Marshal(raw)
+	if _, err := ParseSnapshot(wireBody); !errors.Is(err, ErrStrictJSON) {
+		t.Fatalf("empty legacy field accepted after cutover: %v", err)
+	}
+}
+
+func encodeSnapshot(t *testing.T, value domain.DirectorySnapshot) []byte {
+	t.Helper()
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
 }
 
 func signedFixture(t *testing.T, sequence uint64, key TrustedKey, private ed25519.PrivateKey) ([]byte, []byte, Pointer) {

@@ -147,6 +147,30 @@ func TestDirectoryPackageSchemaEvidenceAppliesToEveryTarget(t *testing.T) {
 	}
 }
 
+func TestDirectoryCompatibilityRetainsVerifiedLegacyEvidence(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("a", 64)
+	evidence := domain.DirectoryEvidence{
+		ID: "legacy-materialization", ProductID: "demo", DistributionID: "owner/demo", ReleaseSequence: 1,
+		PackageTreeDigest: digest, ManifestDigest: "sha256:" + strings.Repeat("b", 64),
+		SourceRepository: "owner/demo", SourceRevision: strings.Repeat("c", 40), SourcePath: "plugin",
+		Level: "materialization", Outcome: "passed", Client: domain.ClientCursor,
+		ClientVersion: "0.50.0", InstallerVersion: "1.2.3", AdapterVersion: "0.1.13",
+		OS: "linux", Architecture: "amd64",
+	}
+	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{{Client: domain.ClientCursor, Delivery: "managed"}}, CurrentEvidence: []string{evidence.ID}}
+	bundle := directoryv1.VerifiedBundle{Digest: "sha256:directory", Snapshot: domain.DirectorySnapshot{Sequence: 13, Evidence: []domain.DirectoryEvidence{evidence}}}
+	loaded := loadedPackage{}
+	selection := domain.DirectorySelection{DistributionID: evidence.DistributionID, ReleaseSequence: evidence.ReleaseSequence, TreeDigest: digest}
+	environment := directoryEvidenceEnvironment{InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64", ClientVersions: map[domain.ClientID]string{domain.ClientCursor: "0.50.0"}}
+	if err := applyDirectoryCompatibility(&loaded, bundle, selection, policy, environment); err != nil {
+		t.Fatal(err)
+	}
+	compatibility := loaded.envelope.CatalogEvidence.Compatibility[string(domain.ClientCursor)]
+	if len(loaded.envelope.CatalogEvidence.CurrentEvidence) != 1 || len(compatibility.Evidence) != 1 || compatibility.EvidenceOutcomes["materialization"] != "passed" {
+		t.Fatalf("legacy evidence was not retained: %+v", loaded.envelope.CatalogEvidence)
+	}
+}
+
 func TestUntrustedCurrentEvidenceCannotCreateTestedCompatibility(t *testing.T) {
 	digest := "sha256:" + strings.Repeat("a", 64)
 	selection := domain.DirectorySelection{DistributionID: "owner/demo", ReleaseSequence: 1, TreeDigest: digest}

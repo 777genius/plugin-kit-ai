@@ -586,13 +586,13 @@ func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.Verif
 		return err
 	}
 	compatibility := make(map[string]domain.CatalogCompatibility, len(policy.Targets))
-	current := currentDirectoryEvidence(bundle.Snapshot.Evidence, policy.CurrentEvidence)
+	current := currentDirectoryEvidence(bundle.Snapshot.Sequence, bundle.Snapshot.Evidence, policy.CurrentEvidence)
 	for _, target := range policy.Targets {
 		capabilities, _ := clientplanner.Capabilities(target.Client)
 		packageMode, _ := stableCatalogPackageMode(capabilities.PackageMode)
 		applicable := make([]domain.DirectoryEvidence, 0, len(current))
 		for _, evidence := range current {
-			if evidence.HasTrustedEligibilityProvenance() && directoryEvidenceApplies(evidence, selection, target.Client, environment) {
+			if evidence.HasTrustedEligibilityProvenanceAtSequence(bundle.Snapshot.Sequence) && directoryEvidenceApplies(evidence, selection, target.Client, environment) {
 				applicable = append(applicable, evidence)
 			}
 		}
@@ -616,14 +616,14 @@ func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.Verif
 	return nil
 }
 
-func currentDirectoryEvidence(history []domain.DirectoryEvidence, ids []string) []domain.DirectoryEvidence {
+func currentDirectoryEvidence(sequence uint64, history []domain.DirectoryEvidence, ids []string) []domain.DirectoryEvidence {
 	byID := make(map[string]domain.DirectoryEvidence, len(history))
 	for _, evidence := range history {
 		byID[evidence.ID] = evidence
 	}
 	current := make([]domain.DirectoryEvidence, 0, len(ids))
 	for _, id := range ids {
-		if evidence, ok := byID[id]; ok && evidence.HasTrustedProvenance() {
+		if evidence, ok := byID[id]; ok && evidence.HasTrustedProvenanceAtSequence(sequence) {
 			current = append(current, evidence)
 		}
 	}

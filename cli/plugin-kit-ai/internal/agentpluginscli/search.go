@@ -451,7 +451,7 @@ func searchHasRuntimeEvidence(snapshot domain.DirectorySnapshot, distribution st
 		_, active := current[evidence.ID]
 		if active && evidence.DistributionID == distribution && evidence.ReleaseSequence == sequence &&
 			(client == "" || evidence.Client == client) &&
-			evidence.Level == "runtime" && evidence.Outcome == "passed" && evidence.HasTrustedEligibilityProvenance() {
+			evidence.Level == "runtime" && evidence.Outcome == "passed" && evidence.HasTrustedEligibilityProvenanceAtSequence(snapshot.Sequence) {
 			return true
 		}
 	}
