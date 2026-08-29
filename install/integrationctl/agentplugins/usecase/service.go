@@ -555,6 +555,12 @@ func (service Service) resume(
 }
 
 func clientVerifierAvailable(input AddInput, plan domain.DeliveryPlan) bool {
+	switch input.Client.ClientID {
+	case domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf:
+		// These clients expose an exact, read-only native configuration verifier.
+		// It is intentionally independent of an optional client executable.
+		return len(plan.Components) > 0
+	}
 	if strings.TrimSpace(input.BackendExecutable) == "" {
 		return false
 	}
@@ -703,16 +709,19 @@ func lifecycleOutcome(client domain.ClientBinding) domain.ActivationOutcome {
 }
 
 func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput, result AddResult, client domain.ClientBinding) (domain.ActivationOutcome, error) {
-	if strings.TrimSpace(input.BackendExecutable) == "" {
-		return domain.ActivationOutcome{}, nil
-	}
 	switch input.Client.ClientID {
+	case domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf:
+		// Native config and skill ownership are observable without starting the
+		// client. Do not let an absent executable turn a stale native projection
+		// into a successful no-change result.
 	case domain.ClientCodex, domain.ClientClaude, domain.ClientCopilot, domain.ClientVSCode:
+		if strings.TrimSpace(input.BackendExecutable) == "" {
+			return domain.ActivationOutcome{}, nil
+		}
 	case domain.ClientKiro:
 		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") {
 			return domain.ActivationOutcome{}, nil
 		}
-	case domain.ClientOpenCode:
 	default:
 		return domain.ActivationOutcome{}, nil
 	}

@@ -120,7 +120,11 @@ func neutralOpenCodeServer(server domain.MCPServer) (nativeconfig.Server, error)
 		if err != nil {
 			return nativeconfig.Server{}, fmt.Errorf("env: %w", err)
 		}
-		return nativeconfig.Server{Type: "stdio", Command: command, Args: args, Env: env}, nil
+		cwd, err := openCodeOptionalString(server.Decoded["cwd"])
+		if err != nil {
+			return nativeconfig.Server{}, fmt.Errorf("cwd: %w", err)
+		}
+		return nativeconfig.Server{Type: "stdio", Command: command, Args: args, Env: env, CWD: cwd}, nil
 	case "streamable-http", "sse":
 		url, ok := server.Decoded["url"].(string)
 		if !ok || strings.TrimSpace(url) == "" {
@@ -134,6 +138,17 @@ func neutralOpenCodeServer(server domain.MCPServer) (nativeconfig.Server, error)
 	default:
 		return nativeconfig.Server{}, fmt.Errorf("unsupported transport %q", server.Type)
 	}
+}
+
+func openCodeOptionalString(value any) (string, error) {
+	if value == nil {
+		return "", nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("must be a string")
+	}
+	return text, nil
 }
 
 func openCodeStrings(value any) ([]string, error) {
@@ -349,9 +364,17 @@ func applyOpenCodeNative(configRoot, activePath string, previous, desired []doma
 		if err != nil {
 			return err
 		}
-		if !sameCleanPath(selected, expectedConfig) {
+		jsonExists, jsoncExists, err := openCodeConfigPresence(configRoot)
+		if err != nil {
+			return err
+		}
+		if !sameCleanPath(selected, expectedConfig) && (jsonExists || jsoncExists) {
 			return fmt.Errorf("OpenCode config selection changed after staging; rerun the operation")
 		}
+	}
+	requests, err := openCodeMCPRequests(projection, previous, desired)
+	if err != nil {
+		return err
 	}
 	skills, err := installOpenCodeSkills(configRoot, activePath, previous, desired)
 	if err != nil {
@@ -365,7 +388,6 @@ func applyOpenCodeNative(configRoot, activePath string, previous, desired []doma
 			}
 		}
 	}()
-	requests := openCodeMCPRequests(projection, previous, desired)
 	if len(requests) > 0 {
 		receipts, err := nativeconfig.New().ApplyBatch(requests)
 		if err != nil {
@@ -402,7 +424,7 @@ func validateOpenCodeProjection(configRoot, activePath string, projection openCo
 	return nil
 }
 
-func openCodeMCPRequests(projection openCodeProjection, previous, desired []domain.NativeObjectOwnership) []nativeconfig.Request {
+func openCodeMCPRequests(projection openCodeProjection, previous, desired []domain.NativeObjectOwnership) ([]nativeconfig.Request, error) {
 	previousByID, desiredByID := objectMap(previous), objectMap(desired)
 	paths := nativeconfig.Paths{JSON: projection.ConfigJSON, JSONC: projection.ConfigJSONC}
 	if paths.JSON == "" {
@@ -414,34 +436,85 @@ func openCodeMCPRequests(projection openCodeProjection, previous, desired []doma
 			}
 		}
 	}
+	jsonExists, jsoncExists, err := openCodeConfigPresence(filepath.Dir(paths.JSON))
+	if err != nil {
+		return nil, err
+	}
+	if !jsonExists && !jsoncExists && projection.ConfigPath != "" && sameCleanPath(projection.ConfigPath, projection.ConfigJSONC) {
+		// The exact previously selected JSONC file was deleted. Recreate that
+		// same owned path rather than silently switching to opencode.json.
+		paths = nativeconfig.Paths{JSON: projection.ConfigJSONC}
+	}
 	placeholders := nativeconfig.Placeholders{PackageRoot: projection.PackageRoot, DataRoot: projection.DataRoot}
 	var result []nativeconfig.Request
+	kernel := nativeconfig.New()
 	for id, object := range previousByID {
 		if object.Kind != openCodeMCPObjectKind {
 			continue
 		}
-		if _, kept := desiredByID[id]; kept {
+		owned := receiptFromOpenCodeObject(object)
+		present, exactlyOwned, err := kernel.Inspect(paths, nativeconfig.CodecOpenCode, object.LogicalName, &owned)
+		if err != nil {
+			return nil, fmt.Errorf("inspect managed OpenCode MCP server %q: %w", object.LogicalName, err)
+		}
+		if present && !exactlyOwned {
+			return nil, fmt.Errorf("managed OpenCode MCP server %q changed outside agentplugins: %w", object.LogicalName, nativeconfig.ErrNotOwned)
+		}
+		next, kept := desiredByID[id]
+		if !kept {
+			// An already absent exact-owned entry is a safe idempotent removal.
+			if present {
+				result = append(result, nativeconfig.Request{Paths: paths, Codec: nativeconfig.CodecOpenCode, Action: nativeconfig.ActionRemove, Name: object.LogicalName, Owned: &owned})
+			}
 			continue
 		}
-		owned := receiptFromOpenCodeObject(object)
-		result = append(result, nativeconfig.Request{Paths: paths, Codec: nativeconfig.CodecOpenCode, Action: nativeconfig.ActionRemove, Name: object.LogicalName, Owned: &owned})
+		action := nativeconfig.ActionUpdate
+		var receipt *nativeconfig.Receipt = &owned
+		if !present {
+			// Repair may recreate a missing native entry only when the staged
+			// desired receipt is exactly the receipt already owned by state. A
+			// real update with different bytes remains fail closed.
+			if !sameOpenCodeMCPObject(object, next) {
+				return nil, fmt.Errorf("managed OpenCode MCP server %q is absent during update: %w", object.LogicalName, nativeconfig.ErrNotOwned)
+			}
+			action, receipt = nativeconfig.ActionAdd, nil
+		}
+		result = append(result, nativeconfig.Request{Paths: paths, Codec: nativeconfig.CodecOpenCode, Action: action, Name: next.LogicalName,
+			Server: projection.MCPServers[next.LogicalName], Placeholders: placeholders, Owned: receipt})
 	}
 	for id, object := range desiredByID {
 		if object.Kind != openCodeMCPObjectKind {
 			continue
 		}
-		action := nativeconfig.ActionAdd
-		var owned *nativeconfig.Receipt
-		if prior, ok := previousByID[id]; ok {
-			action = nativeconfig.ActionUpdate
-			receipt := receiptFromOpenCodeObject(prior)
-			owned = &receipt
+		if _, replacing := previousByID[id]; replacing {
+			continue
 		}
-		result = append(result, nativeconfig.Request{Paths: paths, Codec: nativeconfig.CodecOpenCode, Action: action, Name: object.LogicalName,
-			Server: projection.MCPServers[object.LogicalName], Placeholders: placeholders, Owned: owned})
+		present, _, err := kernel.Inspect(paths, nativeconfig.CodecOpenCode, object.LogicalName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("inspect OpenCode MCP server %q before add: %w", object.LogicalName, err)
+		}
+		if present {
+			return nil, fmt.Errorf("OpenCode MCP server %q already exists: %w", object.LogicalName, nativeconfig.ErrCollision)
+		}
+		result = append(result, nativeconfig.Request{Paths: paths, Codec: nativeconfig.CodecOpenCode, Action: nativeconfig.ActionAdd, Name: object.LogicalName,
+			Server: projection.MCPServers[object.LogicalName], Placeholders: placeholders})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return result
+	return result, nil
+}
+
+func openCodeConfigPresence(configRoot string) (jsonExists, jsoncExists bool, err error) {
+	jsonExists, err = regularNativeFileExists(filepath.Join(configRoot, "opencode.json"))
+	if err != nil {
+		return false, false, err
+	}
+	jsoncExists, err = regularNativeFileExists(filepath.Join(configRoot, "opencode.jsonc"))
+	return jsonExists, jsoncExists, err
+}
+
+func sameOpenCodeMCPObject(left, right domain.NativeObjectOwnership) bool {
+	return left.ObjectID == right.ObjectID && left.Kind == openCodeMCPObjectKind && right.Kind == openCodeMCPObjectKind &&
+		left.LogicalName == right.LogicalName && sameCleanPath(left.Path, right.Path) && left.ManagedDigest == right.ManagedDigest
 }
 
 func receiptFromOpenCodeObject(object domain.NativeObjectOwnership) nativeconfig.Receipt {

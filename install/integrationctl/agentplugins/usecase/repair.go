@@ -89,9 +89,42 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	}
 	verifyErr := service.Stager.Verify(ctx, target.ActivePath, expectedDigest)
 	if verifyErr == nil {
-		verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, client)
-		if verifyErr != nil {
-			return result, verifyErr
+		verified, clientVerifyErr := service.verifyClientReadOnly(ctx, input, result, client)
+		if clientVerifyErr != nil {
+			if !nativeLifecycleClient(input.Client.ClientID) {
+				return result, clientVerifyErr
+			}
+			// The package bytes are intact but an owned native projection is not.
+			// A confirmed repair may reconstruct an absent exact-owned object. The
+			// provider still observes the live object before any effect and rejects
+			// foreign or tampered state.
+			if input.DryRun {
+				return result, nil
+			}
+			if !input.Confirmed {
+				result.RequiresConfirmation = true
+				return result, nil
+			}
+			delivery := domain.StagedDelivery{
+				ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot,
+				ActivePath: client.TargetLocator, ArtifactDigest: expectedDigest,
+				NativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
+			}
+			outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{
+				Client: input.Client, Plan: result.Plan, Delivery: delivery,
+				DeclaredName: input.Envelope.Manifest.Name, Replacing: true,
+				BackendExecutable:     input.BackendExecutable,
+				PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
+			})
+			result.Activation = outcome
+			if activationErr != nil {
+				return result, fmt.Errorf("repair managed native state: %w", activationErr)
+			}
+			if _, updateErr := service.updateLifecycle(installation.InstallationID, clientKey, outcome); updateErr != nil {
+				return result, fmt.Errorf("persist repaired native lifecycle: %w", updateErr)
+			}
+			result.Mutated = true
+			return result, nil
 		}
 		corrected := client
 		corrected.Materialization = domain.MaterializationMaterialized
@@ -195,6 +228,7 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	desiredClient := client
 	desiredClient.Materialization = domain.MaterializationMaterialized
 	desiredClient.Verification = domain.VerificationPackageValid
+	desiredClient.NativeObjects = append([]domain.NativeObjectOwnership(nil), delivery.NativeObjects...)
 	desiredClient.UpdatedAt = service.now().Format("2006-01-02T15:04:05.999999999Z07:00")
 	installation.Clients[clientKey] = desiredClient
 	installation.UpdatedAt = desiredClient.UpdatedAt
@@ -215,7 +249,29 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	}
 	result.Mutated = true
 	result.Activation = verifiedState
-	if input.Client.ClientID == domain.ClientClaude {
+	if nativeLifecycleClient(input.Client.ClientID) {
+		outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{
+			Client: input.Client, Plan: plan,
+			Delivery: domain.StagedDelivery{
+				ClientID: delivery.ClientID, OwnedBase: delivery.OwnedBase,
+				ActivePath: delivery.ActivePath, ArtifactDigest: delivery.ArtifactDigest,
+				NativeObjects: append([]domain.NativeObjectOwnership(nil), delivery.NativeObjects...),
+			},
+			DeclaredName: input.Envelope.Manifest.Name, Replacing: true,
+			BackendExecutable:     input.BackendExecutable,
+			PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
+		})
+		result.Activation = outcome
+		if _, updateErr := service.updateLifecycle(installation.InstallationID, clientKey, outcome); updateErr != nil {
+			if activationErr != nil {
+				return result, fmt.Errorf("reapply repaired native state: %v; persist verification state: %w", activationErr, updateErr)
+			}
+			return result, updateErr
+		}
+		if activationErr != nil {
+			return result, fmt.Errorf("reapply repaired native state: %w", activationErr)
+		}
+	} else if input.Client.ClientID == domain.ClientClaude {
 		outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{
 			Client: input.Client, Plan: plan,
 			Delivery:     domain.StagedDelivery{ClientID: delivery.ClientID, OwnedBase: delivery.OwnedBase, ActivePath: delivery.ActivePath, ArtifactDigest: delivery.ArtifactDigest, NativeObjects: delivery.NativeObjects},
@@ -233,6 +289,15 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 		}
 	}
 	return result, nil
+}
+
+func nativeLifecycleClient(clientID domain.ClientID) bool {
+	switch clientID {
+	case domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf:
+		return true
+	default:
+		return false
+	}
 }
 
 func (service Service) verifyRepairPrecondition(ctx context.Context, activePath, managedDigest string, reviewedKind ports.VerificationKind, reviewedDigest string) error {

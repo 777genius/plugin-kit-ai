@@ -147,12 +147,49 @@ func TestOpenCodeSupportsAutomaticMCPAndSkillLifecycle(t *testing.T) {
 	if len(onlyBinding(state.Installations[0]).NativeObjects) != 3 {
 		t.Fatalf("OpenCode ownership receipts were not persisted: %+v", onlyBinding(state.Installations[0]).NativeObjects)
 	}
+	configPath := filepath.Join(client.ConfigRoot, "opencode.json")
+	if err := os.WriteFile(configPath, []byte(`{"mcp":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// No executable is needed to observe native ownership. A same-revision
+	// update must not claim no-change while its exact entry is absent.
+	update.InstallationID = added.InstallationID
+	update.Confirmed = true
+	update.OperationID = "opencode-no-change-probe"
+	if result, err := service.Update(context.Background(), update); err == nil || result.NoChange {
+		t.Fatalf("missing native entry was accepted as no-change: result=%+v err=%v", result, err)
+	}
+	update.OperationID = "opencode-native-repair"
+	repaired, err := service.Repair(context.Background(), update)
+	if err != nil || !repaired.Mutated || repaired.Activation.Verification != domain.VerificationInstalled {
+		t.Fatalf("native-only repair failed: result=%+v err=%v", repaired, err)
+	}
+	config = readUsecaseObject(t, configPath)
+	if _, exists := config["mcp"].(map[string]any)["docs"]; !exists {
+		t.Fatalf("native-only repair did not recreate the exact entry: %#v", config)
+	}
+
+	foreign := `{"mcp":{"docs":{"type":"local","command":["foreign"]}}}`
+	if err := os.WriteFile(configPath, []byte(foreign), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	update.OperationID = "opencode-tampered-repair"
+	if _, err := service.Repair(context.Background(), update); err == nil {
+		t.Fatal("repair adopted a tampered OpenCode entry")
+	}
+	if body, err := os.ReadFile(configPath); err != nil || string(body) != foreign {
+		t.Fatalf("failed repair changed tampered entry: %s, %v", body, err)
+	}
+	// Removal remains idempotent when the exact owned entry is already absent.
+	if err := os.WriteFile(configPath, []byte(`{"mcp":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	removed, err := service.RemoveGroup(context.Background(), RemoveGroupInput{Selector: added.InstallationID,
 		Targets: []RemoveInput{{Client: client, Scope: domain.ScopeUser}}, OperationGroupID: "opencode-remove", Confirmed: true})
 	if err != nil || !removed.Mutated {
 		t.Fatalf("OpenCode remove failed: result=%+v err=%v", removed, err)
 	}
-	config = readUsecaseObject(t, filepath.Join(client.ConfigRoot, "opencode.json"))
+	config = readUsecaseObject(t, configPath)
 	if _, exists := config["mcp"].(map[string]any)["docs"]; exists {
 		t.Fatalf("managed OpenCode MCP entry survived remove: %#v", config)
 	}

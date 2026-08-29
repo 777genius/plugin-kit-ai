@@ -67,7 +67,7 @@ func TestOpenCodeJSONCAddPreservesCommentsAndProjectsBothTransports(t *testing.T
 	kernel := New()
 	local, err := kernel.Apply(Request{
 		Paths: Paths{JSON: jsonPath, JSONC: jsoncPath}, Codec: CodecOpenCode, Action: ActionAdd, Name: "local",
-		Server:       Server{Type: "stdio", Command: "node", Args: []string{"${PLUGIN_ROOT}/run.js"}, Env: map[string]string{"DATA": "${PLUGIN_DATA}"}},
+		Server:       Server{Type: "stdio", Command: "node", Args: []string{"${PLUGIN_ROOT}/run.js"}, Env: map[string]string{"DATA": "${PLUGIN_DATA}"}, CWD: "${PLUGIN_ROOT}/work"},
 		Placeholders: Placeholders{PackageRoot: "/pkg", DataRoot: "/data"},
 	})
 	if err != nil {
@@ -95,7 +95,7 @@ func TestOpenCodeJSONCAddPreservesCommentsAndProjectsBothTransports(t *testing.T
 	var projected map[string]any
 	standard, _ := entryCanonical(localMember)
 	_ = json.Unmarshal(standard, &projected)
-	if projected["type"] != "local" || projected["command"].([]any)[1] != "/pkg/run.js" || projected["environment"].(map[string]any)["DATA"] != "/data" {
+	if projected["type"] != "local" || projected["command"].([]any)[1] != "/pkg/run.js" || projected["environment"].(map[string]any)["DATA"] != "/data" || projected["cwd"] != "/pkg/work" {
 		t.Fatalf("wrong OpenCode local projection: %#v", projected)
 	}
 	if local.Path != jsoncPath {
@@ -314,9 +314,9 @@ func TestRemoteTransportIsCodecSpecific(t *testing.T) {
 
 func TestCodecSpecificUnsupportedFieldsFailClosed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "opencode.json")
-	_, err := DesiredReceipt(path, CodecOpenCode, "local", Server{Type: "stdio", Command: "node", CWD: "/server"}, Placeholders{})
-	if err == nil || !strings.Contains(err.Error(), "does not accept cwd") {
-		t.Fatalf("OpenCode silently discarded cwd: %v", err)
+	projected, err := projectServer(CodecOpenCode, Server{Type: "stdio", Command: "node", CWD: "${PLUGIN_ROOT}/server"}, Placeholders{PackageRoot: "/pkg"})
+	if err != nil || projected["cwd"] != "/pkg/server" {
+		t.Fatalf("OpenCode cwd was not faithfully projected: %#v, %v", projected, err)
 	}
 	_, err = DesiredReceipt(path, CodecWindsurf, "local", Server{Type: "stdio", Command: "node", CWD: "/server"}, Placeholders{})
 	if err == nil || !strings.Contains(err.Error(), "does not accept cwd") {

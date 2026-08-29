@@ -175,6 +175,89 @@ func TestOpenCodeFailedUpdateRestoresPreviousManagedSkill(t *testing.T) {
 	}
 }
 
+func TestOpenCodeRepairRecreatesOnlyAnAbsentExactOwnedEntryAndRemoveIsIdempotent(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, "opencode")
+	active := filepath.Join(root, "managed", "demo")
+	configPath := filepath.Join(configRoot, "opencode.jsonc")
+	writeOpenCodeTestFile(t, configPath, "{\n  // selected JSONC\n  \"mcp\": {},\n}\n")
+	envelope, plan := openCodeTestPackage(t, active, configRoot, "owned")
+	objects, err := buildOpenCodeNativeObjects(active, envelope, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyOpenCodeNative(configRoot, active, nil, objects); err != nil {
+		t.Fatal(err)
+	}
+
+	// Missing is the only state that exact-same repair may recreate.
+	if err := os.Remove(configPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyOpenCodeNative(configRoot, active, objects, objects); err != nil {
+		t.Fatalf("repair absent exact-owned entry: %v", err)
+	}
+	body := readOpenCodeTestFile(t, configPath)
+	assertOpenCodeEntry(t, body, true, "node", filepath.Join(active, "server.js"))
+	if _, err := os.Stat(filepath.Join(configRoot, "opencode.json")); !os.IsNotExist(err) {
+		t.Fatalf("repair switched away from the exact owned JSONC path: %v", err)
+	}
+
+	// A present entry with different bytes is foreign/tampered and must never
+	// be adopted by repair.
+	writeOpenCodeTestFile(t, configPath, `{"mcp":{"docs":{"type":"local","command":["foreign"]}}}`)
+	if err := applyOpenCodeNative(configRoot, active, objects, objects); !errors.Is(err, nativeconfig.ErrNotOwned) {
+		t.Fatalf("tampered entry was not rejected: %v", err)
+	}
+	if body := readOpenCodeTestFile(t, configPath); !strings.Contains(body, "foreign") {
+		t.Fatalf("tampered entry changed: %s", body)
+	}
+
+	// An entry already absent at remove time is a safe idempotent success. The
+	// separately owned skill still has to be removed.
+	if err := os.Remove(configPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyOpenCodeNative(configRoot, "", objects, nil); err != nil {
+		t.Fatalf("idempotent absent remove: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(configRoot, "skills", "docs")); !os.IsNotExist(err) {
+		t.Fatalf("managed skill survived idempotent remove: %v", err)
+	}
+}
+
+func TestOpenCodeProjectionPreservesOfficialLocalCWD(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, "opencode")
+	active := filepath.Join(root, "managed", "demo")
+	envelope, plan := openCodeTestPackage(t, active, configRoot, "owned")
+	envelope.MCP.Servers["docs"] = domain.MCPServer{Name: "docs", Type: "stdio", Decoded: map[string]any{
+		"command": "node", "args": []any{"${PLUGIN_ROOT}/server.js"}, "cwd": "${PLUGIN_ROOT}/workspace",
+	}}
+	if err := os.Remove(filepath.Join(active, openCodeProjectionFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := projectOpenCodeNative(active, envelope, plan, filepath.Join(root, "data")); err != nil {
+		t.Fatal(err)
+	}
+	objects, err := buildOpenCodeNativeObjects(active, envelope, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyOpenCodeNative(configRoot, active, nil, objects); err != nil {
+		t.Fatal(err)
+	}
+	body := readOpenCodeTestFile(t, filepath.Join(configRoot, "opencode.json"))
+	var document map[string]any
+	if err := json.Unmarshal([]byte(body), &document); err != nil {
+		t.Fatal(err)
+	}
+	entry := document["mcp"].(map[string]any)["docs"].(map[string]any)
+	if entry["cwd"] != filepath.Join(active, "workspace") {
+		t.Fatalf("OpenCode cwd was dropped or changed: %#v", entry)
+	}
+}
+
 func TestOpenCodeAmbiguousJSONVariantsFailBeforeProjection(t *testing.T) {
 	root := t.TempDir()
 	configRoot := filepath.Join(root, "opencode")

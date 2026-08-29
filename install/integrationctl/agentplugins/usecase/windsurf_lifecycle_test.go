@@ -56,7 +56,7 @@ func TestWindsurfLifecycleAddUpdateRepairRemoveInIsolatedHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !repaired.Mutated || repaired.Activation.Verification != domain.VerificationPackageValid {
+	if !repaired.Mutated || repaired.Activation.Verification != domain.VerificationInstalled {
 		t.Fatalf("repair result = %+v", repaired)
 	}
 	assertUsecaseWindsurfConfig(t, configPath, "two", true)

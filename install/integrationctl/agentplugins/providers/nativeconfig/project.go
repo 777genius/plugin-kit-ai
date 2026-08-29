@@ -110,12 +110,16 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 			return nil, err
 		}
 		if codec == CodecOpenCode {
-			if server.CWD != "" {
-				return nil, fmt.Errorf("OpenCode local MCP server does not accept cwd")
-			}
 			entry := map[string]any{"type": "local", "command": append([]string{command}, args...)}
 			if len(env) > 0 {
 				entry["environment"] = env
+			}
+			if server.CWD != "" {
+				cwd, err := resolve(server.CWD)
+				if err != nil {
+					return nil, err
+				}
+				entry["cwd"] = cwd
 			}
 			return entry, nil
 		}
