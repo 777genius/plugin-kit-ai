@@ -1,5 +1,6 @@
 {
   "bootstrap_sequence": 13,
+  "bootstrap_materialized_commit": "c216c7cc2f9ac97c98d7909daf3ff7d416243ac7",
   "contract_version": 1,
   "marker_ref": "refs/tags/directory-publication-schema-1-production",
   "sequence_tag_prefix": "refs/tags/directory-publication-schema-1-sequence-"

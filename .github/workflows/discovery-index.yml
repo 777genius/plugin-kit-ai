@@ -405,7 +405,7 @@ jobs:
           exit 1
 
   deploy:
-    name: Deploy exact ledger tree
+    name: Deploy Discovery over the exact production Directory tree
     if: needs.sign-and-publish.result == 'success'
     needs: sign-and-publish
     runs-on: ubuntu-latest
@@ -421,14 +421,60 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.sign-and-publish.outputs.ledger_commit }}
-          path: exact-pages-tree
+          path: exact-discovery-tree
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
-      - name: Archive exact ledger commit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-source
+          persist-credentials: false
+      - name: Resolve the exact promoted Directory tree
         env:
-          LEDGER_COMMIT: ${{ needs.sign-and-publish.outputs.ledger_commit }}
+          DISCOVERY_LEDGER_COMMIT: ${{ needs.sign-and-publish.outputs.ledger_commit }}
         run: |
-          test "$(git -C exact-pages-tree rev-parse HEAD)" = "${LEDGER_COMMIT}"
-          tar --directory exact-pages-tree -cvf "$RUNNER_TEMP/artifact.tar" --exclude=.git --exclude=.github .
+          test "$(git -C exact-discovery-tree rev-parse HEAD)" = "${DISCOVERY_LEDGER_COMMIT}"
+          contract=trusted-source/registry/publication/production-marker.json
+          marker_ref="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["marker_ref"])' "${contract}")"
+          tag_prefix="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sequence_tag_prefix"])' "${contract}")"
+          production_commit="$(git -C exact-discovery-tree ls-remote --refs origin "${marker_ref}" | awk '{ print $1 }')"
+          if test -z "${production_commit}"; then
+            production_commit="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["bootstrap_materialized_commit"])' "${contract}")"
+            bootstrap_sequence="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["bootstrap_sequence"])' "${contract}")"
+          fi
+          [[ "${production_commit}" =~ ^[0-9a-f]{40}$ ]]
+          git -C exact-discovery-tree fetch --no-tags origin "${production_commit}"
+          git -C exact-discovery-tree merge-base --is-ancestor "${production_commit}" "${DISCOVERY_LEDGER_COMMIT}"
+          production_sequence="$(git -C exact-discovery-tree show "${production_commit}:registry/schemas/1/latest.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sequence"])')"
+          test "$(python3 trusted-source/scripts/sequence_boundaries.py validate "${production_sequence}")" = "${production_sequence}"
+          production_ref="${tag_prefix}$(printf '%020d' "${production_sequence}")"
+          production_signed="$(git -C exact-discovery-tree rev-parse "${production_ref}^{commit}")"
+          materialized_commit="$(python3 trusted-source/scripts/directory_publication_cas.py staged-lineage-verify \
+            --repo exact-discovery-tree --signed "${production_signed}" --current "${production_commit}")"
+          [[ "${materialized_commit}" =~ ^[0-9a-f]{40}$ ]]
+          if test -n "${bootstrap_sequence:-}"; then
+            test "${production_sequence}" = "${bootstrap_sequence}"
+            test "${materialized_commit}" = "${production_commit}"
+          fi
+          git -C exact-discovery-tree worktree add --detach ../production-pages-tree "${production_commit}"
+          echo "production_commit=${production_commit}" >> "$GITHUB_ENV"
+      - name: Overlay only the exact signed Discovery feed
+        env:
+          DISCOVERY_LEDGER_COMMIT: ${{ needs.sign-and-publish.outputs.ledger_commit }}
+        run: |
+          test "$(git -C exact-discovery-tree rev-parse HEAD)" = "${DISCOVERY_LEDGER_COMMIT}"
+          test "$(git -C production-pages-tree rev-parse HEAD)" = "${production_commit}"
+          test -f exact-discovery-tree/discovery/latest.json
+          mkdir -p production-pages-tree/discovery
+          rsync -a --delete exact-discovery-tree/discovery/ production-pages-tree/discovery/
+          diff -qr exact-discovery-tree/discovery production-pages-tree/discovery
+          test -z "$(git -C production-pages-tree diff --name-only -- . ':!discovery')"
+          test -z "$(git -C production-pages-tree ls-files --others --exclude-standard | awk '$0 !~ /^discovery\//')"
+          test -n "$(git -C production-pages-tree status --porcelain -- discovery)"
+      - name: Archive the deterministic production composition
+        run: |
+          tar --directory production-pages-tree -cvf "$RUNNER_TEMP/artifact.tar" --exclude=.git --exclude=.github .
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: github-pages

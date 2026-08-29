@@ -690,7 +690,7 @@ class WorkflowContractTests(unittest.TestCase):
         prepare_commands = commands(workflow["jobs"]["prepare"])
         self.assertIn("PyYAML==6.0.3", prepare_commands)
 
-    def test_discovery_index_is_lkg_protected_and_deploys_the_exact_ledger(self) -> None:
+    def test_discovery_index_is_lkg_protected_and_preserves_promoted_directory(self) -> None:
         workflow = load(DISCOVERY_INDEX)
         self.assertEqual(workflow["concurrency"], {
             "group": "directory-publication-schema-1",
@@ -766,8 +766,27 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.scan.outputs.complete != 'true'", incomplete["if"])
         self.assertIn("exit 1", commands(incomplete))
         deploy = workflow["jobs"]["deploy"]
-        checkout = next(step for step in deploy["steps"] if step.get("uses", "").startswith("actions/checkout"))
-        self.assertEqual(checkout["with"]["ref"], "${{ needs.sign-and-publish.outputs.ledger_commit }}")
+        checkouts = [step for step in deploy["steps"] if step.get("uses", "").startswith("actions/checkout")]
+        self.assertEqual(checkouts[0]["with"]["ref"], "${{ needs.sign-and-publish.outputs.ledger_commit }}")
+        self.assertEqual(checkouts[0]["with"]["fetch-depth"], "0")
+        self.assertEqual(checkouts[0]["with"]["fetch-tags"], "true")
+        self.assertEqual(checkouts[1]["with"]["ref"], "${{ github.sha }}")
+        deploy_body = commands(deploy)
+        self.assertIn("production-marker.json", deploy_body)
+        self.assertIn("bootstrap_materialized_commit", deploy_body)
+        self.assertIn("git -C exact-discovery-tree ls-remote --refs origin", deploy_body)
+        self.assertIn("merge-base --is-ancestor", deploy_body)
+        self.assertIn("sequence_boundaries.py validate", deploy_body)
+        self.assertIn("directory_publication_cas.py staged-lineage-verify", deploy_body)
+        self.assertIn('--signed "${production_signed}" --current "${production_commit}"', deploy_body)
+        self.assertIn("rsync -a --delete exact-discovery-tree/discovery/ production-pages-tree/discovery/", deploy_body)
+        self.assertIn("diff -qr exact-discovery-tree/discovery production-pages-tree/discovery", deploy_body)
+        self.assertIn("diff --name-only -- . ':!discovery'", deploy_body)
+        self.assertIn("tar --directory production-pages-tree", deploy_body)
+        self.assertNotIn("tar --directory exact-discovery-tree", deploy_body)
+        marker = json.loads((ROOT / "registry/publication/production-marker.json").read_text())
+        self.assertRegex(marker["bootstrap_materialized_commit"], r"^[0-9a-f]{40}$")
+        self.assertEqual(marker["bootstrap_sequence"], 13)
         self.assertIn("observe_discovery_index.py", commands(workflow["jobs"]["observe"]))
         for job_name in ("scan", "sign-and-publish", "observe"):
             with self.subTest(job=job_name):

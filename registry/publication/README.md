@@ -227,8 +227,10 @@ The scheduled production observer resolves
 `directory-publication-schema-1-production`, derives the signed identity from
 that exact ledger commit, and compares it byte-for-byte with Pages. Before the
 first protected deployment creates this marker, `production-marker.json`
-selects the already deployed sequence-13 tag as a one-time bootstrap. Staged
-ledger `HEAD` is never treated as production. After Pages succeeds, the
+selects the already deployed sequence-13 materialized child as a one-time
+bootstrap and binds it to the sequence-13 tag. Discovery deployments overlay
+only their signed `discovery/` feed on that exact production tree. Staged ledger
+`HEAD` is never treated as production. After Pages succeeds, the
 publisher advances the production marker with an exact lease, monotonic lineage
 check, and exact readback; a lost response is safe to retry.
 
