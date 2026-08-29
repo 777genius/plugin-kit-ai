@@ -77,7 +77,7 @@ var clientDefinitions = []ClientDefinition{
 	withActivation(clientDefinition(ClientClaude, "Claude Code", "claude", "managed", "projected", false, PackageProjection, SupportProjected, SupportProjected, SupportUnsupported), ActivationAutomatic),
 	clientDefinition(ClientGemini, "Gemini CLI", "gemini", "managed", "native", false, PackageNative, SupportNative, SupportNative, SupportUnsupported),
 	withActivation(clientDefinition(ClientOpenCode, "OpenCode", "opencode", "managed", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportUnsupported), ActivationAutomatic),
-	clientDefinition(ClientCline, "Cline", "cline", "prepared", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
+	withActivation(clientDefinition(ClientCline, "Cline", "cline", "managed", "native", false, PackageNative, SupportNative, SupportNative, SupportUnsupported), ActivationAutomatic),
 	clientDefinition(ClientWindsurf, "Windsurf / Devin", "windsurf", "prepared", "prepared", false, PackagePrepared, SupportPrepared, SupportPrepared, SupportPrepared),
 }
 

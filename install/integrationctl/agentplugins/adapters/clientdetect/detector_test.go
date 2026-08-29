@@ -136,6 +136,9 @@ func TestDetectorFindsClineOnlyFromSupportedEditorSurfaces(t *testing.T) {
 	if cline.Status != domain.DetectionDetected || !surfaceDetected(cline.Surfaces, "cline_vscode_extension") || !surfaceDetected(cline.Surfaces, "cline_cursor_config") {
 		t.Fatalf("Cline detection = %+v", cline)
 	}
+	if want := filepath.Join(home, ".cline"); cline.ConfigRoot != want {
+		t.Fatalf("Cline config root = %q, want %q", cline.ConfigRoot, want)
+	}
 }
 
 func TestDetectorFindsWindsurfDevinChannelsWithoutExecutingThem(t *testing.T) {

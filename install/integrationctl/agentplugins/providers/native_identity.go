@@ -229,6 +229,10 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		// the package identity. Exact entry collision and ownership checks happen
 		// transactionally in the native config provider after staging.
 		return registryClear, nil
+	case domain.ClientCline:
+		// Cline MCP identities are per-server and protected by exact receipts;
+		// its skill paths are checked before the all-or-none native config batch.
+		return registryClear, nil
 	case domain.ClientGemini:
 		return inspectGeminiRegistry(plan, managed)
 	case domain.ClientWindsurf:

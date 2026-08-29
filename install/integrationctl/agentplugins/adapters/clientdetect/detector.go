@@ -288,12 +288,9 @@ func (detector Detector) detectCline(ctx context.Context, probeVersion bool) dom
 		detector.extensionSurface("cline_cursor_extension", filepath.Join(detector.HomeDir, ".cursor", "extensions"), "saoudrizwan.claude-dev", "cline.cline"),
 		detector.directorySurface("cline_cursor_config", cursorConfig),
 	}
-	configRoot := vscodeConfig
-	if detector.realDirectory(cursorConfig) {
-		configRoot = cursorConfig
-	} else if detector.realDirectory(vscodeConfig) {
-		configRoot = vscodeConfig
-	}
+	// Editor globalStorage is only a detection surface. Cline's shared native
+	// configuration and skill roots live under its product-owned home.
+	configRoot := filepath.Join(detector.HomeDir, ".cline")
 	return detector.detectedClient(ctx, probeVersion, domain.ClientCline, "Cline", configRoot, "", surfaces)
 }
 

@@ -161,6 +161,54 @@ func TestOpenCodeSupportsAutomaticMCPAndSkillLifecycle(t *testing.T) {
 	}
 }
 
+func TestClinePackageSupportsAutomaticAddUpdateRepairAndRemoveInIsolatedHome(t *testing.T) {
+	root := t.TempDir()
+	settings := filepath.Join(root, "cline-data", "settings", "cline_mcp_settings.json")
+	t.Setenv("CLINE_MCP_SETTINGS_PATH", settings)
+	service, store, _ := serviceFixture(t)
+	service.NativeObserver = providers.NativeIdentityObserver{Stager: service.Stager}
+	client := domain.DetectedClient{ClientID: domain.ClientCline, DisplayName: "Cline", Status: domain.DetectionDetected, ConfigRoot: filepath.Join(root, ".cline")}
+
+	add := clinePackageInput(t, client, "1.0.0", "sha256:cline-v1", "sha256:cline-manifest-v1", "sh")
+	added, err := service.AddGroup(context.Background(), GroupInput{Targets: []AddInput{add}, OperationGroupID: "cline-add", Confirmed: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added.Targets[0].Activation.Activation != domain.ActivationActive || added.Targets[0].Activation.Verification != domain.VerificationInstalled {
+		t.Fatalf("Cline add did not complete: %+v", added.Targets[0])
+	}
+	if _, err := os.Stat(filepath.Join(client.ConfigRoot, "skills", "docs", "SKILL.md")); err != nil {
+		t.Fatal(err)
+	}
+	if body, err := os.ReadFile(settings); err != nil || !strings.Contains(string(body), `"transport"`) || !strings.Contains(string(body), `"sh"`) {
+		t.Fatalf("Cline MCP projection = %s, %v", body, err)
+	}
+
+	update := clinePackageInput(t, client, "2.0.0", "sha256:cline-v2", "sha256:cline-manifest-v2", "env")
+	if _, err := service.UpdateGroup(context.Background(), GroupInput{Targets: []AddInput{update}, CompatibilityChecks: []AddInput{update}, OperationGroupID: "cline-update", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(onlyBinding(state.Installations[0]).TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	update.InstallationID = added.InstallationID
+	repaired, err := service.RepairGroup(context.Background(), GroupInput{Targets: []AddInput{update}, OperationGroupID: "cline-repair", Confirmed: true, Repair: true})
+	if err != nil || repaired.Targets[0].Activation.Verification != domain.VerificationInstalled {
+		t.Fatalf("Cline repair = %+v, %v", repaired, err)
+	}
+	removed, err := service.RemoveGroup(context.Background(), RemoveGroupInput{Selector: added.InstallationID, Targets: []RemoveInput{{Client: client, Scope: domain.ScopeUser}}, OperationGroupID: "cline-remove", Confirmed: true})
+	if err != nil || !removed.Mutated {
+		t.Fatalf("Cline remove = %+v, %v", removed, err)
+	}
+	if body, _ := os.ReadFile(settings); strings.Contains(string(body), `"docs"`) {
+		t.Fatalf("Cline remove retained MCP entry: %s", body)
+	}
+}
+
 func signedChatGPTInput(t *testing.T, client domain.DetectedClient, version, treeDigest, manifestDigest string) AddInput {
 	t.Helper()
 	input := addInput(t, client, "https://example.com/chatgpt")
@@ -230,6 +278,33 @@ func openCodePluginInput(t *testing.T, client domain.DetectedClient, version, tr
 	input.Envelope.Skills = map[string]domain.Skill{"docs": {Name: "docs", Description: "docs", RelativePath: "skills/docs/SKILL.md", Raw: skillBody}}
 	input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Raw: mcpBody, Servers: map[string]domain.MCPServer{
 		"docs": {Name: "docs", Type: "stdio", Raw: mcpBody, Decoded: map[string]any{"type": "stdio", "command": command, "args": []any{"${PLUGIN_ROOT}/server.js"}}},
+	}}
+	input.Envelope.Inventory.Skills = []string{"docs"}
+	input.Envelope.Inventory.MCPPresent = true
+	input.Envelope.Inventory.MCPEnabled = true
+	input.Envelope.Inventory.MCPServers = []string{"docs"}
+	return input
+}
+
+func clinePackageInput(t *testing.T, client domain.DetectedClient, version, treeDigest, manifestDigest, command string) AddInput {
+	t.Helper()
+	input := addInput(t, client, "https://example.com/cline")
+	setEnvelopeVersion(t, &input.Envelope, version, treeDigest, manifestDigest)
+	skillRoot := filepath.Join(input.Envelope.SnapshotRoot, "skills", "docs")
+	if err := os.MkdirAll(skillRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	skill := []byte("---\nname: docs\ndescription: docs\n---\n")
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), skill, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mcp := []byte(fmt.Sprintf(`{"$schema":%q,"mcpServers":{"docs":{"type":"stdio","command":%q}}}`, domain.MCPSchemaV1, command))
+	if err := os.WriteFile(filepath.Join(input.Envelope.SnapshotRoot, "mcp.json"), mcp, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	input.Envelope.Skills = map[string]domain.Skill{"docs": {Name: "docs", Description: "docs", RelativePath: "skills/docs/SKILL.md", Raw: skill}}
+	input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, SchemaURI: domain.MCPSchemaV1, Raw: mcp, Servers: map[string]domain.MCPServer{
+		"docs": {Name: "docs", Type: "stdio", Raw: []byte(fmt.Sprintf(`{"type":"stdio","command":%q}`, command)), Decoded: map[string]any{"type": "stdio", "command": command}, StdioRequirement: &domain.StdioRequirement{Command: command, Kind: domain.ExecutableBare}},
 	}}
 	input.Envelope.Inventory.Skills = []string{"docs"}
 	input.Envelope.Inventory.MCPPresent = true

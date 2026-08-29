@@ -30,6 +30,8 @@ type Activator struct {
 // it cannot drift from the provider's activation paths.
 func (activator Activator) AutomaticallyActivates(request domain.ActivationRequest) bool {
 	switch request.Client.ClientID {
+	case domain.ClientCline:
+		return strings.TrimSpace(request.Client.ConfigRoot) != "" && openCodeNativeComponents(request.Plan.Components)
 	case domain.ClientOpenCode:
 		return strings.TrimSpace(request.Client.ConfigRoot) != "" && openCodeNativeComponents(request.Plan.Components)
 	case domain.ClientGemini:
@@ -136,6 +138,19 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			return outcome, nil
 		}
 		if err := deactivateKiroNative(ctx, request); err != nil {
+			return outcome, err
+		}
+		outcome.ExternalRemovalComplete = true
+		return outcome, nil
+	case domain.ClientCline:
+		if len(clineObjects(request.NativeObjects)) == 0 {
+			return outcome, fmt.Errorf("managed Cline native ownership is missing")
+		}
+		if !request.Confirmed {
+			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove only its managed Cline skills and MCP entries")
+			return outcome, nil
+		}
+		if err := deactivateClineNative(ctx, request); err != nil {
 			return outcome, err
 		}
 		outcome.ExternalRemovalComplete = true
@@ -349,6 +364,23 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
+		return outcome, nil
+	case domain.ClientCline:
+		if !activator.AutomaticallyActivates(request) {
+			outcome.Activation = domain.ActivationManual
+			outcome.UserActions = append(outcome.UserActions, "install Cline and rerun add to register its skills and MCP servers")
+			return outcome, nil
+		}
+		if request.VerifyOnly {
+			if err := verifyClineNativeObjects(request.Client.ConfigRoot, request.Delivery.NativeObjects, false); err != nil {
+				return failedActivation(outcome, "repair the managed Cline skills and MCP configuration", err)
+			}
+		} else if err := activateClineNative(ctx, request); err != nil {
+			return failedActivation(outcome, "retry the managed Cline native installation", err)
+		}
+		outcome.Activation = domain.ActivationActive
+		outcome.Verification = domain.VerificationInstalled
+		outcome.UserActions = append(outcome.UserActions, "reload the Cline MCP view in VS Code, or start a new Cline CLI process")
 		return outcome, nil
 	case domain.ClientOpenCode:
 		if !activator.AutomaticallyActivates(request) {

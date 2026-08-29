@@ -172,6 +172,11 @@ func (planner Planner) Plan(
 		plan.Status = domain.PlanReady
 		plan.Activation = domain.ActivationPrepared
 	}
+	if plan.Status != domain.PlanUnsupported && client.ClientID == domain.ClientCline &&
+		strings.TrimSpace(client.ConfigRoot) != "" && hasOnlyPortableNativeComponents(plan.Components) {
+		plan.Status = domain.PlanReady
+		plan.Activation = domain.ActivationPrepared
+	}
 
 	switch client.ClientID {
 	case domain.ClientCodex:
@@ -194,6 +199,8 @@ func (planner Planner) Plan(
 		}
 	case domain.ClientKiro:
 		plan.UserActions = append(plan.UserActions, "agentplugins will install and verify the package's global Kiro skills and MCP servers automatically")
+	case domain.ClientCline:
+		plan.UserActions = append(plan.UserActions, "agentplugins will install and verify Cline skills and MCP servers automatically; VS Code reloads MCP settings, while Cline CLI reads them on its next process")
 	case domain.ClientGemini:
 		plan.UserActions = append(plan.UserActions, "agentplugins will install and verify Gemini CLI skills and MCP servers automatically; reload them in a running session or restart Gemini CLI")
 	case domain.ClientVSCode:
