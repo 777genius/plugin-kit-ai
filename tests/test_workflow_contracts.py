@@ -1367,11 +1367,17 @@ class WorkflowContractTests(unittest.TestCase):
             if step.get("name") == "Prove compatibility with the exact released CLI"
         )
         self.assertNotIn("EXPECTED_SOURCE_COMMIT", compatibility["env"])
-        self.assertIn("staged-publication/registry/schemas/1/snapshots", compatibility["run"])
-        self.assertIn('item["distribution_id"] == "777genius/context7"', compatibility["run"])
-        self.assertIn("assert len(active_policies) == 1", compatibility["run"])
-        self.assertIn('expected_source = release["package_source"]', compatibility["run"])
-        self.assertIn('result["revision"] == expected_source["revision"]', compatibility["run"])
+        self.assertEqual(
+            compatibility["env"]["EXPECTED_SNAPSHOT_DIGEST"],
+            "${{ needs.sign.outputs.snapshot_digest }}",
+        )
+        self.assertIn("verify_released_cli_directory_parity.py", compatibility["run"])
+        self.assertIn('--snapshot "${snapshot}"', compatibility["run"])
+        self.assertIn('--sequence "${EXPECTED_SEQUENCE}"', compatibility["run"])
+        self.assertIn('--snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}"', compatibility["run"])
+        self.assertIn("--product-id context7", compatibility["run"])
+        self.assertNotIn('item["distribution_id"] == "777genius/context7"', compatibility["run"])
+        self.assertNotIn('result["revision"] == expected_source["revision"]', compatibility["run"])
         deploy_needs = workflow["jobs"]["deploy"]["needs"]
         self.assertIn("sign", deploy_needs)
         self.assertIn("gate_exact_staged_publication", deploy_needs)

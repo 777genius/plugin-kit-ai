@@ -1661,16 +1661,16 @@ class PublicationWorkflowTests(unittest.TestCase):
             if step.get("name") == "Prove compatibility with the exact released CLI"
         )
         self.assertNotIn("EXPECTED_SOURCE_COMMIT", cli_step["env"])
-        for exact_identity in (
-            "staged-publication/registry/schemas/1/snapshots",
-            'item["distribution_id"] == "777genius/context7"',
-            "assert len(active_policies) == 1",
-            'expected_source = release["package_source"]',
-            'result["repository"] == expected_source["repository"]',
-            'result["revision"] == expected_source["revision"]',
-            'result["package_path"] == expected_source["path"]',
-        ):
-            self.assertIn(exact_identity, cli_step["run"])
+        self.assertIn("verify_released_cli_directory_parity.py", cli_step["run"])
+        self.assertIn('--snapshot "${snapshot}"', cli_step["run"])
+        self.assertIn('--sequence "${EXPECTED_SEQUENCE}"', cli_step["run"])
+        self.assertEqual(
+            cli_step["env"]["EXPECTED_SNAPSHOT_DIGEST"],
+            "${{ needs.sign.outputs.snapshot_digest }}",
+        )
+        self.assertIn('--snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}"', cli_step["run"])
+        self.assertIn("--product-id context7", cli_step["run"])
+        self.assertNotIn('result["revision"] == expected_source["revision"]', cli_step["run"])
         self.assertIn("gate_launch_approval", workflow["jobs"]["deploy"]["needs"])
         self.assertIn("gate_exact_staged_publication", workflow["jobs"]["deploy"]["needs"])
         self.assertIn("sign", workflow["jobs"]["deploy"]["needs"])

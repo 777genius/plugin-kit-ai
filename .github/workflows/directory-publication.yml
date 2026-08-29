@@ -977,6 +977,7 @@ jobs:
           AGENTPLUGINS_COMMIT: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
           AGENTPLUGINS_VERSION: 0.1.18
           EXPECTED_SEQUENCE: ${{ needs.sign.outputs.sequence }}
+          EXPECTED_SNAPSHOT_DIGEST: ${{ needs.sign.outputs.snapshot_digest }}
           EXPECTED_LEDGER_HEAD: ${{ needs.materialize_site.outputs.ledger_commit }}
         run: |
           release_dir="${RUNNER_TEMP}/agentplugins-release"
@@ -1024,42 +1025,14 @@ jobs:
           "${isolated[@]}" "${binary}" search context7 --format json > "${run_root}/evidence/search.json"
           "${isolated[@]}" "${binary}" add context7 --dry-run --target cursor --format json > "${run_root}/evidence/add.json"
           snapshot="${GITHUB_WORKSPACE}/staged-publication/registry/schemas/1/snapshots/$(printf '%020d' "${EXPECTED_SEQUENCE}").json"
-          python3 - "${run_root}/evidence" "${EXPECTED_SEQUENCE}" "${snapshot}" <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          evidence = Path(sys.argv[1])
-          expected_sequence = int(sys.argv[2])
-          snapshot = json.loads(Path(sys.argv[3]).read_text())
-          search = json.loads((evidence / "search.json").read_text())
-          add = json.loads((evidence / "add.json").read_text())
-          assert search["result"] == "success"
-          assert search["data"]["snapshot_sequence"] == expected_sequence
-          results = [
-              item for item in search["data"]["results"]
-              if item["product_id"] == "context7" and item["distribution_id"] == "777genius/context7"
-          ]
-          assert len(results) == 1
-          result = results[0]
-          distributions = [item for item in snapshot["distributions"] if item["id"] == result["distribution_id"]]
-          assert len(distributions) == 1
-          distribution = distributions[0]
-          active_policies = [item for item in distribution["release_policies"] if item["status"] == "active"]
-          assert len(active_policies) == 1
-          releases = [item for item in distribution["releases"] if item["sequence"] == active_policies[0]["release_sequence"]]
-          assert len(releases) == 1
-          release = releases[0]
-          expected_source = release["package_source"]
-          assert result["status"] == "available"
-          assert result["repository"] == expected_source["repository"]
-          assert result["revision"] == expected_source["revision"]
-          assert result["package_path"] == expected_source["path"]
-          assert add["result"] == "success"
-          assert add["data"]["targets"][0]["target"] == "cursor"
-          assert add["data"]["targets"][0]["output"]["plugin"] == "context7"
-          assert add["data"]["targets"][0]["output"]["result"]["mutated"] is False
-          PY
+          python3 "${GITHUB_WORKSPACE}/trusted-source/scripts/verify_released_cli_directory_parity.py" \
+            --snapshot "${snapshot}" \
+            --search "${run_root}/evidence/search.json" \
+            --add "${run_root}/evidence/add.json" \
+            --sequence "${EXPECTED_SEQUENCE}" \
+            --snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}" \
+            --product-id context7 \
+            --cli-version "${AGENTPLUGINS_VERSION}"
 
   required_stable_launch_evidence:
     name: Require stable launch evidence before initial production promotion
