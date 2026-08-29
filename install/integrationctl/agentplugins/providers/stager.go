@@ -200,6 +200,11 @@ func (stager Stager) stage(
 			return domain.StagedDelivery{}, err
 		}
 	}
+	if plan.ClientID == domain.ClientOpenCode {
+		if err := projectOpenCodeNative(stagingPath, envelope, plan, pluginDataPath); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
 	if plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode {
 		if err := projectCopilotMarketplace(stagingPath, envelope, plan); err != nil {
 			return domain.StagedDelivery{}, err
@@ -229,6 +234,13 @@ func (stager Stager) stage(
 			return domain.StagedDelivery{}, err
 		}
 		objects = append(objects, kiroObjects...)
+	}
+	if plan.ClientID == domain.ClientOpenCode {
+		openCodeObjects, err := buildOpenCodeNativeObjects(stagingPath, envelope, plan)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+		objects = append(objects, openCodeObjects...)
 	}
 	return domain.StagedDelivery{
 		ClientID:       plan.ClientID,

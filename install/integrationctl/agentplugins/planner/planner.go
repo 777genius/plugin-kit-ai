@@ -157,6 +157,11 @@ func (planner Planner) Plan(
 		plan.Status = domain.PlanReady
 		plan.Activation = domain.ActivationPrepared
 	}
+	if plan.Status != domain.PlanUnsupported && client.ClientID == domain.ClientOpenCode &&
+		strings.TrimSpace(client.ConfigRoot) != "" && hasOnlyPortableNativeComponents(plan.Components) {
+		plan.Status = domain.PlanReady
+		plan.Activation = domain.ActivationPrepared
+	}
 
 	switch client.ClientID {
 	case domain.ClientCodex:
@@ -185,6 +190,8 @@ func (planner Planner) Plan(
 		} else {
 			plan.UserActions = append(plan.UserActions, "register the prepared local plugin in VS Code after installation")
 		}
+	case domain.ClientOpenCode:
+		plan.UserActions = append(plan.UserActions, "agentplugins will install the package's skills and MCP servers; restart OpenCode when complete")
 	}
 	return plan, nil
 }
@@ -467,6 +474,20 @@ func hasSupportedKind(decisions []domain.ComponentDecision, kind domain.Componen
 }
 
 func hasOnlyKiroNativeComponents(decisions []domain.ComponentDecision) bool {
+	found := false
+	for _, item := range decisions {
+		if item.Support == domain.SupportUnsupported {
+			continue
+		}
+		if item.Kind != domain.ComponentSkill && item.Kind != domain.ComponentMCPServer {
+			return false
+		}
+		found = true
+	}
+	return found
+}
+
+func hasOnlyPortableNativeComponents(decisions []domain.ComponentDecision) bool {
 	found := false
 	for _, item := range decisions {
 		if item.Support == domain.SupportUnsupported {

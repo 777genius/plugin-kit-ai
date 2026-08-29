@@ -224,6 +224,11 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		return registryIndeterminate, nil
 	case domain.ClientKiro:
 		return inspectKiroRegistry(plan, managed)
+	case domain.ClientOpenCode:
+		// OpenCode MCP entries are keyed by individual server names rather than
+		// the package identity. Exact entry collision and ownership checks happen
+		// transactionally in the native config provider after staging.
+		return registryClear, nil
 	default:
 		return registryIndeterminate, nil
 	}

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,6 +107,60 @@ func TestKiroSkillSupportsAutomaticAddUpdateAndRepair(t *testing.T) {
 	}
 }
 
+func TestOpenCodeSupportsAutomaticMCPAndSkillLifecycle(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	service.NativeObserver = providers.NativeIdentityObserver{Stager: service.Stager}
+	client := domain.DetectedClient{ClientID: domain.ClientOpenCode, DisplayName: "OpenCode", Status: domain.DetectionDetected,
+		ConfigRoot: filepath.Join(t.TempDir(), "xdg", "opencode"), ExecutablePath: "/test/bin/opencode"}
+
+	add := openCodePluginInput(t, client, "1.0.0", "sha256:opencode-v1", "sha256:opencode-manifest-v1", "node")
+	added, err := service.AddGroup(context.Background(), GroupInput{Targets: []AddInput{add}, OperationGroupID: "opencode-add", Confirmed: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added.Targets[0].Activation.Activation != domain.ActivationActive || added.Targets[0].Activation.Verification != domain.VerificationInstalled {
+		t.Fatalf("OpenCode add did not complete native installation: %+v", added.Targets[0])
+	}
+	config := readUsecaseObject(t, filepath.Join(client.ConfigRoot, "opencode.json"))
+	server := config["mcp"].(map[string]any)["docs"].(map[string]any)
+	if argv := server["command"].([]any); server["type"] != "local" || argv[0] != "node" {
+		t.Fatalf("unexpected OpenCode MCP projection: %#v", server)
+	}
+	if _, err := os.Stat(filepath.Join(client.ConfigRoot, "skills", "docs", "SKILL.md")); err != nil {
+		t.Fatalf("OpenCode skill was not installed: %v", err)
+	}
+
+	update := openCodePluginInput(t, client, "2.0.0", "sha256:opencode-v2", "sha256:opencode-manifest-v2", "bun")
+	if _, err := service.UpdateGroup(context.Background(), GroupInput{Targets: []AddInput{update}, CompatibilityChecks: []AddInput{update}, OperationGroupID: "opencode-update", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	config = readUsecaseObject(t, filepath.Join(client.ConfigRoot, "opencode.json"))
+	server = config["mcp"].(map[string]any)["docs"].(map[string]any)
+	if argv := server["command"].([]any); argv[0] != "bun" {
+		t.Fatalf("OpenCode MCP update did not converge: %#v", server)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(onlyBinding(state.Installations[0]).NativeObjects) != 3 {
+		t.Fatalf("OpenCode ownership receipts were not persisted: %+v", onlyBinding(state.Installations[0]).NativeObjects)
+	}
+	removed, err := service.RemoveGroup(context.Background(), RemoveGroupInput{Selector: added.InstallationID,
+		Targets: []RemoveInput{{Client: client, Scope: domain.ScopeUser}}, OperationGroupID: "opencode-remove", Confirmed: true})
+	if err != nil || !removed.Mutated {
+		t.Fatalf("OpenCode remove failed: result=%+v err=%v", removed, err)
+	}
+	config = readUsecaseObject(t, filepath.Join(client.ConfigRoot, "opencode.json"))
+	if _, exists := config["mcp"].(map[string]any)["docs"]; exists {
+		t.Fatalf("managed OpenCode MCP entry survived remove: %#v", config)
+	}
+	if _, err := os.Stat(filepath.Join(client.ConfigRoot, "skills", "docs")); !os.IsNotExist(err) {
+		t.Fatalf("managed OpenCode skill survived remove: %v", err)
+	}
+}
+
 func signedChatGPTInput(t *testing.T, client domain.DetectedClient, version, treeDigest, manifestDigest string) AddInput {
 	t.Helper()
 	input := addInput(t, client, "https://example.com/chatgpt")
@@ -150,5 +205,35 @@ func kiroPowerInput(t *testing.T, client domain.DetectedClient, version, treeDig
 	}
 	input.Envelope.Skills = map[string]domain.Skill{"docs": {Name: "docs", Description: "docs", RelativePath: "skills/docs/SKILL.md", Raw: []byte("---\nname: docs\ndescription: docs\n---\n")}}
 	input.Envelope.Inventory.Skills = []string{"docs"}
+	return input
+}
+
+func openCodePluginInput(t *testing.T, client domain.DetectedClient, version, treeDigest, manifestDigest, command string) AddInput {
+	t.Helper()
+	input := addInput(t, client, "https://example.com/opencode")
+	setEnvelopeVersion(t, &input.Envelope, version, treeDigest, manifestDigest)
+	skillBody := []byte("---\nname: docs\ndescription: docs " + version + "\n---\n")
+	skillRoot := filepath.Join(input.Envelope.SnapshotRoot, "skills", "docs")
+	if err := os.MkdirAll(skillRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), skillBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mcpBody := []byte(fmt.Sprintf(`{"mcpServers":{"docs":{"type":"stdio","command":%q,"args":["${PLUGIN_ROOT}/server.js"]}}}`, command))
+	if err := os.WriteFile(filepath.Join(input.Envelope.SnapshotRoot, "mcp.json"), mcpBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(input.Envelope.SnapshotRoot, "server.js"), []byte("// test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	input.Envelope.Skills = map[string]domain.Skill{"docs": {Name: "docs", Description: "docs", RelativePath: "skills/docs/SKILL.md", Raw: skillBody}}
+	input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Raw: mcpBody, Servers: map[string]domain.MCPServer{
+		"docs": {Name: "docs", Type: "stdio", Raw: mcpBody, Decoded: map[string]any{"type": "stdio", "command": command, "args": []any{"${PLUGIN_ROOT}/server.js"}}},
+	}}
+	input.Envelope.Inventory.Skills = []string{"docs"}
+	input.Envelope.Inventory.MCPPresent = true
+	input.Envelope.Inventory.MCPEnabled = true
+	input.Envelope.Inventory.MCPServers = []string{"docs"}
 	return input
 }

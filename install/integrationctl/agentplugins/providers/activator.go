@@ -29,6 +29,9 @@ type Activator struct {
 // CLI for this exact request. Runtime preflight consumes this same predicate so
 // it cannot drift from the provider's activation paths.
 func (activator Activator) AutomaticallyActivates(request domain.ActivationRequest) bool {
+	if request.Client.ClientID == domain.ClientOpenCode {
+		return strings.TrimSpace(request.Client.ConfigRoot) != "" && openCodeNativeComponents(request.Plan.Components)
+	}
 	if request.Client.ClientID == domain.ClientKiro {
 		if strings.TrimSpace(request.Client.ConfigRoot) == "" || !kiroNativeComponents(request.Plan.Components) {
 			return false
@@ -128,6 +131,16 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			return outcome, nil
 		}
 		if err := deactivateKiroNative(ctx, request); err != nil {
+			return outcome, err
+		}
+		outcome.ExternalRemovalComplete = true
+		return outcome, nil
+	case domain.ClientOpenCode:
+		if !request.Confirmed {
+			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove its managed OpenCode skills and MCP entries automatically")
+			return outcome, nil
+		}
+		if err := deactivateOpenCodeNative(ctx, request); err != nil {
 			return outcome, err
 		}
 		outcome.ExternalRemovalComplete = true
@@ -305,6 +318,23 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
+		return outcome, nil
+	case domain.ClientOpenCode:
+		if !activator.AutomaticallyActivates(request) {
+			outcome.Activation = domain.ActivationManual
+			outcome.UserActions = append(outcome.UserActions, "rerun with a detected OpenCode config root")
+			return outcome, nil
+		}
+		if request.VerifyOnly {
+			if err := verifyOpenCodeNativeObjects(request.Client.ConfigRoot, request.Delivery.ActivePath, request.Delivery.NativeObjects); err != nil {
+				return failedActivation(outcome, "repair the managed OpenCode skills and MCP configuration", err)
+			}
+		} else if err := activateOpenCodeNative(ctx, request); err != nil {
+			return failedActivation(outcome, "retry the managed OpenCode native installation", err)
+		}
+		outcome.Activation = domain.ActivationActive
+		outcome.Verification = domain.VerificationInstalled
+		outcome.UserActions = append(outcome.UserActions, "restart OpenCode to load the installed plugin")
 		return outcome, nil
 	case domain.ClientCopilot, domain.ClientVSCode:
 		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
@@ -514,6 +544,20 @@ func failedActivation(outcome domain.ActivationOutcome, next string, err error) 
 }
 
 func kiroNativeComponents(components []domain.ComponentDecision) bool {
+	found := false
+	for _, component := range components {
+		if component.Support == domain.SupportUnsupported {
+			continue
+		}
+		if component.Kind != domain.ComponentSkill && component.Kind != domain.ComponentMCPServer {
+			return false
+		}
+		found = true
+	}
+	return found
+}
+
+func openCodeNativeComponents(components []domain.ComponentDecision) bool {
 	found := false
 	for _, component := range components {
 		if component.Support == domain.SupportUnsupported {

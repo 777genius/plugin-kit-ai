@@ -712,6 +712,7 @@ func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput,
 		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") {
 			return domain.ActivationOutcome{}, nil
 		}
+	case domain.ClientOpenCode:
 	default:
 		return domain.ActivationOutcome{}, nil
 	}
