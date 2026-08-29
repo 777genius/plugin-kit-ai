@@ -72,7 +72,7 @@ func TestStagerProjectsClaudeSkillsDirectoryPluginWithRootMCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest := readObject(t, filepath.Join(delivery.StagingPath, ".claude-plugin", "plugin.json"))
-	if manifest["name"] != "demo" || manifest["skills"] != "./skills/" || manifest["mcpServers"] != "./.mcp.json" {
+	if manifest["name"] != "demo" || manifest["skills"] != "./.agentplugins-runtime/skills/" || manifest["mcpServers"] != "./.mcp.json" {
 		t.Fatalf("Claude manifest = %+v", manifest)
 	}
 	mcp := readObject(t, filepath.Join(delivery.StagingPath, ".mcp.json"))
@@ -81,9 +81,72 @@ func TestStagerProjectsClaudeSkillsDirectoryPluginWithRootMCP(t *testing.T) {
 		t.Fatalf("Claude root MCP = %+v", mcp)
 	}
 	assertMissing(t, filepath.Join(delivery.StagingPath, "mcp.json"))
-	if _, err := os.Stat(filepath.Join(delivery.StagingPath, "skills", "good", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(delivery.StagingPath, ".agentplugins-runtime", "skills", "good", "SKILL.md")); err != nil {
 		t.Fatalf("Claude skill missing: %v", err)
 	}
+	assertMissing(t, filepath.Join(delivery.StagingPath, "skills"))
+}
+
+func TestClaudeProjectionExposesOnlyPlannedSurfacesAndRebindsRuntime(t *testing.T) {
+	envelope := stagingEnvelope(t)
+	for _, surface := range []string{"commands/run.md", "agents/helper.md", "hooks/hooks.json", ".lsp/config.json", "output-styles/style.md"} {
+		writeTestFile(t, filepath.Join(envelope.SnapshotRoot, surface), "unplanned\n")
+	}
+	writeTestFile(t, filepath.Join(envelope.SnapshotRoot, "skills", "extra", "SKILL.md"), "---\nname: extra\ndescription: Extra\n---\n")
+	server := domain.MCPServer{Name: "local", Type: "stdio", Decoded: map[string]any{
+		"type": "stdio", "command": "node", "args": []any{"${PLUGIN_ROOT}/bin/run"},
+		"env": map[string]any{"CACHE": "${PLUGIN_DATA}/cache"},
+	}}
+	envelope.MCP.Servers = map[string]domain.MCPServer{"local": server}
+	plan := stagingPlan(t, domain.ClientClaude, domain.PackageProjection)
+	plan.Components = []domain.ComponentDecision{
+		{Kind: domain.ComponentSkill, Name: "good", Support: domain.SupportProjected},
+		{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportProjected},
+	}
+	ownedData := filepath.Join(t.TempDir(), "data")
+	delivery, err := (Stager{}).StageWithPluginData(context.Background(), envelope, plan, "claude-isolated", domain.CompatibilityHints{}, ownedData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if delivery.OwnedBase != plan.TargetRoot || filepath.Dir(delivery.StagingPath) != plan.TargetAnchor {
+		t.Fatalf("Claude transaction paths = owned %q staging %q", delivery.OwnedBase, delivery.StagingPath)
+	}
+	entries, err := os.ReadDir(delivery.StagingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	want := []string{".agentplugins-runtime", ".claude-plugin", ".mcp.json"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("Claude exposed root = %v, want %v", names, want)
+	}
+	runtimeRoot := filepath.Join(delivery.StagingPath, ".agentplugins-runtime")
+	assertExecutable(t, filepath.Join(runtimeRoot, "bin", "run"))
+	assertMissing(t, filepath.Join(runtimeRoot, "skills", "extra"))
+	if _, err := os.Stat(filepath.Join(runtimeRoot, "skills", "good", "SKILL.md")); err != nil {
+		t.Fatal(err)
+	}
+	document := readObject(t, filepath.Join(delivery.StagingPath, ".mcp.json"))
+	local := document["local"].(map[string]any)
+	activeRuntime := filepath.Join(plan.ActivePath, ".agentplugins-runtime")
+	if local["cwd"] != activeRuntime {
+		t.Fatalf("Claude stdio cwd = %v, want %v", local["cwd"], activeRuntime)
+	}
+	args := local["args"].([]any)
+	if args[0] != filepath.Join(activeRuntime, "bin", "run") {
+		t.Fatalf("Claude stdio args = %v", args)
+	}
+	env := local["env"].(map[string]any)
+	if env["PLUGIN_ROOT"] != activeRuntime || env["PLUGIN_DATA"] != ownedData {
+		t.Fatalf("Claude stdio env = %v", env)
+	}
+	if err := (Stager{}).Discard(context.Background(), delivery); err != nil {
+		t.Fatal(err)
+	}
+	assertMissing(t, delivery.StagingPath)
 }
 
 func TestStagerProjectsExactOwnedPluginDataContract(t *testing.T) {
@@ -440,6 +503,9 @@ func stagingPlan(t *testing.T, client domain.ClientID, mode domain.PackageMode) 
 	t.Helper()
 	anchor := filepath.Join(t.TempDir(), "managed")
 	target := filepath.Join(anchor, "clients", string(client))
+	if client == domain.ClientClaude {
+		target = filepath.Join(anchor, "skills")
+	}
 	active := filepath.Join(target, "demo-0123456789ab")
 	status := domain.PlanReady
 	activation := domain.ActivationActive

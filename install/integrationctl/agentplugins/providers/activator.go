@@ -84,7 +84,7 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
 			return outcome, fmt.Errorf("trusted Claude Code CLI is required for exact removal verification")
 		}
-		listed, err := activator.runClientResult(ctx, "Claude Code CLI", request.BackendExecutable, "plugin", "list", "--json")
+		listed, err := activator.runClaudeListResult(ctx, request.BackendExecutable, request.Client.ConfigRoot, request.ManagedArtifactPath)
 		if err != nil {
 			return outcome, fmt.Errorf("verify Claude Code plugin before removal: %w", err)
 		}
@@ -561,7 +561,7 @@ func (activator Activator) verifyCodex(ctx context.Context, request domain.Activ
 }
 
 func (activator Activator) verifyClaude(ctx context.Context, request domain.ActivationRequest) error {
-	listed, err := activator.runClientResult(ctx, "Claude Code CLI", request.BackendExecutable, "plugin", "list", "--json")
+	listed, err := activator.runClaudeListResult(ctx, request.BackendExecutable, request.Client.ConfigRoot, request.Delivery.ActivePath)
 	if err != nil {
 		return fmt.Errorf("verify Claude Code plugin listing: %w", err)
 	}
@@ -632,6 +632,24 @@ func (activator Activator) runClientResult(ctx context.Context, client, executab
 	}
 	if result.ExitCode != 0 {
 		return result, fmt.Errorf("%s command failed with exit code %d", client, result.ExitCode)
+	}
+	return result, nil
+}
+
+func (activator Activator) runClaudeListResult(ctx context.Context, executable, configRoot, activePath string) (legacyports.CommandResult, error) {
+	if activator.Runner == nil {
+		return legacyports.CommandResult{}, fmt.Errorf("Claude Code CLI runner is unavailable")
+	}
+	command, err := claudeListCommand(executable, configRoot, activePath)
+	if err != nil {
+		return legacyports.CommandResult{}, err
+	}
+	result, err := runClaudeListCommand(ctx, activator.Runner, command)
+	if err != nil {
+		return result, fmt.Errorf("start Claude Code CLI: %w", err)
+	}
+	if result.ExitCode != 0 {
+		return result, fmt.Errorf("Claude Code CLI command failed with exit code %d", result.ExitCode)
 	}
 	return result, nil
 }
@@ -771,7 +789,7 @@ const (
 	claudeStatusCollision
 )
 
-func claudePluginStatus(body []byte, name, activePath string, ignoredPaths ...string) claudeStatus {
+func claudePluginStatus(body []byte, name, activePath string) claudeStatus {
 	decoder := json.NewDecoder(strings.NewReader(string(body)))
 	decoder.UseNumber()
 	parsed, err := decodeUniqueJSONValue(decoder)
@@ -787,12 +805,6 @@ func claudePluginStatus(body []byte, name, activePath string, ignoredPaths ...st
 	}
 	expectedID := name + "@skills-dir"
 	expectedPath := filepath.Clean(activePath)
-	ignored := map[string]struct{}{}
-	for _, path := range ignoredPaths {
-		if strings.TrimSpace(path) != "" {
-			ignored[filepath.Clean(path)] = struct{}{}
-		}
-	}
 	seen := map[string]struct{}{}
 	found := false
 	for _, value := range entries {
@@ -813,9 +825,6 @@ func claudePluginStatus(body []byte, name, activePath string, ignoredPaths ...st
 		}
 		seen[identity] = struct{}{}
 		if id != expectedID {
-			continue
-		}
-		if _, skip := ignored[filepath.Clean(installPath)]; skip {
 			continue
 		}
 		if filepath.Clean(installPath) != expectedPath || scope != "user" {

@@ -16,6 +16,7 @@ import (
 type identityRunner struct {
 	result   legacyports.CommandResult
 	commands [][]string
+	last     legacyports.Command
 }
 
 type blockingIdentityRunner struct {
@@ -30,6 +31,7 @@ func (runner blockingIdentityRunner) Run(ctx context.Context, _ legacyports.Comm
 
 func (runner *identityRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
 	runner.commands = append(runner.commands, append([]string(nil), command.Argv...))
+	runner.last = command
 	return runner.result, nil
 }
 

@@ -402,9 +402,7 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 	}
 	defer cleanup()
 	for _, target := range planned {
-		observationPlan := target.plan
-		observationPlan.TransientNativeRegistryPath = target.delivery.StagingPath
-		if err := service.observeGroupNativeIdentity(ctx, target.input.Client, observationPlan, target.managed, input.Repair); err != nil {
+		if err := service.observeGroupNativeIdentity(ctx, target.input.Client, target.plan, target.managed, input.Repair); err != nil {
 			return result, fmt.Errorf("native identity changed before group commit: %w", err)
 		}
 	}

@@ -167,7 +167,18 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		if strings.TrimSpace(plan.NativeRegistryExecutable) == "" || observer.Runner == nil {
 			return registryIndeterminate, nil
 		}
-		result, err := observer.runNativeRegistry(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list", "--json"}})
+		configRoot := strings.TrimSpace(plan.TargetAnchor)
+		if configRoot == "" {
+			configRoot = strings.TrimSpace(client.ConfigRoot)
+		}
+		if configRoot == "" && strings.TrimSpace(plan.TargetRoot) != "" {
+			configRoot = filepath.Dir(filepath.Clean(plan.TargetRoot))
+		}
+		command, err := claudeListCommand(plan.NativeRegistryExecutable, configRoot, plan.ActivePath)
+		if err != nil {
+			return registryIndeterminate, err
+		}
+		result, err := runClaudeListCommand(ctx, observer.Runner, command)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return registryIndeterminate, ctxErr
@@ -177,8 +188,7 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		if result.ExitCode != 0 {
 			return registryIndeterminate, fmt.Errorf("Claude Code plugin registry command failed with exit code %d", result.ExitCode)
 		}
-		ignoredPath := trustedClaudeTransientPath(plan)
-		switch claudePluginStatus(result.Stdout, plan.DeclaredName, plan.ActivePath, ignoredPath) {
+		switch claudePluginStatus(result.Stdout, plan.DeclaredName, plan.ActivePath) {
 		case claudeStatusInstalled:
 			if managed == nil {
 				return registryCollision, nil
@@ -240,20 +250,6 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 	default:
 		return registryIndeterminate, nil
 	}
-}
-
-func trustedClaudeTransientPath(plan domain.DeliveryPlan) string {
-	path := strings.TrimSpace(plan.TransientNativeRegistryPath)
-	if path == "" || !filepath.IsAbs(path) {
-		return ""
-	}
-	path = filepath.Clean(path)
-	root := filepath.Clean(plan.TargetRoot)
-	if filepath.Dir(path) != root || path == filepath.Clean(plan.ActivePath) ||
-		!strings.HasPrefix(filepath.Base(path), ".agentplugins-staging-") {
-		return ""
-	}
-	return path
 }
 
 func (observer NativeIdentityObserver) inspectCodexCLI(ctx context.Context, plan domain.DeliveryPlan, managed *domain.ClientBinding) (registryFinding, error) {
@@ -603,9 +599,6 @@ func inspectClaudeSkillsRegistry(plan domain.DeliveryPlan, name string, owned bo
 	}
 	finding := registryClear
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".agentplugins-staging-") {
-			continue
-		}
 		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
 			return registryIndeterminate, nil
 		}

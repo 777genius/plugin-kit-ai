@@ -543,6 +543,13 @@ func (OS) RunWithTreeExitGrace(ctx context.Context, cmd ports.Command, treeExitG
 	return runCommand(ctx, cmd, treeExitGrace, true)
 }
 
+// RunWithDescendantExitGrace preserves the ordinary runner's full descendant
+// containment while allowing a trusted one-shot client a longer bounded grace
+// for naturally exiting helpers. Forced cleanup remains an error.
+func (OS) RunWithDescendantExitGrace(ctx context.Context, cmd ports.Command, treeExitGrace time.Duration) (ports.CommandResult, error) {
+	return runCommand(ctx, cmd, treeExitGrace, false)
+}
+
 func runCommand(ctx context.Context, cmd ports.Command, treeExitGrace time.Duration, processGroupOnly bool) (ports.CommandResult, error) {
 	if len(cmd.Argv) == 0 {
 		return ports.CommandResult{}, exec.ErrNotFound

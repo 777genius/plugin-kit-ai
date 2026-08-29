@@ -29,11 +29,15 @@ func (stager Stager) Discard(ctx context.Context, delivery domain.StagedDelivery
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if filepath.Dir(filepath.Clean(delivery.StagingPath)) != filepath.Clean(delivery.OwnedBase) ||
+	stagingBase := filepath.Clean(delivery.OwnedBase)
+	if delivery.ClientID == domain.ClientClaude {
+		stagingBase = filepath.Dir(stagingBase)
+	}
+	if filepath.Dir(filepath.Clean(delivery.StagingPath)) != stagingBase ||
 		!strings.HasPrefix(filepath.Base(delivery.StagingPath), ".agentplugins-staging-") {
 		return fmt.Errorf("refuse unsafe staged delivery cleanup")
 	}
-	return removeStaging(delivery.OwnedBase, delivery.StagingPath)
+	return removeStaging(stagingBase, delivery.StagingPath)
 }
 
 func (stager Stager) Verify(ctx context.Context, root, expectedDigest string) error {
@@ -149,8 +153,20 @@ func (stager Stager) stage(
 		return domain.StagedDelivery{}, err
 	}
 	suffix := sha256.Sum256([]byte(operationID))
-	stagingPath := filepath.Join(plan.TargetRoot, ".agentplugins-staging-"+hex.EncodeToString(suffix[:8]))
-	if err := pathpolicy.RequireContainedChild(plan.TargetRoot, stagingPath); err != nil {
+	stagingBase := plan.TargetRoot
+	// Claude Code discovers every plugin-shaped directory directly below its
+	// skills root. Keep the transaction staging directory beside that watched
+	// root so a pre-commit read-only `plugin list` cannot mistake it for an
+	// installed plugin. TargetAnchor and TargetRoot are on the same configured
+	// client filesystem; dirswap still performs the final atomic rename.
+	if plan.ClientID == domain.ClientClaude {
+		stagingBase = plan.TargetAnchor
+	}
+	if err := os.MkdirAll(stagingBase, 0o700); err != nil {
+		return domain.StagedDelivery{}, fmt.Errorf("create client staging root: %w", err)
+	}
+	stagingPath := filepath.Join(stagingBase, ".agentplugins-staging-"+hex.EncodeToString(suffix[:8]))
+	if err := pathpolicy.RequireContainedChild(stagingBase, stagingPath); err != nil {
 		return domain.StagedDelivery{}, fmt.Errorf("unsafe staging path: %w", err)
 	}
 	if _, statErr := os.Lstat(stagingPath); statErr == nil {
@@ -160,7 +176,7 @@ func (stager Stager) stage(
 	}
 	defer func() {
 		if err != nil {
-			_ = removeStaging(plan.TargetRoot, stagingPath)
+			_ = removeStaging(stagingBase, stagingPath)
 		}
 	}()
 	if err := filetree.CopyDir(envelope.SnapshotRoot, stagingPath); err != nil {
@@ -324,6 +340,9 @@ func validatePlanPaths(plan domain.DeliveryPlan) error {
 	}
 	if err := pathpolicy.RequireContainedChild(plan.TargetAnchor, plan.TargetRoot); err != nil {
 		return fmt.Errorf("unsafe delivery target root: %w", err)
+	}
+	if plan.ClientID == domain.ClientClaude && filepath.Clean(plan.TargetRoot) != filepath.Join(filepath.Clean(plan.TargetAnchor), "skills") {
+		return fmt.Errorf("Claude delivery target root must be the exact configured skills directory")
 	}
 	if filepath.Dir(filepath.Clean(plan.ActivePath)) != filepath.Clean(plan.TargetRoot) {
 		return fmt.Errorf("delivery active path must be a direct child of target root")
