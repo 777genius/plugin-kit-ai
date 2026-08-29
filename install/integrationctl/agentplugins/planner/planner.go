@@ -167,6 +167,11 @@ func (planner Planner) Plan(
 		plan.Status = domain.PlanReady
 		plan.Activation = domain.ActivationPrepared
 	}
+	if plan.Status != domain.PlanUnsupported && client.ClientID == domain.ClientWindsurf &&
+		strings.TrimSpace(client.ConfigRoot) != "" && hasSupportedKind(plan.Components, domain.ComponentMCPServer) {
+		plan.Status = domain.PlanReady
+		plan.Activation = domain.ActivationPrepared
+	}
 
 	switch client.ClientID {
 	case domain.ClientCodex:
@@ -199,6 +204,16 @@ func (planner Planner) Plan(
 		}
 	case domain.ClientOpenCode:
 		plan.UserActions = append(plan.UserActions, "agentplugins will install the package's skills and MCP servers; restart OpenCode when complete")
+	case domain.ClientWindsurf:
+		if strings.TrimSpace(client.ConfigRoot) != "" && hasSupportedKind(plan.Components, domain.ComponentMCPServer) {
+			plan.UserActions = append(plan.UserActions, "agentplugins will update the selected legacy Windsurf channel's local MCP configuration; refresh MCP servers before first use")
+		} else {
+			plan.UserActions = append(plan.UserActions, "select exactly one legacy Windsurf channel and import the prepared MCP configuration manually")
+		}
+		if hasSupportedKind(plan.Components, domain.ComponentSkill) {
+			plan.Warnings = appendUnique(plan.Warnings, "windsurf_skills_prepared_only")
+			plan.UserActions = append(plan.UserActions, "Windsurf skills remain in the prepared package and are not claimed as activated")
+		}
 	}
 	return plan, nil
 }

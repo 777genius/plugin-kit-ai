@@ -218,6 +218,11 @@ func (stager Stager) stage(
 			return domain.StagedDelivery{}, err
 		}
 	}
+	if plan.ClientID == domain.ClientWindsurf {
+		if err := projectWindsurfMCP(stagingPath, envelope, plan, pluginDataPath); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
 	artifact, err := stager.SnapshotBuilder.Build(ctx, stagingPath)
 	if err != nil {
 		return domain.StagedDelivery{}, fmt.Errorf("verify staged artifact: %w", err)
@@ -251,6 +256,13 @@ func (stager Stager) stage(
 		objects = append(objects, openCodeObjects...)
 	}
 	objects = append(objects, geminiObjects...)
+	if plan.ClientID == domain.ClientWindsurf {
+		windsurfObjects, err := buildWindsurfNativeObjects(stagingPath, plan)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+		objects = append(objects, windsurfObjects...)
+	}
 	return domain.StagedDelivery{
 		ClientID:       plan.ClientID,
 		OwnedBase:      plan.TargetRoot,

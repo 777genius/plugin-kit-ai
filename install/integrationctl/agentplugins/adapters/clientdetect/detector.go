@@ -300,21 +300,30 @@ func (detector Detector) detectCline(ctx context.Context, probeVersion bool) dom
 func (detector Detector) detectWindsurf(ctx context.Context, probeVersion bool) domain.DetectedClient {
 	windsurfCLI := detector.lookup("windsurf")
 	devinCLI := detector.lookup("devin")
-	stableConfig := detector.editorChannelConfigRoot("Windsurf")
-	nextConfig := detector.editorChannelConfigRoot("Windsurf - Next")
-	devinConfig := detector.editorChannelConfigRoot("Devin")
+	stableEditorConfig := detector.editorChannelConfigRoot("Windsurf")
+	nextEditorConfig := detector.editorChannelConfigRoot("Windsurf - Next")
+	devinEditorConfig := detector.editorChannelConfigRoot("Devin")
+	devinLocalConfig := detector.xdgConfigRoot("devin")
+	stableConfig := filepath.Join(detector.HomeDir, ".codeium", "windsurf")
+	nextConfig := filepath.Join(detector.HomeDir, ".codeium", "windsurf-next")
+	insidersConfig := filepath.Join(detector.HomeDir, ".codeium", "windsurf-insiders")
 	surfaces := []domain.ClientSurface{
 		{ID: "windsurf_cli", Detected: windsurfCLI != "", Evidence: evidence(windsurfCLI != "", "executable_on_path")},
 		{ID: "devin_cli", Detected: devinCLI != "", Evidence: evidence(devinCLI != "", "executable_on_path")},
-		detector.directorySurface("windsurf_config", stableConfig),
-		detector.directorySurface("windsurf_next_config", nextConfig),
-		detector.directorySurface("devin_config", devinConfig),
+		detector.directorySurface("windsurf_config", stableEditorConfig),
+		detector.directorySurface("windsurf_next_config", nextEditorConfig),
+		detector.directorySurface("devin_config", devinEditorConfig),
+		detector.directorySurface("devin_local_config", devinLocalConfig),
+		detector.directorySurface("windsurf_legacy_mcp", stableConfig),
+		detector.directorySurface("windsurf_next_legacy_mcp", nextConfig),
+		detector.directorySurface("windsurf_insiders_legacy_mcp", insidersConfig),
 	}
 	switch detector.GOOS {
 	case "darwin":
 		surfaces = append(surfaces,
 			detector.appSurface("windsurf_desktop", "Windsurf.app"),
 			detector.appSurface("windsurf_next_desktop", "Windsurf - Next.app"),
+			detector.appSurface("windsurf_insiders_desktop", "Windsurf - Insiders.app"),
 			detector.appSurface("devin_desktop", "Devin.app"),
 		)
 	case "windows":
@@ -328,14 +337,42 @@ func (detector Detector) detectWindsurf(ctx context.Context, probeVersion bool) 
 			detector.linuxDesktopSurface("devin_desktop", "devin.desktop"),
 		)
 	}
-	configRoot := stableConfig
-	for _, candidate := range []string{stableConfig, nextConfig, devinConfig} {
-		if detector.realDirectory(candidate) {
-			configRoot = candidate
-			break
+	// ConfigRoot is a mutation authority, not merely a detection hint. Select
+	// exactly one legacy Cascade channel and never guess a cloud-synced Devin
+	// location. Multiple installed channels deliberately require the user to
+	// narrow the environment before automatic activation is allowed.
+	configRoot := ""
+	type channel struct {
+		root       string
+		surfaceIDs []string
+	}
+	channels := []channel{
+		{root: stableConfig, surfaceIDs: []string{"windsurf_legacy_mcp", "windsurf_config", "windsurf_desktop"}},
+		{root: nextConfig, surfaceIDs: []string{"windsurf_next_legacy_mcp", "windsurf_next_config", "windsurf_next_desktop"}},
+		{root: insidersConfig, surfaceIDs: []string{"windsurf_insiders_legacy_mcp", "windsurf_insiders_desktop"}},
+	}
+	var selected []string
+	for _, candidate := range channels {
+		for _, id := range candidate.surfaceIDs {
+			if detectedSurface(surfaces, id) {
+				selected = append(selected, candidate.root)
+				break
+			}
 		}
 	}
+	if len(selected) == 1 {
+		configRoot = selected[0]
+	}
 	return detector.detectedClient(ctx, probeVersion, domain.ClientWindsurf, "Windsurf / Devin", configRoot, firstPath(windsurfCLI, devinCLI), surfaces)
+}
+
+func detectedSurface(surfaces []domain.ClientSurface, id string) bool {
+	for _, surface := range surfaces {
+		if surface.ID == id {
+			return surface.Detected
+		}
+	}
+	return false
 }
 
 func (detector Detector) vscodeConfigRoot() string {

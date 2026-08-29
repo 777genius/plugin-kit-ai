@@ -231,6 +231,8 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		return registryClear, nil
 	case domain.ClientGemini:
 		return inspectGeminiRegistry(plan, managed)
+	case domain.ClientWindsurf:
+		return inspectWindsurfRegistry(plan, managed)
 	default:
 		return registryIndeterminate, nil
 	}

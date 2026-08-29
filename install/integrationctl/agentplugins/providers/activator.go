@@ -34,6 +34,8 @@ func (activator Activator) AutomaticallyActivates(request domain.ActivationReque
 		return strings.TrimSpace(request.Client.ConfigRoot) != "" && openCodeNativeComponents(request.Plan.Components)
 	case domain.ClientGemini:
 		return strings.TrimSpace(request.Client.ConfigRoot) != "" && geminiNativeComponents(request.Plan.Components)
+	case domain.ClientWindsurf:
+		return strings.TrimSpace(request.Client.ConfigRoot) != "" && len(windsurfObjects(request.Delivery.NativeObjects)) > 0
 	}
 	if request.Client.ClientID == domain.ClientKiro {
 		if strings.TrimSpace(request.Client.ConfigRoot) == "" || !kiroNativeComponents(request.Plan.Components) {
@@ -154,6 +156,22 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			return outcome, nil
 		}
 		if err := deactivateGeminiNative(ctx, request); err != nil {
+			return outcome, err
+		}
+		outcome.ExternalRemovalComplete = true
+		return outcome, nil
+	case domain.ClientWindsurf:
+		if len(windsurfObjects(request.NativeObjects)) == 0 {
+			return requireExternalUninstall(outcome, request.ExternalUninstalled, "remove the prepared package manually, then rerun remove with `--external-uninstalled`"), nil
+		}
+		if strings.TrimSpace(request.Client.ConfigRoot) == "" {
+			return requireExternalUninstall(outcome, request.ExternalUninstalled, "select exactly one installed Windsurf channel, then rerun remove"), nil
+		}
+		if !request.Confirmed {
+			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove only its owned Windsurf MCP entries")
+			return outcome, nil
+		}
+		if err := deactivateWindsurfNative(ctx, request); err != nil {
 			return outcome, err
 		}
 		outcome.ExternalRemovalComplete = true
@@ -365,6 +383,28 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
 		outcome.UserActions = append(outcome.UserActions, "in a running Gemini CLI session use `/mcp reload` and `/skills reload`, or restart Gemini CLI")
+		return outcome, nil
+	case domain.ClientWindsurf:
+		if !activator.AutomaticallyActivates(request) {
+			outcome.Activation = domain.ActivationManual
+			outcome.UserActions = append(outcome.UserActions, "select one legacy Windsurf channel and add the prepared MCP servers manually")
+			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("Windsurf: import MCP servers from %s; Devin cloud-synced configuration is never changed automatically", filepath.Join(request.Delivery.ActivePath, "mcp.json")))
+			return outcome, nil
+		}
+		if request.VerifyOnly {
+			if err := verifyWindsurfNativeObjects(request.Client.ConfigRoot, request.Delivery.ActivePath, request.Delivery.NativeObjects, false); err != nil {
+				return failedActivation(outcome, "repair the managed Windsurf MCP configuration", err)
+			}
+			outcome.Activation = domain.ActivationActive
+			outcome.Verification = domain.VerificationInstalled
+			return outcome, nil
+		}
+		if err := activateWindsurfNative(ctx, request); err != nil {
+			return failedActivation(outcome, "retry the managed Windsurf MCP installation", err)
+		}
+		outcome.Activation = domain.ActivationActive
+		outcome.Verification = domain.VerificationInstalled
+		outcome.UserActions = append(outcome.UserActions, "refresh MCP servers in Windsurf before first use")
 		return outcome, nil
 	case domain.ClientCopilot, domain.ClientVSCode:
 		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {

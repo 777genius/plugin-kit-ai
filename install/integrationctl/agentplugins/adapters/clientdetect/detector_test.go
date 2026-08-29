@@ -159,6 +159,45 @@ func TestDetectorFindsWindsurfDevinChannelsWithoutExecutingThem(t *testing.T) {
 	if windsurf.Status != domain.DetectionDetected || !surfaceDetected(windsurf.Surfaces, "windsurf_desktop") || !surfaceDetected(windsurf.Surfaces, "devin_config") {
 		t.Fatalf("Windsurf / Devin detection = %+v", windsurf)
 	}
+	if want := filepath.Join(home, ".codeium", "windsurf"); windsurf.ConfigRoot != want {
+		t.Fatalf("Windsurf mutation root = %q, want exact stable channel %q", windsurf.ConfigRoot, want)
+	}
+}
+
+func TestDetectorRefusesToGuessAcrossMultipleWindsurfChannels(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	applications := filepath.Join(home, "Applications")
+	for _, app := range []string{"Windsurf.app", "Windsurf - Next.app"} {
+		if err := os.MkdirAll(filepath.Join(applications, app), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	detector := testDetector(home, nil)
+	detector.GOOS = "darwin"
+	detector.SystemApplicationsDir = applications
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	windsurf := clientOf(clients, domain.ClientWindsurf)
+	if windsurf.Status != domain.DetectionDetected || windsurf.ConfigRoot != "" {
+		t.Fatalf("ambiguous Windsurf channels must detect without mutation authority: %+v", windsurf)
+	}
+}
+
+func TestDetectorDoesNotTreatDevinCLIAsLegacyWindsurfMutationAuthority(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	detector := testDetector(home, map[string]string{"devin": filepath.Join(home, "bin", "devin")})
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	windsurf := clientOf(clients, domain.ClientWindsurf)
+	if windsurf.Status != domain.DetectionDetected || windsurf.ConfigRoot != "" {
+		t.Fatalf("Devin-only detection must remain non-mutating: %+v", windsurf)
+	}
 }
 
 func TestChatGPTDesktopNeverDetectsCodexOrInheritsItsBinary(t *testing.T) {
