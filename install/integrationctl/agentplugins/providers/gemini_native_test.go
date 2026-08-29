@@ -2,13 +2,53 @@ package providers
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers/nativeconfig"
 )
+
+func TestGeminiSkillRollbackRetainsOnlyBackupWhenRestoreRenameFails(t *testing.T) {
+	configRoot := filepath.Join(t.TempDir(), ".gemini")
+	activeV1, desiredV1 := geminiNativeFixture(t, configRoot, "v1", "https://docs.test/v1")
+	if err := applyGeminiNativeMutation(configRoot, activeV1, nil, desiredV1); err != nil {
+		t.Fatal(err)
+	}
+	activeV2, desiredV2 := geminiNativeFixture(t, configRoot, "v2", "https://docs.test/v2")
+	activationErr := errors.New("injected Gemini activation rename failure")
+	restoreErr := errors.New("injected Gemini restore rename failure")
+	rename := func(oldPath, newPath string) error {
+		switch {
+		case strings.HasPrefix(filepath.Base(oldPath), "new-"):
+			return activationErr
+		case strings.HasPrefix(filepath.Base(oldPath), "old-"):
+			return restoreErr
+		default:
+			return os.Rename(oldPath, newPath)
+		}
+	}
+
+	err := applyGeminiNativeMutationWithRename(configRoot, activeV2, desiredV1, desiredV2, rename)
+	if err == nil || !strings.Contains(err.Error(), activationErr.Error()) || !strings.Contains(err.Error(), restoreErr.Error()) || !strings.Contains(err.Error(), "recovery retained at") {
+		t.Fatalf("rollback error = %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(configRoot, "skills", "docs")); !os.IsNotExist(statErr) {
+		t.Fatalf("failed restore unexpectedly recreated target: %v", statErr)
+	}
+	transactions, globErr := filepath.Glob(filepath.Join(configRoot, "skills", ".agentplugins-native-*"))
+	if globErr != nil || len(transactions) != 1 {
+		t.Fatalf("retained Gemini transactions = %v, %v", transactions, globErr)
+	}
+	backup := filepath.Join(transactions[0], "old-docs", "SKILL.md")
+	body, readErr := os.ReadFile(backup)
+	if readErr != nil || string(body) != "v1\n" {
+		t.Fatalf("recoverable Gemini backup = %q, %v", body, readErr)
+	}
+}
 
 func TestGeminiNativeLifecyclePreservesUnmanagedConfiguration(t *testing.T) {
 	t.Parallel()

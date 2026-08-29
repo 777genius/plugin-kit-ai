@@ -144,7 +144,16 @@ func verifyGeminiNativeObjects(configRoot string, objects []domain.NativeObjectO
 	return nil
 }
 
-func applyGeminiNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) (resultErr error) {
+type geminiRenameFunc func(string, string) error
+
+func applyGeminiNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
+	return applyGeminiNativeMutationWithRename(configRoot, activePath, previous, desired, os.Rename)
+}
+
+func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename geminiRenameFunc) (resultErr error) {
+	if rename == nil {
+		return fmt.Errorf("Gemini rename operation is unavailable")
+	}
 	configRoot = strings.TrimSpace(configRoot)
 	if configRoot == "" || !filepath.IsAbs(configRoot) {
 		return fmt.Errorf("Gemini config root is unavailable")
@@ -178,6 +187,7 @@ func applyGeminiNativeMutation(configRoot, activePath string, previous, desired 
 	}
 
 	transactionRoot := ""
+	cleanupTransaction := true
 	if hasGeminiSkillObjects(previous) || hasGeminiSkillObjects(desired) {
 		skillsRoot := filepath.Join(configRoot, "skills")
 		if err := pathpolicy.RequireContainedChild(configRoot, skillsRoot); err != nil {
@@ -191,7 +201,6 @@ func applyGeminiNativeMutation(configRoot, activePath string, previous, desired 
 		if err != nil {
 			return fmt.Errorf("create Gemini native transaction: %w", err)
 		}
-		defer os.RemoveAll(transactionRoot)
 	}
 
 	staged := map[string]string{}
@@ -216,31 +225,52 @@ func applyGeminiNativeMutation(configRoot, activePath string, previous, desired 
 	backups, installed := map[string]string{}, map[string]domain.NativeObjectOwnership{}
 	rollbackSkills := func() error {
 		var rollbackErr error
+		attempted := map[string]bool{}
 		for id, object := range installed {
+			attempted[id] = true
 			if digest, err := digestKiroSkillDirectory(object.Path); err == nil && digest == object.ManagedDigest {
 				if err := os.RemoveAll(object.Path); err != nil && rollbackErr == nil {
 					rollbackErr = err
 				}
 			}
 			if backup := backups[id]; backup != "" {
-				if err := os.Rename(backup, object.Path); err != nil && rollbackErr == nil {
-					rollbackErr = err
+				if err := rename(backup, object.Path); err != nil {
+					if rollbackErr == nil {
+						rollbackErr = err
+					}
+				} else {
+					delete(backups, id)
 				}
-				delete(backups, id)
 			}
 		}
 		for id, backup := range backups {
-			if err := os.Rename(backup, previousByID[id].Path); err != nil && rollbackErr == nil {
-				rollbackErr = err
+			if attempted[id] {
+				continue
+			}
+			if err := rename(backup, previousByID[id].Path); err != nil {
+				if rollbackErr == nil {
+					rollbackErr = err
+				}
+			} else {
+				delete(backups, id)
 			}
 		}
 		return rollbackErr
 	}
 	defer func() {
-		if resultErr != nil {
-			if rollbackErr := rollbackSkills(); rollbackErr != nil {
-				resultErr = fmt.Errorf("%v; Gemini skill rollback failed: %w", resultErr, rollbackErr)
-			}
+		if cleanupTransaction && transactionRoot != "" {
+			_ = os.RemoveAll(transactionRoot)
+		}
+	}()
+	// A failed restore leaves the only recoverable copy inside transactionRoot.
+	// Keep that directory intact and report its exact location to the caller.
+	defer func() {
+		if resultErr == nil {
+			return
+		}
+		if rollbackErr := rollbackSkills(); rollbackErr != nil {
+			cleanupTransaction = false
+			resultErr = fmt.Errorf("%v; Gemini skill rollback failed: %w; recovery retained at %q", resultErr, rollbackErr, transactionRoot)
 		}
 	}()
 	for id, object := range previousByID {
@@ -253,14 +283,14 @@ func applyGeminiNativeMutation(configRoot, activePath string, previous, desired 
 			return err
 		}
 		backup := filepath.Join(transactionRoot, "old-"+object.LogicalName)
-		if err := os.Rename(object.Path, backup); err != nil {
+		if err := rename(object.Path, backup); err != nil {
 			return fmt.Errorf("backup Gemini skill %q: %w", object.LogicalName, err)
 		}
 		backups[id] = backup
 	}
 	for id, source := range staged {
 		object := desiredByID[id]
-		if err := os.Rename(source, object.Path); err != nil {
+		if err := rename(source, object.Path); err != nil {
 			return fmt.Errorf("activate Gemini skill %q: %w", object.LogicalName, err)
 		}
 		installed[id] = object

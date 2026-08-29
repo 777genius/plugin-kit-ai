@@ -30,7 +30,11 @@ func projectWindsurfMCP(root string, envelope domain.PackageEnvelope, plan domai
 		if err != nil {
 			return fmt.Errorf("project Windsurf MCP server %q: %w", name, err)
 		}
-		servers[name] = standardWindsurfServer(resolved, server.Type)
+		projected, err := standardWindsurfServer(resolved, server.Type)
+		if err != nil {
+			return fmt.Errorf("project Windsurf MCP server %q: %w", name, err)
+		}
+		servers[name] = projected
 	}
 	return writeJSON(filepath.Join(root, "mcp.json"), map[string]any{
 		"$schema":    domain.MCPSchemaV1,
@@ -377,6 +381,15 @@ func windsurfServer(server domain.MCPServer, packageRoot, dataRoot string) (nati
 			return result, fmt.Errorf("stdio command is required")
 		}
 		result.Command = command
+		if rawCWD, exists := decoded["cwd"]; exists {
+			cwd, ok := rawCWD.(string)
+			if !ok {
+				return result, fmt.Errorf("stdio cwd must be a string")
+			}
+			if strings.TrimSpace(cwd) != "" {
+				return result, fmt.Errorf("Windsurf stdio MCP server does not support cwd")
+			}
+		}
 		if rawArgs, ok := decoded["args"].([]any); ok {
 			for _, raw := range rawArgs {
 				value, ok := raw.(string)
@@ -460,8 +473,11 @@ func resolveWindsurfPlaceholders(server nativeconfig.Server, packageRoot, dataRo
 	return server, nil
 }
 
-func standardWindsurfServer(server nativeconfig.Server, originalType string) map[string]any {
+func standardWindsurfServer(server nativeconfig.Server, originalType string) (map[string]any, error) {
 	if server.Type == "stdio" {
+		if strings.TrimSpace(server.CWD) != "" {
+			return nil, fmt.Errorf("Windsurf stdio MCP server does not support cwd")
+		}
 		result := map[string]any{"type": "stdio", "command": server.Command}
 		if len(server.Args) > 0 {
 			result["args"] = server.Args
@@ -469,13 +485,13 @@ func standardWindsurfServer(server nativeconfig.Server, originalType string) map
 		if len(server.Env) > 0 {
 			result["env"] = server.Env
 		}
-		return result
+		return result, nil
 	}
 	result := map[string]any{"type": originalType, "url": server.URL}
 	if len(server.Headers) > 0 {
 		result["headers"] = server.Headers
 	}
-	return result
+	return result, nil
 }
 
 func decodeProjectedWindsurfServer(raw json.RawMessage) (nativeconfig.Server, error) {

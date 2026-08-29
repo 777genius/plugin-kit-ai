@@ -176,6 +176,36 @@ func TestWindsurfSSEUsesLegacyURLKey(t *testing.T) {
 	}
 }
 
+func TestWindsurfStagerRejectsUnsupportedCWDWithoutChangingProjection(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	projectionPath := filepath.Join(root, "mcp.json")
+	writeTestFile(t, projectionPath, "sentinel\n")
+	envelope := windsurfTestEnvelope(t, "cwd")
+	local := envelope.MCP.Servers["local"]
+	local.Decoded["cwd"] = "${PLUGIN_ROOT}/workspace"
+	envelope.MCP.Servers["local"] = local
+	plan := stagingPlan(t, domain.ClientWindsurf, domain.PackagePrepared)
+	plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportPrepared}}
+
+	err := projectWindsurfMCP(root, envelope, plan, filepath.Join(t.TempDir(), "data"))
+	if err == nil || !strings.Contains(err.Error(), "does not support cwd") {
+		t.Fatalf("Windsurf cwd projection error = %v", err)
+	}
+	body, readErr := os.ReadFile(projectionPath)
+	if readErr != nil || string(body) != "sentinel\n" {
+		t.Fatalf("rejected Windsurf cwd changed projection = %q, %v", body, readErr)
+	}
+}
+
+func TestWindsurfStandardProjectionNeverDropsCWD(t *testing.T) {
+	t.Parallel()
+	_, err := standardWindsurfServer(nativeconfig.Server{Type: "stdio", Command: "node", CWD: "/workspace"}, "stdio")
+	if err == nil || !strings.Contains(err.Error(), "does not support cwd") {
+		t.Fatalf("Windsurf standard projection accepted cwd: %v", err)
+	}
+}
+
 func stagedWindsurfDelivery(t *testing.T, configRoot, revision, operation string) domain.StagedDelivery {
 	t.Helper()
 	envelope := windsurfTestEnvelope(t, revision)
