@@ -58,13 +58,7 @@ func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 	if err != nil {
 		return nil, err
 	}
-	key := string(requests[0].Codec)
-	if requests[0].Codec == CodecOpenCode {
-		key = "mcp"
-	}
-	if requests[0].Codec == CodecGemini {
-		key = "mcpServers"
-	}
+	key := codecCollectionKey(requests[0].Codec)
 	create := false
 	for _, req := range requests {
 		create = create || req.Action == ActionAdd
@@ -118,24 +112,31 @@ func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 		}
 	}
 
+	receipts := make([]Receipt, len(requests))
+	for index, req := range requests {
+		if req.Action == ActionRemove {
+			continue
+		}
+		desired, err := DesiredReceipt(file.path, req.Codec, req.Name, req.Server, req.Placeholders)
+		if err != nil {
+			return nil, err
+		}
+		member, _ := objectMember(entries, req.Name)
+		actualDigest, err := entryDigest(req.Codec, req.Name, member)
+		if err != nil {
+			return nil, err
+		}
+		if !strings.EqualFold(actualDigest, desired.Digest) {
+			return nil, fmt.Errorf("native config projection differs from desired receipt")
+		}
+		receipts[index] = desired
+	}
 	next, err := doc.render()
 	if err != nil {
 		return nil, err
 	}
 	if err := kernel.writeVerified(file, next); err != nil {
 		return nil, err
-	}
-	receipts := make([]Receipt, len(requests))
-	for index, req := range requests {
-		if req.Action == ActionRemove {
-			continue
-		}
-		member, _ := objectMember(entries, req.Name)
-		digest, err := entryDigest(req.Codec, req.Name, member)
-		if err != nil {
-			return nil, err
-		}
-		receipts[index] = Receipt{Version: "1", Path: file.path, Codec: req.Codec, Name: req.Name, Digest: digest}
 	}
 	return receipts, nil
 }
@@ -160,12 +161,7 @@ func (kernel Kernel) Inspect(paths Paths, codec Codec, name string, owned *Recei
 	if err != nil {
 		return false, false, err
 	}
-	key := string(codec)
-	if codec == CodecOpenCode {
-		key = "mcp"
-	} else if codec == CodecGemini {
-		key = "mcpServers"
-	}
+	key := codecCollectionKey(codec)
 	entries, err := collection(doc, key, false)
 	if err != nil || entries == nil {
 		return false, false, err
@@ -203,7 +199,13 @@ func (kernel Kernel) resolve(paths Paths) (resolvedFile, error) {
 	return resolvedFile{path: jsonPath, body: jsonBody, mode: jsonMode, exists: jsonExists}, nil
 }
 
-func (kernel Kernel) writeVerified(file resolvedFile, next []byte) error {
+func (kernel Kernel) writeVerified(file resolvedFile, next []byte) (resultErr error) {
+	release, err := kernel.acquireWriteLock(file.path)
+	if err != nil {
+		return err
+	}
+	defer joinUnlock(&resultErr, release)
+
 	mode := file.mode
 	if !file.exists {
 		mode = 0o600
@@ -222,10 +224,7 @@ func (kernel Kernel) writeVerified(file resolvedFile, next []byte) error {
 		return ErrConcurrentChange
 	}
 	if err := kernel.files.WriteAtomic(file.path, next, mode); err != nil {
-		if rollbackErr := restore(); rollbackErr != nil {
-			return errors.Join(fmt.Errorf("write native config: %w", err), fmt.Errorf("rollback native config: %w", rollbackErr))
-		}
-		return fmt.Errorf("write native config (original bytes restored): %w", err)
+		return kernel.rollbackIfStillOurs(file, next, restore, fmt.Errorf("write native config: %w", err))
 	}
 	written, _, exists, err := kernel.files.ReadNoFollow(file.path)
 	if err != nil || !exists || !bytes.Equal(written, next) {
@@ -233,10 +232,24 @@ func (kernel Kernel) writeVerified(file resolvedFile, next []byte) error {
 		if verifyErr == nil {
 			verifyErr = fmt.Errorf("written bytes differ from requested bytes")
 		}
-		if rollbackErr := restore(); rollbackErr != nil {
-			return errors.Join(fmt.Errorf("verify native config: %w", verifyErr), fmt.Errorf("rollback native config: %w", rollbackErr))
-		}
-		return fmt.Errorf("verify native config (original bytes restored): %w", verifyErr)
+		return kernel.rollbackIfStillOurs(file, next, restore, fmt.Errorf("verify native config: %w", verifyErr))
 	}
 	return nil
+}
+
+func (kernel Kernel) rollbackIfStillOurs(file resolvedFile, writtenByUs []byte, restore func() error, primary error) error {
+	current, _, exists, readErr := kernel.files.ReadNoFollow(file.path)
+	if readErr != nil {
+		return errors.Join(primary, fmt.Errorf("rollback skipped because current bytes could not be verified: %w", readErr))
+	}
+	if exists == file.exists && bytes.Equal(current, file.body) {
+		return primary
+	}
+	if !exists || !bytes.Equal(current, writtenByUs) {
+		return errors.Join(primary, fmt.Errorf("rollback skipped because native config is no longer our exact write: %w", ErrConcurrentChange))
+	}
+	if rollbackErr := restore(); rollbackErr != nil {
+		return errors.Join(primary, fmt.Errorf("rollback native config: %w", rollbackErr))
+	}
+	return fmt.Errorf("native config original bytes restored after failure: %w", primary)
 }

@@ -13,9 +13,13 @@ import (
 type Codec string
 
 const (
+	// CodecMCPServers is the explicit generic mcpServers profile: stdio uses
+	// command/args/env/cwd and remote uses url/headers with no transport tag.
+	// Clients with different native transport keys require their own codec.
 	CodecMCPServers Codec = "mcpServers"
 	CodecGemini     Codec = "gemini-mcpServers"
 	CodecOpenCode   Codec = "opencode-mcp"
+	CodecWindsurf   Codec = "windsurf-mcpServers"
 )
 
 type Action string
@@ -34,8 +38,10 @@ var (
 	ErrConcurrentChange = errors.New("native config changed during patch")
 )
 
-// Server is the neutral MCP shape accepted by both codecs. Type must be
-// "stdio" or "remote". Placeholders are resolved recursively in all strings.
+// Server is the transport-aware neutral MCP shape accepted by the supported
+// codecs. Type must be "stdio" or "remote". Placeholders are resolved
+// recursively in all strings. RemoteTransport is codec-specific and is
+// rejected unless the selected codec explicitly defines it.
 type Server struct {
 	Type    string            `json:"type"`
 	Command string            `json:"command,omitempty"`
@@ -61,8 +67,10 @@ type Placeholders struct {
 	DataRoot    string
 }
 
-// Receipt identifies one exact projected entry. It is intentionally safe to
-// persist: it contains no original file bytes or unrelated configuration.
+// Receipt identifies one exact projected entry. Ownership intentionally covers
+// the complete entry: if another writer adds even one foreign field inside the
+// entry, the receipt becomes stale and update/remove fail closed. It is safe to
+// persist because it contains no original file bytes or unrelated config.
 type Receipt struct {
 	Version string `json:"version"`
 	Path    string `json:"path"`
@@ -81,6 +89,10 @@ type Request struct {
 	Owned        *Receipt
 }
 
+// FileIO abstracts exact no-follow reads and atomic replacement. WriteAtomic
+// preserves the requested file mode in the default implementation; platform
+// metadata beyond the mode (for example ACLs and extended attributes) is not
+// guaranteed to survive replacement.
 type FileIO interface {
 	ReadNoFollow(path string) (body []byte, mode os.FileMode, exists bool, err error)
 	WriteAtomic(path string, body []byte, mode os.FileMode) error
@@ -94,11 +106,13 @@ func New() Kernel { return Kernel{files: osFiles{}} }
 func NewWithFileIO(files FileIO) Kernel { return Kernel{files: files} }
 
 func validateRequest(req Request) error {
-	if strings.TrimSpace(req.Paths.JSON) == "" {
-		return fmt.Errorf("JSON native config path is required")
+	if err := validateExactPath(req.Paths.JSON, "JSON native config path"); err != nil {
+		return err
 	}
-	if !filepath.IsAbs(req.Paths.JSON) || (req.Paths.JSONC != "" && !filepath.IsAbs(req.Paths.JSONC)) {
-		return fmt.Errorf("native config paths must be absolute")
+	if req.Paths.JSONC != "" {
+		if err := validateExactPath(req.Paths.JSONC, "JSONC native config path"); err != nil {
+			return err
+		}
 	}
 	if req.Paths.JSONC != "" && filepath.Clean(req.Paths.JSON) == filepath.Clean(req.Paths.JSONC) {
 		return fmt.Errorf("JSON and JSONC native config paths must differ")
@@ -106,7 +120,7 @@ func validateRequest(req Request) error {
 	if strings.TrimSpace(req.Name) == "" {
 		return fmt.Errorf("MCP entry name is required")
 	}
-	if req.Codec != CodecMCPServers && req.Codec != CodecGemini && req.Codec != CodecOpenCode {
+	if !supportedCodec(req.Codec) {
 		return fmt.Errorf("unsupported native config codec %q", req.Codec)
 	}
 	if req.Action != ActionAdd && req.Action != ActionUpdate && req.Action != ActionRemove {
@@ -114,6 +128,30 @@ func validateRequest(req Request) error {
 	}
 	if req.Action != ActionAdd && req.Owned == nil {
 		return fmt.Errorf("%s requires an ownership receipt: %w", req.Action, ErrNotOwned)
+	}
+	return nil
+}
+
+func supportedCodec(codec Codec) bool {
+	return codec == CodecMCPServers || codec == CodecGemini || codec == CodecOpenCode || codec == CodecWindsurf
+}
+
+func codecCollectionKey(codec Codec) string {
+	if codec == CodecOpenCode {
+		return "mcp"
+	}
+	return "mcpServers"
+}
+
+func validateExactPath(path, label string) error {
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("%s is required", label)
+	}
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("%s must be absolute", label)
+	}
+	if filepath.Clean(path) != path {
+		return fmt.Errorf("%s must be clean", label)
 	}
 	return nil
 }

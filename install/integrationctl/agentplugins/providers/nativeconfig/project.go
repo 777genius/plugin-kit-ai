@@ -3,7 +3,38 @@ package nativeconfig
 import (
 	"fmt"
 	"strings"
+
+	"github.com/tailscale/hujson"
 )
+
+// DesiredReceipt projects one exact server entry without reading or mutating a
+// config file. resolvedPath must be the already-selected clean absolute JSON or
+// JSONC path. Apply returns the same receipt when it applies the same request.
+func DesiredReceipt(resolvedPath string, codec Codec, name string, server Server, placeholders Placeholders) (Receipt, error) {
+	if err := validateExactPath(resolvedPath, "resolved native config path"); err != nil {
+		return Receipt{}, err
+	}
+	if strings.TrimSpace(name) == "" {
+		return Receipt{}, fmt.Errorf("MCP entry name is required")
+	}
+	if !supportedCodec(codec) {
+		return Receipt{}, fmt.Errorf("unsupported native config codec %q", codec)
+	}
+	projected, err := projectServer(codec, server, placeholders)
+	if err != nil {
+		return Receipt{}, err
+	}
+	value, err := jsonValue(projected)
+	if err != nil {
+		return Receipt{}, err
+	}
+	member := &hujson.ObjectMember{Value: value}
+	digest, err := entryDigest(codec, name, member)
+	if err != nil {
+		return Receipt{}, err
+	}
+	return Receipt{Version: "1", Path: resolvedPath, Codec: codec, Name: name, Digest: digest}, nil
+}
 
 func projectServer(codec Codec, server Server, placeholders Placeholders) (map[string]any, error) {
 	serverType := strings.ToLower(strings.TrimSpace(server.Type))
@@ -79,11 +110,17 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 			return nil, err
 		}
 		if codec == CodecOpenCode {
+			if server.CWD != "" {
+				return nil, fmt.Errorf("OpenCode local MCP server does not accept cwd")
+			}
 			entry := map[string]any{"type": "local", "command": append([]string{command}, args...)}
 			if len(env) > 0 {
 				entry["environment"] = env
 			}
 			return entry, nil
+		}
+		if codec == CodecWindsurf && server.CWD != "" {
+			return nil, fmt.Errorf("Windsurf stdio MCP server does not accept cwd")
 		}
 		entry := map[string]any{"command": command}
 		if len(args) > 0 {
@@ -123,6 +160,17 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 		default:
 			return nil, fmt.Errorf("Gemini remote MCP server requires streamable-http or sse transport")
 		}
+	} else if codec == CodecWindsurf {
+		switch server.RemoteTransport {
+		case "streamable-http":
+			urlKey = "serverUrl"
+		case "sse":
+			urlKey = "url"
+		default:
+			return nil, fmt.Errorf("Windsurf remote MCP server requires streamable-http or sse transport")
+		}
+	} else if server.RemoteTransport != "" {
+		return nil, fmt.Errorf("%s remote MCP server does not accept remote_transport", codec)
 	}
 	entry := map[string]any{urlKey: url}
 	if codec == CodecOpenCode {

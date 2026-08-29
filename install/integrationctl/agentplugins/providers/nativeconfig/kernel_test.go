@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestMCPServersAddPreservesUnrelatedConfigAndResolvesExplicitPaths(t *testing.T) {
@@ -266,6 +268,82 @@ func TestRelativePathsAreRejected(t *testing.T) {
 	}
 }
 
+func TestUncleanPathsAreRejected(t *testing.T) {
+	root := t.TempDir()
+	unclean := root + string(filepath.Separator) + "nested" + string(filepath.Separator) + ".." + string(filepath.Separator) + "config.json"
+	_, err := New().Apply(Request{Paths: Paths{JSON: unclean}, Codec: CodecMCPServers, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if err == nil || !strings.Contains(err.Error(), "clean") {
+		t.Fatalf("expected unclean path rejection, got %v", err)
+	}
+	if _, err := DesiredReceipt(unclean, CodecMCPServers, "owned", Server{Type: "stdio", Command: "node"}, Placeholders{}); err == nil || !strings.Contains(err.Error(), "clean") {
+		t.Fatalf("expected pure receipt unclean path rejection, got %v", err)
+	}
+}
+
+func TestRemoteTransportIsCodecSpecific(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if _, err := DesiredReceipt(path, CodecMCPServers, "docs", Server{Type: "remote", URL: "https://docs.test/mcp"}, Placeholders{}); err != nil {
+		t.Fatalf("explicit generic url mapping regressed: %v", err)
+	}
+	for _, codec := range []Codec{CodecMCPServers, CodecOpenCode} {
+		_, err := DesiredReceipt(path, codec, "docs", Server{Type: "remote", URL: "https://docs.test/mcp", RemoteTransport: "streamable-http"}, Placeholders{})
+		if err == nil || !strings.Contains(err.Error(), "does not accept remote_transport") {
+			t.Fatalf("codec %s accepted a foreign transport shape: %v", codec, err)
+		}
+	}
+	if _, err := DesiredReceipt(path, CodecGemini, "docs", Server{Type: "remote", URL: "https://docs.test/mcp", RemoteTransport: "streamable-http"}, Placeholders{}); err != nil {
+		t.Fatalf("Gemini transport-aware projection failed: %v", err)
+	}
+	for _, test := range []struct {
+		transport string
+		wantKey   string
+	}{
+		{transport: "streamable-http", wantKey: "serverUrl"},
+		{transport: "sse", wantKey: "url"},
+	} {
+		receipt, err := DesiredReceipt(path, CodecWindsurf, "docs", Server{Type: "remote", URL: "https://docs.test/mcp", RemoteTransport: test.transport}, Placeholders{})
+		if err != nil {
+			t.Fatalf("Windsurf %s projection failed: %v", test.transport, err)
+		}
+		projected, err := projectServer(CodecWindsurf, Server{Type: "remote", URL: "https://docs.test/mcp", RemoteTransport: test.transport}, Placeholders{})
+		if err != nil || projected[test.wantKey] != "https://docs.test/mcp" || !strings.HasPrefix(receipt.Digest, "sha256:") {
+			t.Fatalf("wrong Windsurf %s projection: %#v receipt=%#v err=%v", test.transport, projected, receipt, err)
+		}
+	}
+}
+
+func TestCodecSpecificUnsupportedFieldsFailClosed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.json")
+	_, err := DesiredReceipt(path, CodecOpenCode, "local", Server{Type: "stdio", Command: "node", CWD: "/server"}, Placeholders{})
+	if err == nil || !strings.Contains(err.Error(), "does not accept cwd") {
+		t.Fatalf("OpenCode silently discarded cwd: %v", err)
+	}
+	_, err = DesiredReceipt(path, CodecWindsurf, "local", Server{Type: "stdio", Command: "node", CWD: "/server"}, Placeholders{})
+	if err == nil || !strings.Contains(err.Error(), "does not accept cwd") {
+		t.Fatalf("Windsurf silently discarded cwd: %v", err)
+	}
+}
+
+func TestDesiredReceiptIsPureAndMatchesApply(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	server := Server{Type: "stdio", Command: "node", Args: []string{"${PLUGIN_ROOT}/server.js"}, Env: map[string]string{"DATA": "${PLUGIN_DATA}"}}
+	placeholders := Placeholders{PackageRoot: "/pkg", DataRoot: "/data"}
+	want, err := DesiredReceipt(path, CodecMCPServers, "docs", server, placeholders)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("DesiredReceipt mutated the filesystem: %v", err)
+	}
+	got, err := New().Apply(Request{Paths: Paths{JSON: path}, Codec: CodecMCPServers, Action: ActionAdd, Name: "docs", Server: server, Placeholders: placeholders})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("Apply receipt %#v differs from DesiredReceipt %#v", got, want)
+	}
+}
+
 type interleavingIO struct {
 	osFiles
 	reads int
@@ -291,6 +369,83 @@ func TestConcurrentChangeBeforeReplaceIsNotOverwritten(t *testing.T) {
 	assertBytes(t, path, `{"client":"concurrent"}`)
 }
 
+type concurrentMemoryIO struct {
+	mu        sync.Mutex
+	body      []byte
+	initial   int
+	ready     chan struct{}
+	active    int
+	maxActive int
+}
+
+func newConcurrentMemoryIO() *concurrentMemoryIO {
+	return &concurrentMemoryIO{body: []byte(`{}`), ready: make(chan struct{})}
+}
+
+func (io *concurrentMemoryIO) ReadNoFollow(string) ([]byte, os.FileMode, bool, error) {
+	io.mu.Lock()
+	body := append([]byte(nil), io.body...)
+	io.initial++
+	initial := io.initial
+	if initial == 2 {
+		close(io.ready)
+	}
+	io.mu.Unlock()
+	if initial <= 2 {
+		<-io.ready
+	}
+	return body, 0o600, true, nil
+}
+
+func (io *concurrentMemoryIO) WriteAtomic(_ string, body []byte, _ os.FileMode) error {
+	io.mu.Lock()
+	io.active++
+	if io.active > io.maxActive {
+		io.maxActive = io.active
+	}
+	io.mu.Unlock()
+	time.Sleep(10 * time.Millisecond)
+	io.mu.Lock()
+	io.body = append([]byte(nil), body...)
+	io.active--
+	io.mu.Unlock()
+	return nil
+}
+
+func (*concurrentMemoryIO) RemoveNoFollow(string) error { return nil }
+
+func TestProcessScopedLockSerializesOurConcurrentWriters(t *testing.T) {
+	files := newConcurrentMemoryIO()
+	kernel := NewWithFileIO(files)
+	path := filepath.Join(t.TempDir(), "config.json")
+	errs := make(chan error, 2)
+	for _, name := range []string{"first", "second"} {
+		go func() {
+			_, err := kernel.Apply(Request{Paths: Paths{JSON: path}, Codec: CodecMCPServers, Action: ActionAdd, Name: name, Server: Server{Type: "stdio", Command: "node"}})
+			errs <- err
+		}()
+	}
+	var successes, concurrentChanges int
+	for range 2 {
+		err := <-errs
+		if err == nil {
+			successes++
+		} else if errors.Is(err, ErrConcurrentChange) {
+			concurrentChanges++
+		} else {
+			t.Fatalf("unexpected concurrent writer result: %v", err)
+		}
+	}
+	if successes != 1 || concurrentChanges != 1 {
+		t.Fatalf("results: successes=%d concurrent_changes=%d", successes, concurrentChanges)
+	}
+	files.mu.Lock()
+	defer files.mu.Unlock()
+	if files.maxActive != 1 {
+		t.Fatalf("our writes overlapped: max active=%d", files.maxActive)
+	}
+}
+
 func TestNoFollowRefusesSymlink(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation is not generally available to unprivileged Windows tests")
@@ -309,6 +464,26 @@ func TestNoFollowRefusesSymlink(t *testing.T) {
 	assertBytes(t, target, `{"safe":true}`)
 }
 
+func TestInterprocessLockRefusesSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation is not generally available to unprivileged Windows tests")
+	}
+	root := t.TempDir()
+	path := filepath.Join(root, "config.json")
+	target := filepath.Join(root, "lock-target")
+	mustWrite(t, path, `{}`)
+	mustWrite(t, target, `do-not-touch`)
+	if err := os.Symlink(target, path+".agentplugins.lock"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := New().Apply(Request{Paths: Paths{JSON: path}, Codec: CodecMCPServers, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if err == nil || !strings.Contains(err.Error(), "lock native config") {
+		t.Fatalf("expected lock symlink refusal, got %v", err)
+	}
+	assertBytes(t, path, `{}`)
+	assertBytes(t, target, `do-not-touch`)
+}
+
 type faultIO struct {
 	osFiles
 	mode       string
@@ -318,10 +493,14 @@ type faultIO struct {
 func (io *faultIO) WriteAtomic(path string, body []byte, mode os.FileMode) error {
 	io.writeCount++
 	if io.writeCount == 1 {
-		if err := os.WriteFile(path, []byte("corrupt"), mode); err != nil {
+		written := []byte("corrupt")
+		if io.mode == "error-exact" {
+			written = body
+		}
+		if err := os.WriteFile(path, written, mode); err != nil {
 			return err
 		}
-		if io.mode == "error" {
+		if io.mode == "error-exact" {
 			return errors.New("injected post-write failure")
 		}
 		return nil
@@ -329,22 +508,82 @@ func (io *faultIO) WriteAtomic(path string, body []byte, mode os.FileMode) error
 	return io.osFiles.WriteAtomic(path, body, mode)
 }
 
-func TestFailedOrIncorrectWriteRestoresExactOriginalBytes(t *testing.T) {
-	for _, mode := range []string{"error", "incorrect"} {
-		t.Run(mode, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "config.jsonc")
-			original := "{\n  // exact bytes must return\n  \"theme\": \"night\",\n}\n"
-			mustWrite(t, path, original)
-			files := &faultIO{mode: mode}
-			_, err := NewWithFileIO(files).Apply(Request{Paths: Paths{JSON: filepath.Join(filepath.Dir(path), "config.json"), JSONC: path}, Codec: CodecOpenCode, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
-			if err == nil {
-				t.Fatal("expected injected write failure")
-			}
-			assertBytes(t, path, original)
-			if files.writeCount != 2 {
-				t.Fatalf("expected write plus rollback, got %d writes", files.writeCount)
-			}
-		})
+func TestFailedExactWriteRestoresOriginalWithoutClobberingUnknownBytes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.jsonc")
+	original := "{\n  // exact bytes must return\n  \"theme\": \"night\",\n}\n"
+	mustWrite(t, path, original)
+	files := &faultIO{mode: "error-exact"}
+	_, err := NewWithFileIO(files).Apply(Request{Paths: Paths{JSON: filepath.Join(filepath.Dir(path), "config.json"), JSONC: path}, Codec: CodecOpenCode, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if err == nil {
+		t.Fatal("expected injected write failure")
+	}
+	assertBytes(t, path, original)
+	if files.writeCount != 2 {
+		t.Fatalf("expected write plus rollback, got %d writes", files.writeCount)
+	}
+
+	files = &faultIO{mode: "incorrect"}
+	_, err = NewWithFileIO(files).Apply(Request{Paths: Paths{JSON: filepath.Join(filepath.Dir(path), "config.json"), JSONC: path}, Codec: CodecOpenCode, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if err == nil || !errors.Is(err, ErrConcurrentChange) {
+		t.Fatalf("expected no-clobber verification error, got %v", err)
+	}
+	assertBytes(t, path, "corrupt")
+	if files.writeCount != 1 {
+		t.Fatalf("unknown bytes were overwritten by rollback: %d writes", files.writeCount)
+	}
+}
+
+type mutateOnVerifyIO struct {
+	osFiles
+	reads  int
+	writes int
+}
+
+func (io *mutateOnVerifyIO) ReadNoFollow(path string) ([]byte, os.FileMode, bool, error) {
+	io.reads++
+	if io.writes == 1 && io.reads == 3 {
+		if err := os.WriteFile(path, []byte(`{"client":"third-party"}`), 0o640); err != nil {
+			return nil, 0, false, err
+		}
+	}
+	return io.osFiles.ReadNoFollow(path)
+}
+
+func (io *mutateOnVerifyIO) WriteAtomic(path string, body []byte, mode os.FileMode) error {
+	io.writes++
+	return io.osFiles.WriteAtomic(path, body, mode)
+}
+
+func TestConcurrentChangeAfterWriteBeforeVerifyIsNotRolledBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	mustWrite(t, path, `{"client":"original"}`)
+	files := &mutateOnVerifyIO{}
+	_, err := NewWithFileIO(files).Apply(Request{Paths: Paths{JSON: path}, Codec: CodecMCPServers, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if !errors.Is(err, ErrConcurrentChange) {
+		t.Fatalf("expected no-clobber concurrent change, got %v", err)
+	}
+	assertBytes(t, path, `{"client":"third-party"}`)
+	if files.writes != 1 {
+		t.Fatalf("third-party bytes were overwritten by rollback: %d writes", files.writes)
+	}
+}
+
+func TestForeignFieldInsideOwnedEntryInvalidatesFullEntryReceipt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	req := Request{Paths: Paths{JSON: path}, Codec: CodecMCPServers, Action: ActionAdd, Name: "docs", Server: Server{Type: "stdio", Command: "node"}}
+	receipt, err := New().Apply(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, path, `{"mcpServers":{"docs":{"command":"node","foreign":true}}}`)
+	before := mustRead(t, path)
+	for _, action := range []Action{ActionUpdate, ActionRemove} {
+		mutate := req
+		mutate.Action, mutate.Owned = action, &receipt
+		if _, err := New().Apply(mutate); !errors.Is(err, ErrNotOwned) {
+			t.Fatalf("%s accepted a receipt after foreign field insertion: %v", action, err)
+		}
+		assertBytes(t, path, before)
 	}
 }
 
