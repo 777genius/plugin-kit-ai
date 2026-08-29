@@ -45,10 +45,34 @@ npx universal-agent-plugins add owner/repo@0123456789abcdef0123456789abcdef01234
 ```
 
 Replace the example SHA with the full lowercase 40-character commit SHA you
-reviewed; branches, tags, and abbreviated SHAs are rejected. `add`, `update`,
-`repair`, and `remove` accept comma-separated targets. `repair` reapplies the
-recorded revision; `update` selects a newer eligible release. `switch` moves the
-whole installation to a qualified Directory distribution or exact source.
+reviewed; branches, tags, and abbreviated SHAs are rejected. `repair` reapplies
+the recorded revision; `update` selects a newer eligible release. `switch`
+moves the whole installation to a qualified Directory distribution or exact
+source.
+
+### Choose clients
+
+In an interactive terminal, `add` without `--target` detects supported clients.
+One detected client is selected automatically. With several clients, the CLI
+shows a multi-select with all detected clients selected by default; press Enter
+to keep all of them. Scripts and CI must choose explicitly, for example
+`--target claude,gemini,opencode`. The same comma-separated syntax works with
+`add`, `update`, `repair`, and `remove`.
+
+Detection checks installed executables and documented configuration surfaces.
+It does not start an agent, log in, complete OAuth, or prove browser/tool
+runtime behavior.
+
+The following matrix describes the current release source. New client support
+is available through `npx` once a release containing this source is published.
+
+| Client | Evidence |
+| --- | --- |
+| Claude Code | Claude Code 2.1.205: real isolated `add`, native list, `update`, and `remove` lifecycle |
+| Gemini CLI | Gemini CLI 0.36.0: real isolated configuration and lifecycle |
+| OpenCode | OpenCode 1.18.4: real isolated configuration and lifecycle |
+| Cline | Isolated native-configuration lifecycle; no client runtime or login |
+| Windsurf | Contract and mock coverage only; Windsurf was absent from the test host |
 
 `search` combines the reviewed Directory with a separately signed Discovery
 Index. Unreviewed results use publisher-qualified `discovery:owner/repo//path`
@@ -74,11 +98,15 @@ caller's working directory. If it cannot obtain a matching version,
 version-bound evidence remains unavailable rather than being inferred.
 Managed files and state are staged and committed together; a failure rolls back
 changes when ownership can be proven, or stops with recovery guidance without
-claiming success. Client-controlled activation happens separately: some clients
-activate automatically, while others finish as prepared and print a manual
-activation step. OAuth and consent prompts stay visible and user-controlled;
-cancelling one preserves the package and reports authentication as pending or
-cancelled.
+claiming success. Observed unowned entries fail closed before mutation. Portable
+filesystems cannot provide a linearizable content compare-and-swap against a
+non-cooperating client that writes in the final syscall-sized window, so the CLI
+rechecks and reports identity conflicts instead of promising impossible
+concurrency isolation. Client-controlled activation happens separately: some
+clients activate automatically, while others finish as prepared and print a
+manual activation step. OAuth and consent prompts stay visible and
+user-controlled; cancelling one preserves the package and reports
+authentication as pending or cancelled.
 Kiro skills are installed directly into the documented global skills path.
 For packages with MCP servers, agentplugins atomically merges only its owned
 entries into Kiro's global `mcp.json`, preserving unrelated user configuration,
