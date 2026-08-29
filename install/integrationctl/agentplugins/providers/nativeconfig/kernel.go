@@ -12,11 +12,12 @@ import (
 )
 
 type resolvedFile struct {
-	path   string
-	body   []byte
-	mode   os.FileMode
-	exists bool
-	jsonc  bool
+	path          string
+	body          []byte
+	mode          os.FileMode
+	exists        bool
+	jsonc         bool
+	alternatePath string
 }
 
 func (kernel Kernel) Apply(req Request) (Receipt, error) {
@@ -47,6 +48,11 @@ func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 			return nil, fmt.Errorf("batched native config requests must share paths and codec")
 		}
 	}
+	release, err := kernel.acquireCandidateLocks(requests[0].Paths, requests[0].Codec)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = release() }()
 	file, err := kernel.resolve(requests[0].Paths)
 	if err != nil {
 		return nil, err
@@ -194,37 +200,30 @@ func (kernel Kernel) resolve(paths Paths) (resolvedFile, error) {
 		return resolvedFile{}, ErrAmbiguousConfig
 	}
 	if jsoncExists {
-		return resolvedFile{path: jsoncPath, body: jsoncBody, mode: jsoncMode, exists: true, jsonc: true}, nil
+		return resolvedFile{path: jsoncPath, body: jsoncBody, mode: jsoncMode, exists: true, jsonc: true, alternatePath: jsonPath}, nil
 	}
-	return resolvedFile{path: jsonPath, body: jsonBody, mode: jsonMode, exists: jsonExists}, nil
+	return resolvedFile{path: jsonPath, body: jsonBody, mode: jsonMode, exists: jsonExists, alternatePath: jsoncPath}, nil
 }
 
-func (kernel Kernel) writeVerified(file resolvedFile, codec Codec, next []byte) (resultErr error) {
-	release, err := kernel.acquireWriteLock(file.path, codec)
-	if err != nil {
-		return err
-	}
-	defer joinUnlock(&resultErr, release)
-
+func (kernel Kernel) writeVerified(file resolvedFile, _ Codec, next []byte) (resultErr error) {
 	mode := file.mode
 	if !file.exists {
 		mode = 0o600
 	}
 	restore := func() error {
 		if file.exists {
-			return kernel.files.WriteAtomic(file.path, file.body, mode)
+			return kernel.compareAndSwap(file.path, next, true, file.body, mode)
 		}
-		return kernel.files.RemoveNoFollow(file.path)
+		return kernel.removeIfUnchanged(file.path, next)
 	}
-	current, _, exists, err := kernel.files.ReadNoFollow(file.path)
-	if err != nil {
-		return fmt.Errorf("re-read native config before write: %w", err)
+	if err := kernel.verifyAlternateAbsent(file); err != nil {
+		return err
 	}
-	if exists != file.exists || !bytes.Equal(current, file.body) {
-		return ErrConcurrentChange
-	}
-	if err := kernel.files.WriteAtomic(file.path, next, mode); err != nil {
+	if err := kernel.compareAndSwap(file.path, file.body, file.exists, next, mode); err != nil {
 		return kernel.rollbackIfStillOurs(file, next, restore, fmt.Errorf("write native config: %w", err))
+	}
+	if err := kernel.verifyAlternateAbsent(file); err != nil {
+		return kernel.rollbackIfStillOurs(file, next, restore, err)
 	}
 	written, _, exists, err := kernel.files.ReadNoFollow(file.path)
 	if err != nil || !exists || !bytes.Equal(written, next) {
@@ -233,6 +232,48 @@ func (kernel Kernel) writeVerified(file resolvedFile, codec Codec, next []byte) 
 			verifyErr = fmt.Errorf("written bytes differ from requested bytes")
 		}
 		return kernel.rollbackIfStillOurs(file, next, restore, fmt.Errorf("verify native config: %w", verifyErr))
+	}
+	return nil
+}
+
+func (kernel Kernel) compareAndSwap(path string, expected []byte, expectedExists bool, next []byte, mode os.FileMode) error {
+	if files, ok := kernel.files.(conditionalFileIO); ok {
+		return files.CompareAndSwap(path, expected, expectedExists, next, mode)
+	}
+	current, _, exists, err := kernel.files.ReadNoFollow(path)
+	if err != nil {
+		return fmt.Errorf("re-read native config at replacement boundary: %w", err)
+	}
+	if exists != expectedExists || !bytes.Equal(current, expected) {
+		return ErrConcurrentChange
+	}
+	return kernel.files.WriteAtomic(path, next, mode)
+}
+
+func (kernel Kernel) removeIfUnchanged(path string, expected []byte) error {
+	if files, ok := kernel.files.(conditionalFileIO); ok {
+		return files.RemoveIfUnchanged(path, expected)
+	}
+	current, _, exists, err := kernel.files.ReadNoFollow(path)
+	if err != nil {
+		return fmt.Errorf("re-read native config at removal boundary: %w", err)
+	}
+	if !exists || !bytes.Equal(current, expected) {
+		return ErrConcurrentChange
+	}
+	return kernel.files.RemoveNoFollow(path)
+}
+
+func (kernel Kernel) verifyAlternateAbsent(file resolvedFile) error {
+	if file.alternatePath == "" {
+		return nil
+	}
+	_, _, exists, err := kernel.files.ReadNoFollow(file.alternatePath)
+	if err != nil {
+		return fmt.Errorf("verify alternate native config: %w", err)
+	}
+	if exists {
+		return ErrAmbiguousConfig
 	}
 	return nil
 }

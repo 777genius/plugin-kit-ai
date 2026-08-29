@@ -1,6 +1,7 @@
 package nativeconfig
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 )
 
 type osFiles struct{}
+type conditionalOSFiles struct{ osFiles }
 
 func (osFiles) ReadNoFollow(path string) ([]byte, os.FileMode, bool, error) {
 	file, err := openNoFollow(path)
@@ -35,6 +37,28 @@ func (osFiles) ReadNoFollow(path string) ([]byte, os.FileMode, bool, error) {
 
 func (osFiles) WriteAtomic(path string, body []byte, mode os.FileMode) error {
 	return atomicfile.Write(path, body, mode)
+}
+
+func (files conditionalOSFiles) CompareAndSwap(path string, expected []byte, expectedExists bool, body []byte, mode os.FileMode) error {
+	current, _, exists, err := files.ReadNoFollow(path)
+	if err != nil {
+		return fmt.Errorf("re-read native config at replacement boundary: %w", err)
+	}
+	if exists != expectedExists || !bytes.Equal(current, expected) {
+		return ErrConcurrentChange
+	}
+	return files.WriteAtomic(path, body, mode)
+}
+
+func (files conditionalOSFiles) RemoveIfUnchanged(path string, expected []byte) error {
+	current, _, exists, err := files.ReadNoFollow(path)
+	if err != nil {
+		return fmt.Errorf("re-read native config at removal boundary: %w", err)
+	}
+	if !exists || !bytes.Equal(current, expected) {
+		return ErrConcurrentChange
+	}
+	return files.RemoveNoFollow(path)
 }
 
 func (osFiles) RemoveNoFollow(path string) error {

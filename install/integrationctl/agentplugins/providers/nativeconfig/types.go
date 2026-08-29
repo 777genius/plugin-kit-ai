@@ -100,9 +100,20 @@ type FileIO interface {
 	RemoveNoFollow(path string) error
 }
 
+// conditionalFileIO moves the final precondition check inside the mutation
+// boundary. This prevents test seams and cooperating implementations from
+// inserting work between validation and replacement. Ordinary filesystems do
+// not expose a portable linearizable content-CAS, so external clients that do
+// not honor our locks can still win the final syscall-sized race; post-write
+// verification remains mandatory and rollback never overwrites unknown bytes.
+type conditionalFileIO interface {
+	CompareAndSwap(path string, expected []byte, expectedExists bool, body []byte, mode os.FileMode) error
+	RemoveIfUnchanged(path string, expected []byte) error
+}
+
 type Kernel struct{ files FileIO }
 
-func New() Kernel { return Kernel{files: osFiles{}} }
+func New() Kernel { return Kernel{files: conditionalOSFiles{}} }
 
 func NewWithFileIO(files FileIO) Kernel { return Kernel{files: files} }
 

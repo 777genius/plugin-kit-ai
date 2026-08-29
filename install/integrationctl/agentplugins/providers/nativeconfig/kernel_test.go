@@ -401,28 +401,18 @@ func TestConcurrentChangeBeforeReplaceIsNotOverwritten(t *testing.T) {
 type concurrentMemoryIO struct {
 	mu        sync.Mutex
 	body      []byte
-	initial   int
-	ready     chan struct{}
 	active    int
 	maxActive int
 }
 
 func newConcurrentMemoryIO() *concurrentMemoryIO {
-	return &concurrentMemoryIO{body: []byte(`{}`), ready: make(chan struct{})}
+	return &concurrentMemoryIO{body: []byte(`{}`)}
 }
 
 func (io *concurrentMemoryIO) ReadNoFollow(string) ([]byte, os.FileMode, bool, error) {
 	io.mu.Lock()
 	body := append([]byte(nil), io.body...)
-	io.initial++
-	initial := io.initial
-	if initial == 2 {
-		close(io.ready)
-	}
 	io.mu.Unlock()
-	if initial <= 2 {
-		<-io.ready
-	}
 	return body, 0o600, true, nil
 }
 
@@ -454,25 +444,104 @@ func TestProcessScopedLockSerializesOurConcurrentWriters(t *testing.T) {
 			errs <- err
 		}()
 	}
-	var successes, concurrentChanges int
+	var successes int
 	for range 2 {
 		err := <-errs
 		if err == nil {
 			successes++
-		} else if errors.Is(err, ErrConcurrentChange) {
-			concurrentChanges++
 		} else {
 			t.Fatalf("unexpected concurrent writer result: %v", err)
 		}
 	}
-	if successes != 1 || concurrentChanges != 1 {
-		t.Fatalf("results: successes=%d concurrent_changes=%d", successes, concurrentChanges)
+	if successes != 2 {
+		t.Fatalf("results: successes=%d", successes)
 	}
 	files.mu.Lock()
 	defer files.mu.Unlock()
 	if files.maxActive != 1 {
 		t.Fatalf("our writes overlapped: max active=%d", files.maxActive)
 	}
+}
+
+type boundaryMutationIO struct {
+	osFiles
+	beforeCAS    func(path string, expected []byte, expectedExists bool, next []byte) error
+	beforeRemove func(path string, expected []byte) error
+	compareCalls int
+	removeCalls  int
+}
+
+func (io *boundaryMutationIO) CompareAndSwap(path string, expected []byte, expectedExists bool, next []byte, mode os.FileMode) error {
+	io.compareCalls++
+	if io.beforeCAS != nil {
+		if err := io.beforeCAS(path, expected, expectedExists, next); err != nil {
+			return err
+		}
+	}
+	return (conditionalOSFiles{io.osFiles}).CompareAndSwap(path, expected, expectedExists, next, mode)
+}
+
+func (io *boundaryMutationIO) RemoveIfUnchanged(path string, expected []byte) error {
+	io.removeCalls++
+	if io.beforeRemove != nil {
+		if err := io.beforeRemove(path, expected); err != nil {
+			return err
+		}
+	}
+	return (conditionalOSFiles{io.osFiles}).RemoveIfUnchanged(path, expected)
+}
+
+func TestMutationAtReplacementBoundaryFailsClosed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	mustWrite(t, path, `{"client":"original"}`)
+	files := &boundaryMutationIO{}
+	files.beforeCAS = func(path string, _ []byte, _ bool, _ []byte) error {
+		files.beforeCAS = nil
+		return os.WriteFile(path, []byte(`{"client":"boundary-writer"}`), 0o640)
+	}
+	_, err := NewWithFileIO(files).Apply(Request{Paths: Paths{JSON: path}, Codec: CodecMCPServers, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if !errors.Is(err, ErrConcurrentChange) {
+		t.Fatalf("expected boundary CAS rejection, got %v", err)
+	}
+	assertBytes(t, path, `{"client":"boundary-writer"}`)
+}
+
+func TestMutationAtRollbackBoundaryIsNotClobbered(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	mustWrite(t, path, `{"client":"original"}`)
+	files := &boundaryMutationIO{}
+	files.beforeCAS = func(path string, expected []byte, expectedExists bool, next []byte) error {
+		if files.compareCalls == 1 {
+			if err := (conditionalOSFiles{files.osFiles}).CompareAndSwap(path, expected, expectedExists, next, 0o640); err != nil {
+				return err
+			}
+			return errors.New("injected post-write failure")
+		}
+		return os.WriteFile(path, []byte(`{"client":"rollback-writer"}`), 0o640)
+	}
+	_, err := NewWithFileIO(files).Apply(Request{Paths: Paths{JSON: path}, Codec: CodecMCPServers, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if !errors.Is(err, ErrConcurrentChange) {
+		t.Fatalf("expected rollback CAS rejection, got %v", err)
+	}
+	assertBytes(t, path, `{"client":"rollback-writer"}`)
+}
+
+func TestAlternateAppearanceAfterResolveRestoresSelectedWithoutClobberingAlternate(t *testing.T) {
+	root := t.TempDir()
+	jsonPath := filepath.Join(root, "opencode.json")
+	jsoncPath := filepath.Join(root, "opencode.jsonc")
+	mustWrite(t, jsonPath, `{"theme":"night"}`)
+	files := &boundaryMutationIO{}
+	files.beforeCAS = func(_ string, _ []byte, _ bool, _ []byte) error {
+		files.beforeCAS = nil
+		return os.WriteFile(jsoncPath, []byte(`{"foreign":true}`), 0o640)
+	}
+	_, err := NewWithFileIO(files).Apply(Request{Paths: Paths{JSON: jsonPath, JSONC: jsoncPath}, Codec: CodecOpenCode, Action: ActionAdd, Name: "owned", Server: Server{Type: "stdio", Command: "node"}})
+	if !errors.Is(err, ErrAmbiguousConfig) {
+		t.Fatalf("expected alternate-path ambiguity, got %v", err)
+	}
+	assertBytes(t, jsonPath, `{"theme":"night"}`)
+	assertBytes(t, jsoncPath, `{"foreign":true}`)
 }
 
 func TestNoFollowRefusesSymlink(t *testing.T) {

@@ -5,9 +5,36 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
+
+func (kernel Kernel) acquireCandidateLocks(paths Paths, codec Codec) (func() error, error) {
+	pathsToLock := []string{filepath.Clean(paths.JSON)}
+	if paths.JSONC != "" {
+		pathsToLock = append(pathsToLock, filepath.Clean(paths.JSONC))
+	}
+	sort.Strings(pathsToLock)
+	releases := make([]func() error, 0, len(pathsToLock))
+	for _, path := range pathsToLock {
+		release, err := kernel.acquireWriteLock(path, codec)
+		if err != nil {
+			for index := len(releases) - 1; index >= 0; index-- {
+				_ = releases[index]()
+			}
+			return nil, err
+		}
+		releases = append(releases, release)
+	}
+	return func() error {
+		var result error
+		for index := len(releases) - 1; index >= 0; index-- {
+			result = errors.Join(result, releases[index]())
+		}
+		return result
+	}, nil
+}
 
 type processPathLock struct {
 	mutex sync.Mutex
@@ -43,7 +70,9 @@ func acquireProcessPathLock(path string) func() {
 
 func (kernel Kernel) acquireWriteLock(path string, codec Codec) (func() error, error) {
 	releaseProcess := acquireProcessPathLock(path)
-	if _, isOSFiles := kernel.files.(osFiles); !isOSFiles {
+	switch kernel.files.(type) {
+	case osFiles, conditionalOSFiles:
+	default:
 		return func() error { releaseProcess(); return nil }, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
