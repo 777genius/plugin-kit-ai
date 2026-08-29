@@ -585,8 +585,16 @@ func requireSnapshotFields(body []byte) error {
 	for _, e := range evidence {
 		required := []string{"schema_version", "id", "distribution_id", "release_sequence", "package_tree_digest", "level", "outcome", "artifact"}
 		if legacyEvidence {
+			if _, present := e["trust"]; present {
+				return fmt.Errorf("legacy evidence cannot contain trust")
+			}
 			required = append(required, "product_id", "manifest_digest", "source_repository", "source_revision", "source_path")
 		} else {
+			for _, field := range []string{"product_id", "manifest_digest", "source_repository", "source_revision", "source_path", "adapter_version"} {
+				if _, present := e[field]; present {
+					return fmt.Errorf("wire evidence cannot contain legacy field %q", field)
+				}
+			}
 			required = append(required, "trust")
 		}
 		if err := requiredMap(e, required...); err != nil {

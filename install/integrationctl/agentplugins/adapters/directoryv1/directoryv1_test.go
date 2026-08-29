@@ -80,6 +80,26 @@ func TestSnapshotEvidenceCutoverAcceptsBothStrictShapes(t *testing.T) {
 	if _, err := ParseSnapshot(wireBody); !errors.Is(err, ErrStrictJSON) {
 		t.Fatalf("legacy field accepted after cutover: %v", err)
 	}
+
+	wire = fixtureSnapshot(15)
+	var raw map[string]any
+	if err := json.Unmarshal(encodeSnapshot(t, wire), &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["evidence"].([]any)[0].(map[string]any)["product_id"] = ""
+	wireBody, _ = json.Marshal(raw)
+	if _, err := ParseSnapshot(wireBody); !errors.Is(err, ErrStrictJSON) {
+		t.Fatalf("empty legacy field accepted after cutover: %v", err)
+	}
+}
+
+func encodeSnapshot(t *testing.T, value domain.DirectorySnapshot) []byte {
+	t.Helper()
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
 }
 
 func signedFixture(t *testing.T, sequence uint64, key TrustedKey, private ed25519.PrivateKey) ([]byte, []byte, Pointer) {
