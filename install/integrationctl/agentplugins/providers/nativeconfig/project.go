@@ -119,8 +119,18 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 			}
 			return entry, nil
 		}
-		if codec == CodecWindsurf && server.CWD != "" {
-			return nil, fmt.Errorf("Windsurf stdio MCP server does not accept cwd")
+		if (codec == CodecWindsurf || codec == CodecCline) && server.CWD != "" {
+			return nil, fmt.Errorf("%s stdio MCP server does not accept cwd", codec)
+		}
+		if codec == CodecCline {
+			transport := map[string]any{"type": "stdio", "command": command}
+			if len(args) > 0 {
+				transport["args"] = args
+			}
+			if len(env) > 0 {
+				transport["env"] = env
+			}
+			return map[string]any{"transport": transport}, nil
 		}
 		entry := map[string]any{"command": command}
 		if len(args) > 0 {
@@ -169,6 +179,21 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 		default:
 			return nil, fmt.Errorf("Windsurf remote MCP server requires streamable-http or sse transport")
 		}
+	} else if codec == CodecCline {
+		transportType := ""
+		switch server.RemoteTransport {
+		case "streamable-http":
+			transportType = "streamableHttp"
+		case "sse":
+			transportType = "sse"
+		default:
+			return nil, fmt.Errorf("Cline remote MCP server requires streamable-http or sse transport")
+		}
+		transport := map[string]any{"type": transportType, "url": url}
+		if len(headers) > 0 {
+			transport["headers"] = headers
+		}
+		return map[string]any{"transport": transport}, nil
 	} else if server.RemoteTransport != "" {
 		return nil, fmt.Errorf("%s remote MCP server does not accept remote_transport", codec)
 	}

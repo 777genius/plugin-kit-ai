@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 type processPathLock struct {
@@ -40,7 +41,7 @@ func acquireProcessPathLock(path string) func() {
 	}
 }
 
-func (kernel Kernel) acquireWriteLock(path string) (func() error, error) {
+func (kernel Kernel) acquireWriteLock(path string, codec Codec) (func() error, error) {
 	releaseProcess := acquireProcessPathLock(path)
 	if _, isOSFiles := kernel.files.(osFiles); !isOSFiles {
 		return func() error { releaseProcess(); return nil }, nil
@@ -49,7 +50,13 @@ func (kernel Kernel) acquireWriteLock(path string) (func() error, error) {
 		releaseProcess()
 		return nil, fmt.Errorf("create native config parent for lock: %w", err)
 	}
-	releaseFile, err := lockNativeConfig(path + ".agentplugins.lock")
+	var releaseFile func() error
+	var err error
+	if codec == CodecCline {
+		releaseFile, err = lockClineConfig(path + ".lock")
+	} else {
+		releaseFile, err = lockNativeConfig(path + ".agentplugins.lock")
+	}
 	if err != nil {
 		releaseProcess()
 		return nil, fmt.Errorf("lock native config: %w", err)
@@ -58,6 +65,40 @@ func (kernel Kernel) acquireWriteLock(path string) (func() error, error) {
 		err := releaseFile()
 		releaseProcess()
 		return err
+	}, nil
+}
+
+func lockClineConfig(path string) (func() error, error) {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		err := os.Mkdir(path, 0o700)
+		if err == nil {
+			break
+		}
+		if !os.IsExist(err) {
+			return nil, err
+		}
+		if !time.Now().Before(deadline) {
+			return nil, fmt.Errorf("timed out waiting for Cline native config lock")
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	created, err := os.Lstat(path)
+	if err != nil || !created.IsDir() || created.Mode()&os.ModeSymlink != 0 {
+		if err == nil {
+			err = fmt.Errorf("Cline native config lock is not an exact directory")
+		}
+		return nil, err
+	}
+	return func() error {
+		current, err := os.Lstat(path)
+		if err != nil {
+			return err
+		}
+		if !current.IsDir() || current.Mode()&os.ModeSymlink != 0 || !os.SameFile(created, current) {
+			return fmt.Errorf("Cline native config lock identity changed: %w", ErrConcurrentChange)
+		}
+		return os.Remove(path)
 	}, nil
 }
 

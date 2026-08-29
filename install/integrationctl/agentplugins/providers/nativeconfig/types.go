@@ -20,6 +20,7 @@ const (
 	CodecGemini     Codec = "gemini-mcpServers"
 	CodecOpenCode   Codec = "opencode-mcp"
 	CodecWindsurf   Codec = "windsurf-mcpServers"
+	CodecCline      Codec = "cline-mcpServers"
 )
 
 type Action string
@@ -133,7 +134,7 @@ func validateRequest(req Request) error {
 }
 
 func supportedCodec(codec Codec) bool {
-	return codec == CodecMCPServers || codec == CodecGemini || codec == CodecOpenCode || codec == CodecWindsurf
+	return codec == CodecMCPServers || codec == CodecGemini || codec == CodecOpenCode || codec == CodecWindsurf || codec == CodecCline
 }
 
 func codecCollectionKey(codec Codec) string {

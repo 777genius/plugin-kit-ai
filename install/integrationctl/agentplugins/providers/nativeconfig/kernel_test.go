@@ -322,6 +322,35 @@ func TestCodecSpecificUnsupportedFieldsFailClosed(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "does not accept cwd") {
 		t.Fatalf("Windsurf silently discarded cwd: %v", err)
 	}
+	_, err = DesiredReceipt(path, CodecCline, "local", Server{Type: "stdio", Command: "node", CWD: "/server"}, Placeholders{})
+	if err == nil || !strings.Contains(err.Error(), "does not accept cwd") {
+		t.Fatalf("Cline silently discarded cwd: %v", err)
+	}
+}
+
+func TestClineNestedTransportProjectionAndCompatibleLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cline_mcp_settings.json")
+	kernel := New()
+	requests := []Request{
+		{Paths: Paths{JSON: path}, Codec: CodecCline, Action: ActionAdd, Name: "local", Server: Server{Type: "stdio", Command: "node", Args: []string{"server.js"}, Env: map[string]string{"A": "1"}}},
+		{Paths: Paths{JSON: path}, Codec: CodecCline, Action: ActionAdd, Name: "http", Server: Server{Type: "remote", URL: "https://mcp.test", RemoteTransport: "streamable-http", Headers: map[string]string{"X": "1"}}},
+		{Paths: Paths{JSON: path}, Codec: CodecCline, Action: ActionAdd, Name: "events", Server: Server{Type: "remote", URL: "https://mcp.test/sse", RemoteTransport: "sse"}},
+	}
+	if _, err := kernel.ApplyBatch(requests); err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	mustReadJSON(t, path, &doc)
+	servers := doc["mcpServers"].(map[string]any)
+	local := servers["local"].(map[string]any)["transport"].(map[string]any)
+	http := servers["http"].(map[string]any)["transport"].(map[string]any)
+	events := servers["events"].(map[string]any)["transport"].(map[string]any)
+	if local["type"] != "stdio" || local["command"] != "node" || http["type"] != "streamableHttp" || http["url"] != "https://mcp.test" || events["type"] != "sse" {
+		t.Fatalf("wrong Cline projections: local=%#v http=%#v events=%#v", local, http, events)
+	}
+	if _, err := os.Stat(path + ".lock"); !os.IsNotExist(err) {
+		t.Fatalf("Cline lock directory was not released: %v", err)
+	}
 }
 
 func TestDesiredReceiptIsPureAndMatchesApply(t *testing.T) {

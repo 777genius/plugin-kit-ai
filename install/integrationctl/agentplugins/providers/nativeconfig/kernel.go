@@ -135,7 +135,7 @@ func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := kernel.writeVerified(file, next); err != nil {
+	if err := kernel.writeVerified(file, requests[0].Codec, next); err != nil {
 		return nil, err
 	}
 	return receipts, nil
@@ -199,8 +199,8 @@ func (kernel Kernel) resolve(paths Paths) (resolvedFile, error) {
 	return resolvedFile{path: jsonPath, body: jsonBody, mode: jsonMode, exists: jsonExists}, nil
 }
 
-func (kernel Kernel) writeVerified(file resolvedFile, next []byte) (resultErr error) {
-	release, err := kernel.acquireWriteLock(file.path)
+func (kernel Kernel) writeVerified(file resolvedFile, codec Codec, next []byte) (resultErr error) {
+	release, err := kernel.acquireWriteLock(file.path, codec)
 	if err != nil {
 		return err
 	}
