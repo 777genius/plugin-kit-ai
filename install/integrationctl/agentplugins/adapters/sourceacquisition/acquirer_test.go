@@ -45,12 +45,16 @@ func TestAcquireGitHubExactSHASparselySnapshotsOnlyPluginRoot(t *testing.T) {
 	}
 }
 
-func TestAcquireGitHubRepositoryRootExcludesGitMetadata(t *testing.T) {
+func TestAcquireGitHubRepositoryRootExcludesGitDirectoryAndSubmoduleContent(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")
 	}
+	submodule := newRepository(t)
+	writeRepo(t, submodule, "README", "unrelated submodule content", 0o644)
+	_ = commit(t, submodule)
 	repository := newRepository(t)
 	writeRepo(t, repository, "plugin.json", `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"root"}`, 0o644)
+	runGit(t, "-c", "protocol.file.allow=always", "-C", repository, "submodule", "add", "--quiet", submodule, "third_party/unrelated")
 	revision := commit(t, repository)
 	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: localGitTestRunner{}, URLForRepo: func(string) string { return repository }}
 	snapshot, err := acquirer.AcquireGitHub(context.Background(), "example/root-plugin", revision, "")
@@ -58,11 +62,14 @@ func TestAcquireGitHubRepositoryRootExcludesGitMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer packagedigest.Remove(snapshot)
-	if snapshot.FileCount != 1 || snapshot.Source.RequestedSource != "example/root-plugin@"+revision || strings.HasSuffix(snapshot.Source.CanonicalSource, "//") {
+	if snapshot.FileCount != 2 || snapshot.Source.RequestedSource != "example/root-plugin@"+revision || strings.HasSuffix(snapshot.Source.CanonicalSource, "//") {
 		t.Fatalf("root snapshot identity = %+v", snapshot)
 	}
 	if _, err := os.Lstat(filepath.Join(snapshot.Root, ".git")); !os.IsNotExist(err) {
 		t.Fatalf("Git metadata entered repository-root snapshot: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(snapshot.Root, "third_party", "unrelated", "README")); !os.IsNotExist(err) {
+		t.Fatalf("unfetched submodule content entered repository-root snapshot: %v", err)
 	}
 }
 
@@ -103,6 +110,10 @@ func TestExecutablePathsFromTreeArePluginRelative(t *testing.T) {
 	}
 	if _, err := executablePathsFromTree([]byte("160000 commit a\tplugin/vendor\x00"), "plugin"); err == nil || !strings.Contains(err.Error(), "submodule") {
 		t.Fatalf("submodule tree error = %v", err)
+	}
+	paths, err = executablePathsFromTree([]byte("160000 commit a\tthird_party/vendor\x00"), "")
+	if err != nil || len(paths) != 0 {
+		t.Fatalf("repository-root submodule executable paths = %v, %v", paths, err)
 	}
 }
 
