@@ -1836,10 +1836,15 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         protected = fixed_runner.adapter_environment("sha256:" + "a" * 64, "codex", protected=True)
         self.assertEqual(protected["PYTHONPATH"], "/opt/uap-observer-current/runtime")
         self.assertEqual(protected["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertEqual(
+            protected["UAP_OBSERVER_ISOLATION"],
+            "systemd-positive-mount-allowlist-v1",
+        )
         self.assertNotIn("HOME", protected)
         unprotected = fixed_runner.adapter_environment("sha256:" + "a" * 64, "codex", protected=False)
         self.assertNotIn("PYTHONPATH", unprotected)
         self.assertNotIn("PYTHONDONTWRITEBYTECODE", unprotected)
+        self.assertNotIn("UAP_OBSERVER_ISOLATION", unprotected)
 
     def test_production_pins_match_exact_bytes_and_fixture_reaches_beyond_both_checks(self) -> None:
         repository = Path(__file__).parents[2]

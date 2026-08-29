@@ -381,6 +381,7 @@ def adapter_environment(config_digest: str, identity: str, *, protected: bool) -
         environment.update({
             "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONPATH": str(IMMUTABLE_CLOSURE_ALIAS / "runtime"),
+            "UAP_OBSERVER_ISOLATION": "systemd-positive-mount-allowlist-v1",
         })
     return environment
 
