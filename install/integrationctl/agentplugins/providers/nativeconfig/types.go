@@ -14,6 +14,7 @@ type Codec string
 
 const (
 	CodecMCPServers Codec = "mcpServers"
+	CodecGemini     Codec = "gemini-mcpServers"
 	CodecOpenCode   Codec = "opencode-mcp"
 )
 
@@ -40,8 +41,12 @@ type Server struct {
 	Command string            `json:"command,omitempty"`
 	Args    []string          `json:"args,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
+	CWD     string            `json:"cwd,omitempty"`
 	URL     string            `json:"url,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
+	// RemoteTransport distinguishes Gemini's streamable HTTP and legacy SSE
+	// native keys. It is ignored by codecs whose native shape uses one URL key.
+	RemoteTransport string `json:"remote_transport,omitempty"`
 }
 
 // Paths names the mutually exclusive client config variants. If neither
@@ -101,7 +106,7 @@ func validateRequest(req Request) error {
 	if strings.TrimSpace(req.Name) == "" {
 		return fmt.Errorf("MCP entry name is required")
 	}
-	if req.Codec != CodecMCPServers && req.Codec != CodecOpenCode {
+	if req.Codec != CodecMCPServers && req.Codec != CodecGemini && req.Codec != CodecOpenCode {
 		return fmt.Errorf("unsupported native config codec %q", req.Codec)
 	}
 	if req.Action != ActionAdd && req.Action != ActionUpdate && req.Action != ActionRemove {

@@ -158,6 +158,57 @@ func TestCollisionUpdateAndRemoveRequireExactOwnership(t *testing.T) {
 	}
 }
 
+func TestApplyBatchWritesAllEntriesOnceAndFailsClosedOnCollision(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "settings.json")
+	mustWrite(t, path, `{"theme":"night","mcpServers":{"foreign":{"url":"https://foreign.test"}}}`)
+	kernel := New()
+	requests := []Request{
+		{Paths: Paths{JSON: path}, Codec: CodecGemini, Action: ActionAdd, Name: "local", Server: Server{Type: "stdio", Command: "node", CWD: "${PLUGIN_ROOT}/server"}, Placeholders: Placeholders{PackageRoot: "/pkg"}},
+		{Paths: Paths{JSON: path}, Codec: CodecGemini, Action: ActionAdd, Name: "docs", Server: Server{Type: "remote", URL: "https://docs.test/mcp", RemoteTransport: "streamable-http"}},
+		{Paths: Paths{JSON: path}, Codec: CodecGemini, Action: ActionAdd, Name: "events", Server: Server{Type: "remote", URL: "https://events.test/sse", RemoteTransport: "sse"}},
+	}
+	receipts, err := kernel.ApplyBatch(requests)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(receipts) != 3 || receipts[0].Codec != CodecGemini {
+		t.Fatalf("unexpected receipts: %#v", receipts)
+	}
+	var doc map[string]any
+	mustReadJSON(t, path, &doc)
+	servers := doc["mcpServers"].(map[string]any)
+	if servers["local"].(map[string]any)["cwd"] != "/pkg/server" {
+		t.Fatalf("Gemini cwd was not projected: %#v", servers["local"])
+	}
+	if servers["docs"].(map[string]any)["httpUrl"] != "https://docs.test/mcp" {
+		t.Fatalf("Gemini streamable HTTP key was not projected: %#v", servers["docs"])
+	}
+	if servers["events"].(map[string]any)["url"] != "https://events.test/sse" {
+		t.Fatalf("Gemini SSE key was not projected: %#v", servers["events"])
+	}
+	present, owned, err := kernel.Inspect(Paths{JSON: path}, CodecGemini, "docs", &receipts[1])
+	if err != nil || !present || !owned {
+		t.Fatalf("exact Gemini ownership was not observed: present=%v owned=%v err=%v", present, owned, err)
+	}
+	forged := receipts[1]
+	forged.Digest = "sha256:00"
+	_, owned, err = kernel.Inspect(Paths{JSON: path}, CodecGemini, "docs", &forged)
+	if err != nil || owned {
+		t.Fatalf("forged Gemini ownership was accepted: owned=%v err=%v", owned, err)
+	}
+
+	before := mustRead(t, path)
+	_, err = kernel.ApplyBatch([]Request{
+		{Paths: Paths{JSON: path}, Codec: CodecGemini, Action: ActionAdd, Name: "new", Server: Server{Type: "stdio", Command: "node"}},
+		{Paths: Paths{JSON: path}, Codec: CodecGemini, Action: ActionAdd, Name: "foreign", Server: Server{Type: "stdio", Command: "node"}},
+	})
+	if !errors.Is(err, ErrCollision) {
+		t.Fatalf("expected batch collision, got %v", err)
+	}
+	assertBytes(t, path, before)
+}
+
 func TestMalformedDuplicateAndAmbiguousInputsFailClosed(t *testing.T) {
 	tests := []string{
 		`{"mcpServers":{},"mcpServers":{}}`,

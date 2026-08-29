@@ -67,7 +67,7 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 		if err != nil {
 			return nil, err
 		}
-		if strings.TrimSpace(command) == "" || server.URL != "" || len(server.Headers) > 0 {
+		if strings.TrimSpace(command) == "" || server.URL != "" || len(server.Headers) > 0 || server.RemoteTransport != "" {
 			return nil, fmt.Errorf("stdio MCP server requires command and forbids remote fields")
 		}
 		args, err := projectStrings(server.Args)
@@ -92,6 +92,13 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 		if len(env) > 0 {
 			entry["env"] = env
 		}
+		if server.CWD != "" {
+			cwd, err := resolve(server.CWD)
+			if err != nil {
+				return nil, err
+			}
+			entry["cwd"] = cwd
+		}
 		return entry, nil
 	}
 
@@ -99,14 +106,25 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(url) == "" || server.Command != "" || len(server.Args) > 0 || len(server.Env) > 0 {
+	if strings.TrimSpace(url) == "" || server.Command != "" || len(server.Args) > 0 || len(server.Env) > 0 || server.CWD != "" {
 		return nil, fmt.Errorf("remote MCP server requires url and forbids local process fields")
 	}
 	headers, err := projectMap(server.Headers)
 	if err != nil {
 		return nil, err
 	}
-	entry := map[string]any{"url": url}
+	urlKey := "url"
+	if codec == CodecGemini {
+		switch server.RemoteTransport {
+		case "streamable-http":
+			urlKey = "httpUrl"
+		case "sse":
+			urlKey = "url"
+		default:
+			return nil, fmt.Errorf("Gemini remote MCP server requires streamable-http or sse transport")
+		}
+	}
+	entry := map[string]any{urlKey: url}
 	if codec == CodecOpenCode {
 		entry["type"] = "remote"
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/tailscale/hujson"
 )
@@ -19,86 +20,161 @@ type resolvedFile struct {
 }
 
 func (kernel Kernel) Apply(req Request) (Receipt, error) {
-	if kernel.files == nil {
-		return Receipt{}, fmt.Errorf("native config file IO is required")
-	}
-	if err := validateRequest(req); err != nil {
-		return Receipt{}, err
-	}
-	file, err := kernel.resolve(req.Paths)
+	receipts, err := kernel.ApplyBatch([]Request{req})
 	if err != nil {
 		return Receipt{}, err
+	}
+	if len(receipts) == 0 {
+		return Receipt{}, nil
+	}
+	return receipts[0], nil
+}
+
+// ApplyBatch validates and applies related MCP entry mutations through one
+// compare-and-swap write. Either every requested entry changes or none do.
+func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
+	if kernel.files == nil {
+		return nil, fmt.Errorf("native config file IO is required")
+	}
+	if len(requests) == 0 {
+		return nil, nil
+	}
+	for _, req := range requests {
+		if err := validateRequest(req); err != nil {
+			return nil, err
+		}
+		if req.Paths != requests[0].Paths || req.Codec != requests[0].Codec {
+			return nil, fmt.Errorf("batched native config requests must share paths and codec")
+		}
+	}
+	file, err := kernel.resolve(requests[0].Paths)
+	if err != nil {
+		return nil, err
 	}
 	doc, err := newDocument(file.jsonc)
 	if file.exists {
 		doc, err = parseDocument(file.body, file.jsonc)
 	}
 	if err != nil {
-		return Receipt{}, err
+		return nil, err
 	}
-	key := string(req.Codec)
-	if req.Codec == CodecOpenCode {
+	key := string(requests[0].Codec)
+	if requests[0].Codec == CodecOpenCode {
 		key = "mcp"
 	}
-	entries, err := collection(doc, key, req.Action == ActionAdd)
+	if requests[0].Codec == CodecGemini {
+		key = "mcpServers"
+	}
+	create := false
+	for _, req := range requests {
+		create = create || req.Action == ActionAdd
+	}
+	entries, err := collection(doc, key, create)
 	if err != nil {
-		return Receipt{}, err
+		return nil, err
 	}
-	var current *hujson.ObjectMember
-	if entries != nil {
-		current, _ = objectMember(entries, req.Name)
-	}
-
-	switch req.Action {
-	case ActionAdd:
-		if current != nil {
-			return Receipt{}, fmt.Errorf("%w: %s", ErrCollision, req.Name)
+	seen := map[string]struct{}{}
+	for _, req := range requests {
+		if _, duplicate := seen[req.Name]; duplicate {
+			return nil, fmt.Errorf("duplicate native MCP batch entry %q", req.Name)
 		}
-		projected, err := projectServer(req.Codec, req.Server, req.Placeholders)
-		if err != nil {
-			return Receipt{}, err
+		seen[req.Name] = struct{}{}
+		var current *hujson.ObjectMember
+		if entries != nil {
+			current, _ = objectMember(entries, req.Name)
 		}
-		value, err := jsonValue(projected)
-		if err != nil {
-			return Receipt{}, err
+		switch req.Action {
+		case ActionAdd:
+			if current != nil {
+				return nil, fmt.Errorf("%w: %s", ErrCollision, req.Name)
+			}
+			projected, err := projectServer(req.Codec, req.Server, req.Placeholders)
+			if err != nil {
+				return nil, err
+			}
+			value, err := jsonValue(projected)
+			if err != nil {
+				return nil, err
+			}
+			setEntry(entries, req.Name, value)
+		case ActionUpdate:
+			if current == nil || verifyReceipt(req.Owned, file.path, req.Codec, req.Name, current) != nil {
+				return nil, fmt.Errorf("%w: %s", ErrNotOwned, req.Name)
+			}
+			projected, err := projectServer(req.Codec, req.Server, req.Placeholders)
+			if err != nil {
+				return nil, err
+			}
+			value, err := jsonValue(projected)
+			if err != nil {
+				return nil, err
+			}
+			setEntry(entries, req.Name, value)
+		case ActionRemove:
+			if current == nil || verifyReceipt(req.Owned, file.path, req.Codec, req.Name, current) != nil {
+				return nil, fmt.Errorf("%w: %s", ErrNotOwned, req.Name)
+			}
+			removeEntry(entries, req.Name)
 		}
-		setEntry(entries, req.Name, value)
-	case ActionUpdate:
-		if current == nil || verifyReceipt(req.Owned, file.path, req.Codec, req.Name, current) != nil {
-			return Receipt{}, fmt.Errorf("%w: %s", ErrNotOwned, req.Name)
-		}
-		projected, err := projectServer(req.Codec, req.Server, req.Placeholders)
-		if err != nil {
-			return Receipt{}, err
-		}
-		value, err := jsonValue(projected)
-		if err != nil {
-			return Receipt{}, err
-		}
-		setEntry(entries, req.Name, value)
-	case ActionRemove:
-		if current == nil || verifyReceipt(req.Owned, file.path, req.Codec, req.Name, current) != nil {
-			return Receipt{}, fmt.Errorf("%w: %s", ErrNotOwned, req.Name)
-		}
-		removeEntry(entries, req.Name)
 	}
 
 	next, err := doc.render()
 	if err != nil {
-		return Receipt{}, err
+		return nil, err
 	}
 	if err := kernel.writeVerified(file, next); err != nil {
-		return Receipt{}, err
+		return nil, err
 	}
-	if req.Action == ActionRemove {
-		return Receipt{}, nil
+	receipts := make([]Receipt, len(requests))
+	for index, req := range requests {
+		if req.Action == ActionRemove {
+			continue
+		}
+		member, _ := objectMember(entries, req.Name)
+		digest, err := entryDigest(req.Codec, req.Name, member)
+		if err != nil {
+			return nil, err
+		}
+		receipts[index] = Receipt{Version: "1", Path: file.path, Codec: req.Codec, Name: req.Name, Digest: digest}
 	}
-	member, _ := objectMember(entries, req.Name)
-	digest, err := entryDigest(req.Codec, req.Name, member)
+	return receipts, nil
+}
+
+// Inspect performs a strict read-only ownership check for one native entry.
+func (kernel Kernel) Inspect(paths Paths, codec Codec, name string, owned *Receipt) (present bool, exactlyOwned bool, err error) {
+	if kernel.files == nil {
+		return false, false, fmt.Errorf("native config file IO is required")
+	}
+	if strings.TrimSpace(name) == "" {
+		return false, false, fmt.Errorf("MCP entry name is required")
+	}
+	probe := Request{Paths: paths, Codec: codec, Action: ActionAdd, Name: name}
+	if err := validateRequest(probe); err != nil {
+		return false, false, err
+	}
+	file, err := kernel.resolve(paths)
+	if err != nil || !file.exists {
+		return false, false, err
+	}
+	doc, err := parseDocument(file.body, file.jsonc)
 	if err != nil {
-		return Receipt{}, err
+		return false, false, err
 	}
-	return Receipt{Version: "1", Path: file.path, Codec: req.Codec, Name: req.Name, Digest: digest}, nil
+	key := string(codec)
+	if codec == CodecOpenCode {
+		key = "mcp"
+	} else if codec == CodecGemini {
+		key = "mcpServers"
+	}
+	entries, err := collection(doc, key, false)
+	if err != nil || entries == nil {
+		return false, false, err
+	}
+	member, _ := objectMember(entries, name)
+	if member == nil {
+		return false, false, nil
+	}
+	return true, verifyReceipt(owned, file.path, codec, name, member) == nil, nil
 }
 
 func (kernel Kernel) resolve(paths Paths) (resolvedFile, error) {
