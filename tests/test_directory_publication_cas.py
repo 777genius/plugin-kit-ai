@@ -53,6 +53,15 @@ class BarePublicationCasTests(unittest.TestCase):
         tree = git(self.publisher, "show", "-s", "--format=%T", parent)
         return git(self.publisher, "commit-tree", tree, "-p", parent, "-m", message)
 
+    def commit_path(self, parent: str, path: str, body: str, message: str) -> str:
+        git(self.publisher, "checkout", "-q", "--detach", parent)
+        target = self.publisher / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body)
+        git(self.publisher, "add", path)
+        git(self.publisher, "commit", "-qm", message)
+        return git(self.publisher, "rev-parse", "HEAD")
+
     def objects(self, publication_id: str = "run-1", message: str = "ledger Q") -> tuple[str, str]:
         marker = cas.create_marker(self.publisher, self.source, publication_id)
         ledger = self.commit_object(self.source, message)
@@ -211,7 +220,8 @@ class BarePublicationCasTests(unittest.TestCase):
         ledger_new = self.commit_object(self.source, "permanent evidence")
         result = cas.evidence_transition(
             self.publisher, "origin", main_old=self.source, main_new=main_new,
-            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+            ledger_old=self.source, ledger_new=ledger_new,
+            approval_target=self.source, approval_tag=APPROVAL_TAG,
         )
         self.assertEqual(result, "published")
         self.assertEqual(
@@ -221,6 +231,53 @@ class BarePublicationCasTests(unittest.TestCase):
             ),
             cas.RefState(main_new, ledger_new, self.source),
         )
+
+    def test_staged_lineage_preserves_discovery_append_and_approves_materialization(self) -> None:
+        marker, signed = self.objects()
+        self.publish(marker, signed)
+        materialized = self.commit_object(
+            signed, "chore(directory): materialize signed production site"
+        )
+        discovery = self.commit_path(
+            materialized, "discovery/latest.json", "{}\n",
+            "chore(discovery): publish sequence 2",
+        )
+        self.assertEqual(
+            cas.validate_staged_lineage(self.publisher, discovery, signed),
+            materialized,
+        )
+        git(
+            self.publisher, "push", "-q", "origin",
+            f"{discovery}:refs/heads/directory-publication-ledger",
+        )
+        main_new = self.commit_object(marker, "mechanical evidence pointers")
+        ledger_new = self.commit_object(discovery, "permanent evidence")
+        self.assertEqual(
+            cas.evidence_transition(
+                self.publisher, "origin", main_old=marker, main_new=main_new,
+                ledger_old=discovery, ledger_new=ledger_new,
+                approval_target=materialized, approval_tag=APPROVAL_TAG,
+            ),
+            "published",
+        )
+        self.assertEqual(
+            cas.read_ref_state(
+                self.publisher, "origin", "refs/heads/main",
+                "refs/heads/directory-publication-ledger", APPROVAL_TAG,
+            ),
+            cas.RefState(main_new, ledger_new, materialized),
+        )
+
+    def test_staged_lineage_rejects_non_discovery_append(self) -> None:
+        _marker, signed = self.objects()
+        materialized = self.commit_object(
+            signed, "chore(directory): materialize signed production site"
+        )
+        hostile = self.commit_path(
+            materialized, "index.html", "changed\n", "hostile site append",
+        )
+        with self.assertRaisesRegex(cas.CasError, "non-Discovery"):
+            cas.validate_staged_lineage(self.publisher, hostile, signed)
 
     def test_evidence_transition_resolves_lost_response_by_exact_three_ref_readback(self) -> None:
         main_new = self.commit_object(self.source, "mechanical evidence pointers")
@@ -234,14 +291,16 @@ class BarePublicationCasTests(unittest.TestCase):
 
         self.assertEqual(cas.evidence_transition(
             self.publisher, "origin", main_old=self.source, main_new=main_new,
-            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+            ledger_old=self.source, ledger_new=ledger_new,
+            approval_target=self.source, approval_tag=APPROVAL_TAG,
             push_runner=lose_response,
         ), "published")
         self.assertEqual(len(pushes), 1)
         self.assertEqual(pushes[0][:3], ["-c", "core.hooksPath=/dev/null", "push"])
         self.assertEqual(cas.evidence_transition(
             self.publisher, "origin", main_old=self.source, main_new=main_new,
-            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+            ledger_old=self.source, ledger_new=ledger_new,
+            approval_target=self.source, approval_tag=APPROVAL_TAG,
         ), "committed")
 
     def test_evidence_transition_conflict_never_partially_moves_other_refs(self) -> None:
@@ -256,7 +315,8 @@ class BarePublicationCasTests(unittest.TestCase):
         with self.assertRaisesRegex(cas.CasError, "conflict"):
             cas.evidence_transition(
                 self.publisher, "origin", main_old=self.source, main_new=main_new,
-                ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+                ledger_old=self.source, ledger_new=ledger_new,
+                approval_target=self.source, approval_tag=APPROVAL_TAG,
             )
         after = cas.read_ref_state(
             self.publisher, "origin", "refs/heads/main",
@@ -332,7 +392,8 @@ class BarePublicationCasTests(unittest.TestCase):
         ledger_new = self.commit_object(self.source, "permanent evidence")
         self.assertEqual(cas.evidence_transition(
             self.publisher, "origin", main_old=self.source, main_new=main_new,
-            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+            ledger_old=self.source, ledger_new=ledger_new,
+            approval_target=self.source, approval_tag=APPROVAL_TAG,
         ), "published")
         self.assertFalse(sentinel.exists())
 

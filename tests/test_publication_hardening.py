@@ -367,7 +367,8 @@ class WorkflowHardeningTests(unittest.TestCase):
         self.assertIn('observed_main}" = "${EVENT_SOURCE_COMMIT}', source_guard)
         self.assertIn('observed_main}" = "${expected_marker}', source_guard)
         self.assertIn("materialize_launch_evidence.py verify-completed", source_guard)
-        self.assertIn('--main-parent "$expected_marker"', source_guard)
+        self.assertIn('--main-parent "$expected_main_parent"', source_guard)
+        self.assertIn('--expected-publication-id "$expected_publication_id"', source_guard)
         self.assertIn('--source-digest "$GITHUB_SHA"', source_guard)
         self.assertNotIn("DIRECTORY_ED25519_PRIVATE_KEY", freshness.get("env", {}))
         self.assertNotIn("fetch", signer)
@@ -396,7 +397,7 @@ class WorkflowHardeningTests(unittest.TestCase):
         self.assertIn('f"{ledger_new}:{sequence_tag}"', cas_helper)
         self.assertIn('f"--force-with-lease={production_tag}:{observed or \'\'}"', cas_helper)
         self.assertIn('f"{production_new}:{production_tag}"', cas_helper)
-        self.assertIn('--force-with-lease="${ledger_ref}:${EXPECTED_LEDGER_COMMIT}"', text)
+        self.assertIn('--force-with-lease="${ledger_ref}:${EXPECTED_LEDGER_HEAD}"', text)
         self.assertIn('f"--force-with-lease={ledger_ref}:{ledger_old}"', cas_helper)
         self.assertIn("merge-base --is-ancestor", text)
         self.assertEqual(workflow["concurrency"], {

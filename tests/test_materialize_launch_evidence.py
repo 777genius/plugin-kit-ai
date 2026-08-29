@@ -348,7 +348,7 @@ class PermanentCommitTests(unittest.TestCase):
         self.temporary.cleanup()
         self.validator_patch.stop()
 
-    def files(self) -> tuple[str, dict[str, bytes]]:
+    def files(self, publication_id: str = "123") -> tuple[str, dict[str, bytes]]:
         record = {
             "schema_version": 1, "id": "launch/demo/codex/runtime/0123456789abcdef01234567",
             "product_id": "demo", "distribution_id": "publisher/demo", "release_sequence": 1,
@@ -374,7 +374,7 @@ class PermanentCommitTests(unittest.TestCase):
             "workflow_run_id": "123", "workflow_run_attempt": "2",
             "caller_event_name": "push", "caller_ref": "refs/heads/main",
             "caller_workflow_ref": "owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
-            "publication_id": "123", "publication_sequence": 7,
+            "publication_id": publication_id, "publication_sequence": 7,
             "publication_snapshot_digest": "sha256:" + "5" * 64,
             "publication_source_commit": self.parent,
             "records": [{"id": record["id"], "path": path, "digest": evidence.sha256(record_body)}],
@@ -399,7 +399,8 @@ class PermanentCommitTests(unittest.TestCase):
         digest, files = self.files()
         result = evidence.materialize_commits(
             self.repo, self.repo, self.repo, files, repository="owner/repository",
-            main_parent=self.parent, ledger_parent=self.parent, digest=digest,
+            main_parent=self.parent, ledger_parent=self.parent,
+            approval_target=self.parent, digest=digest,
         )
         ledger = result["ledger_commit"]
         main = result["main_commit"]
@@ -431,14 +432,35 @@ class PermanentCommitTests(unittest.TestCase):
         with self.assertRaisesRegex(evidence.EvidenceError, "full Directory validation"):
             evidence.materialize_commits(
                 self.repo, self.repo, self.repo, files, repository="owner/repository",
-                main_parent=self.parent, ledger_parent=self.parent, digest=digest,
+                main_parent=self.parent, ledger_parent=self.parent,
+                approval_target=self.parent, digest=digest,
             )
 
-    def test_whole_run_retry_accepts_only_exact_persisted_state(self) -> None:
+    def test_evidence_parent_may_follow_approval_with_discovery_only_changes(self) -> None:
+        (self.repo / "discovery").mkdir()
+        (self.repo / "discovery" / "latest.json").write_text("{}\n")
+        git(self.repo, "add", "discovery/latest.json")
+        git(self.repo, "commit", "-qm", "chore(discovery): publish sequence 2")
+        discovery_parent = git(self.repo, "rev-parse", "HEAD")
         digest, files = self.files()
         result = evidence.materialize_commits(
             self.repo, self.repo, self.repo, files, repository="owner/repository",
-            main_parent=self.parent, ledger_parent=self.parent, digest=digest,
+            main_parent=discovery_parent, ledger_parent=discovery_parent,
+            approval_target=self.parent, digest=digest,
+        )
+        self.assertEqual(result["ledger_parent"], discovery_parent)
+        self.assertEqual(result["approval_target"], self.parent)
+        self.assertEqual(
+            git(self.repo, "show", "-s", "--format=%P", result["ledger_commit"]),
+            discovery_parent,
+        )
+
+    def test_whole_run_retry_accepts_only_exact_persisted_state(self) -> None:
+        digest, files = self.files(publication_id="456")
+        result = evidence.materialize_commits(
+            self.repo, self.repo, self.repo, files, repository="owner/repository",
+            main_parent=self.parent, ledger_parent=self.parent,
+            approval_target=self.parent, digest=digest,
         )
         git(self.repo, "tag", "directory-publication-schema-1-launch-approved", self.parent)
         git(self.repo, "checkout", "-q", "--detach", result["ledger_commit"])
@@ -453,6 +475,8 @@ class PermanentCommitTests(unittest.TestCase):
                 self.repo, self.repo, repository="owner/repository",
                 main_commit=result["main_commit"], main_parent=self.parent,
                 expected_run_id="123", source_digest="4" * 40,
+                expected_publication_id="456",
+                expected_publication_source_commit=self.parent,
                 caller_event_name="push", caller_ref="refs/heads/main",
                 caller_workflow_ref="owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
                 approval_tag="refs/tags/directory-publication-schema-1-launch-approved",
@@ -463,6 +487,8 @@ class PermanentCommitTests(unittest.TestCase):
                     self.repo, self.repo, repository="owner/repository",
                     main_commit=result["main_commit"], main_parent=self.parent,
                     expected_run_id="999", source_digest="4" * 40,
+                    expected_publication_id="456",
+                    expected_publication_source_commit=self.parent,
                     caller_event_name="push", caller_ref="refs/heads/main",
                     caller_workflow_ref="owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
                     approval_tag="refs/tags/directory-publication-schema-1-launch-approved",
@@ -479,13 +505,15 @@ class PermanentCommitTests(unittest.TestCase):
         digest, files = self.files()
         first = evidence.materialize_commits(
             self.repo, self.repo, self.repo, files, repository="owner/repository",
-            main_parent=self.parent, ledger_parent=self.parent, digest=digest,
+            main_parent=self.parent, ledger_parent=self.parent,
+            approval_target=self.parent, digest=digest,
         )
         git(self.repo, "checkout", "-q", "--detach", first["ledger_commit"])
         with self.assertRaisesRegex(evidence.EvidenceError, "already exists"):
             evidence.materialize_commits(
                 self.repo, self.repo, self.repo, files, repository="owner/repository",
-                main_parent=first["ledger_commit"], ledger_parent=first["ledger_commit"], digest=digest,
+                main_parent=first["ledger_commit"], ledger_parent=first["ledger_commit"],
+                approval_target=first["ledger_commit"], digest=digest,
             )
 
     def test_new_pass_replaces_current_pointer_but_preserves_history(self) -> None:

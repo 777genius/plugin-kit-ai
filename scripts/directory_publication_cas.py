@@ -161,6 +161,35 @@ def validate_materialized_descendant(repo: Path, materialized: str, signed: str)
         raise CasError("materialized ledger commit message is invalid")
 
 
+def validate_staged_lineage(repo: Path, current: str, signed: str) -> str:
+    """Return the exact site materialization below safe Discovery-only appends."""
+    _require_sha(current, "current ledger")
+    _require_sha(signed, "signed ledger")
+    if _git(repo, ["merge-base", "--is-ancestor", signed, current], check=False).returncode != 0:
+        raise CasError("signed ledger is not an ancestor of the current ledger")
+    descendants = _git(
+        repo, ["rev-list", "--reverse", "--ancestry-path", f"{signed}..{current}"],
+    ).stdout.splitlines()
+    if not descendants:
+        raise CasError("staged publication has no materialized site commit")
+    materialized = descendants[0]
+    validate_materialized_descendant(repo, materialized, signed)
+    previous = materialized
+    for descendant in descendants[1:]:
+        parents = _git(repo, ["show", "-s", "--format=%P", descendant]).stdout.strip().split()
+        if parents != [previous]:
+            raise CasError("staged ledger has a non-linear post-materialization append")
+        changed = _git(
+            repo, ["diff-tree", "--no-commit-id", "--name-only", "-r", previous, descendant],
+        ).stdout.splitlines()
+        if not changed or any(not path.startswith("discovery/") for path in changed):
+            raise CasError("staged ledger has a non-Discovery post-materialization append")
+        previous = descendant
+    if _git(repo, ["diff", "--quiet", signed, current, "--", "registry"], check=False).returncode != 0:
+        raise CasError("staged ledger changed signed registry bytes")
+    return materialized
+
+
 def atomic_transition(
     repo: Path, remote: str, *, source: str, marker: str, ledger_old: str,
     ledger_new: str, sequence_tag: str, attempts: int = 3,
@@ -273,28 +302,37 @@ def materialize_transition(
 
 def evidence_transition(
     repo: Path, remote: str, *, main_old: str, main_new: str,
-    ledger_old: str, ledger_new: str, approval_tag: str, attempts: int = 3,
+    ledger_old: str, ledger_new: str, approval_target: str, approval_tag: str,
+    attempts: int = 3,
     push_runner: Callable[[Sequence[str]], bool] | None = None,
 ) -> str:
     """Atomically append evidence, select it on main, and approve the gated ledger.
 
-    The approval tag deliberately targets ``ledger_old``: that is the exact
-    staged publication whose protected live gate produced the evidence. The
-    permanent evidence commit is its child and cannot approve itself.
+    The approval tag deliberately targets ``approval_target``: that is the
+    exact staged publication whose protected live gate produced the evidence.
+    Discovery-only commits may already follow it before the permanent evidence
+    child is appended to ``ledger_old``.
     """
     for value, label in (
         (main_old, "old main"), (main_new, "new main"),
         (ledger_old, "old ledger"), (ledger_new, "new ledger"),
+        (approval_target, "approval target"),
     ):
         _require_sha(value, label)
     if approval_tag != "refs/tags/directory-publication-schema-1-launch-approved":
         raise CasError("launch approval tag is outside the fixed namespace")
     if not 1 <= attempts <= 3:
         raise CasError("attempt count must be between one and three")
+    if _git(repo, ["merge-base", "--is-ancestor", approval_target, ledger_old], check=False).returncode != 0:
+        raise CasError("approval target is not an ancestor of the evidence parent")
+    if _git(repo, ["show", "-s", "--format=%P", ledger_new]).stdout.strip().split() != [ledger_old]:
+        raise CasError("evidence ledger commit is not the exact parent child")
+    if _git(repo, ["show", "-s", "--format=%P", main_new]).stdout.strip().split() != [main_old]:
+        raise CasError("evidence main commit is not the exact parent child")
     main_ref = "refs/heads/main"
     ledger_ref = "refs/heads/directory-publication-ledger"
     before = RefState(main_old, ledger_old, None)
-    committed = RefState(main_new, ledger_new, ledger_old)
+    committed = RefState(main_new, ledger_new, approval_target)
     arguments = [
         "-c", "core.hooksPath=/dev/null", "push", "--atomic",
         f"--force-with-lease={main_ref}:{main_old}",
@@ -302,7 +340,7 @@ def evidence_transition(
         f"--force-with-lease={approval_tag}:",
         remote,
         f"{main_new}:{main_ref}", f"{ledger_new}:{ledger_ref}",
-        f"{ledger_old}:{approval_tag}",
+        f"{approval_target}:{approval_tag}",
     ]
     for _attempt in range(attempts):
         try:
@@ -405,6 +443,7 @@ def main() -> int:
     evidence_parser.add_argument("--main-new", required=True)
     evidence_parser.add_argument("--ledger-old", required=True)
     evidence_parser.add_argument("--ledger-new", required=True)
+    evidence_parser.add_argument("--approval-target", required=True)
     evidence_parser.add_argument(
         "--approval-tag",
         default="refs/tags/directory-publication-schema-1-launch-approved",
@@ -421,6 +460,10 @@ def main() -> int:
     verify_materialized_parser.add_argument("--repo", type=Path, default=Path.cwd())
     verify_materialized_parser.add_argument("--signed", required=True)
     verify_materialized_parser.add_argument("--materialized", required=True)
+    staged_lineage_parser = subparsers.add_parser("staged-lineage-verify")
+    staged_lineage_parser.add_argument("--repo", type=Path, default=Path.cwd())
+    staged_lineage_parser.add_argument("--signed", required=True)
+    staged_lineage_parser.add_argument("--current", required=True)
     args = parser.parse_args()
     try:
         if args.command == "marker":
@@ -443,16 +486,18 @@ def main() -> int:
             result = evidence_transition(
                 args.repo, args.remote, main_old=args.main_old, main_new=args.main_new,
                 ledger_old=args.ledger_old, ledger_new=args.ledger_new,
-                approval_tag=args.approval_tag,
+                approval_target=args.approval_target, approval_tag=args.approval_tag,
             )
         elif args.command == "production-publish":
             result = production_transition(
                 args.repo, args.remote, production_new=args.production_new,
                 production_tag=args.production_tag,
             )
-        else:
+        elif args.command == "materialize-verify":
             validate_materialized_descendant(args.repo, args.materialized, args.signed)
             result = "valid"
+        else:
+            result = validate_staged_lineage(args.repo, args.current, args.signed)
     except (CasError, OSError, subprocess.SubprocessError) as error:
         print(f"directory-publication-cas: {error}", file=sys.stderr)
         return 1

@@ -1471,7 +1471,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         step_names = [step.get("name", "") for step in site_job["steps"] if isinstance(step, dict)]
         self.assertLess(
             step_names.index("Reject unsafe archive entries and verify the artifact"),
-            step_names.index("Fetch the exact ledger commit without credentials"),
+            step_names.index("Fetch the exact shared-ledger head without credentials"),
         )
         for forbidden in ("npm", "pnpm", "node ", "python", "trusted-source"):
             with self.subTest(forbidden=forbidden):

@@ -658,13 +658,19 @@ def commit_with_files(repo: Path, parent: str, files: Mapping[str, bytes], messa
 
 
 def materialize_commits(source_repo: Path, ledger_repo: Path, artifact_dir: Path, files: Mapping[str, bytes],
-                        *, repository: str, main_parent: str, ledger_parent: str, digest: str) -> dict[str, str]:
+                        *, repository: str, main_parent: str, ledger_parent: str,
+                        approval_target: str, digest: str) -> dict[str, str]:
     require_sha(main_parent, "main parent")
     require_sha(ledger_parent, "ledger parent")
+    require_sha(approval_target, "approval target")
     if _git(source_repo, ["rev-parse", "HEAD"]).stdout.decode().strip() != main_parent:
         fail("source checkout is not the exact main parent")
     if _git(ledger_repo, ["rev-parse", "HEAD"]).stdout.decode().strip() != ledger_parent:
         fail("ledger checkout is not the exact ledger parent")
+    if _git(
+        ledger_repo, ["merge-base", "--is-ancestor", approval_target, ledger_parent], check=False,
+    ).returncode != 0:
+        fail("approval target is not an ancestor of the evidence parent")
     root = (LEDGER_ROOT / digest.removeprefix("sha256:")).as_posix()
     if _git(ledger_repo, ["cat-file", "-e", f"{ledger_parent}:{root}"], check=False).returncode == 0:
         fail("immutable evidence root already exists")
@@ -721,13 +727,14 @@ def materialize_commits(source_repo: Path, ledger_repo: Path, artifact_dir: Path
         "schema_version": "1", "launch_evidence_digest": digest,
         "main_parent": main_parent, "main_commit": main_commit,
         "ledger_parent": ledger_parent, "ledger_commit": ledger_commit,
-        "approval_target": ledger_parent,
+        "approval_target": approval_target,
     }
 
 
 def verify_completed_state(
     source_repo: Path, ledger_repo: Path, *, repository: str, main_commit: str,
     main_parent: str, expected_run_id: str, source_digest: str,
+    expected_publication_id: str, expected_publication_source_commit: str,
     caller_event_name: str, caller_ref: str, caller_workflow_ref: str,
     approval_tag: str, observer_public_key: str, observer_key_id: str,
 ) -> None:
@@ -735,8 +742,11 @@ def verify_completed_state(
     require_sha(main_commit, "completed main commit")
     require_sha(main_parent, "completed main parent")
     require_sha(source_digest, "completed workflow source")
+    require_sha(expected_publication_source_commit, "completed publication source")
     if not expected_run_id.isdigit():
         fail("completed workflow run ID must be decimal")
+    if not expected_publication_id.isdigit():
+        fail("completed publication ID must be decimal")
     ledger_commit = _git(ledger_repo, ["rev-parse", "HEAD"]).stdout.decode().strip()
     require_sha(ledger_commit, "completed ledger commit")
     main_parents = _git(source_repo, ["show", "-s", "--format=%P", main_commit]).stdout.decode().strip().split()
@@ -746,8 +756,32 @@ def verify_completed_state(
     if len(ledger_parents) != 1:
         fail("completed evidence ledger commit must have one parent")
     approval = _git(ledger_repo, ["rev-parse", f"{approval_tag}^{{commit}}"], check=False)
-    if approval.returncode != 0 or approval.stdout.decode().strip() != ledger_parents[0]:
-        fail("completed evidence ledger parent is not the exact approved publication")
+    if approval.returncode != 0:
+        fail("completed launch approval target is missing")
+    approval_target = approval.stdout.decode().strip()
+    evidence_parent = ledger_parents[0]
+    if _git(
+        ledger_repo, ["merge-base", "--is-ancestor", approval_target, evidence_parent], check=False,
+    ).returncode != 0:
+        fail("completed approval target is not an ancestor of the evidence parent")
+    descendants = _git(
+        ledger_repo,
+        ["rev-list", "--reverse", "--ancestry-path", f"{approval_target}..{evidence_parent}"],
+    ).stdout.decode().splitlines()
+    previous = approval_target
+    for descendant in descendants:
+        parents = _git(
+            ledger_repo, ["show", "-s", "--format=%P", descendant],
+        ).stdout.decode().strip().split()
+        if parents != [previous]:
+            fail("completed pre-evidence lineage is not linear")
+        changed = _git(
+            ledger_repo,
+            ["diff-tree", "--no-commit-id", "--name-only", "-r", previous, descendant],
+        ).stdout.decode().splitlines()
+        if not changed or any(not path.startswith("discovery/") for path in changed):
+            fail("completed pre-evidence lineage contains a non-Discovery append")
+        previous = descendant
     ledger_message = _git(ledger_repo, ["show", "-s", "--format=%B", ledger_commit]).stdout.decode()
     match = re.fullmatch(
         r"chore\(evidence\): persist stable launch evidence\n\n"
@@ -788,8 +822,8 @@ def verify_completed_state(
         or index.get("caller_event_name") != caller_event_name
         or index.get("caller_ref") != caller_ref
         or index.get("caller_workflow_ref") != caller_workflow_ref
-        or index.get("publication_id") != expected_run_id
-        or index.get("publication_source_commit") != main_parent
+        or index.get("publication_id") != expected_publication_id
+        or index.get("publication_source_commit") != expected_publication_source_commit
     ):
         fail("completed evidence index is not bound to this exact workflow run")
     with tempfile.TemporaryDirectory(prefix="uap-completed-evidence-") as temporary:
@@ -812,9 +846,10 @@ def verify_completed_state(
             expected_run_id=expected_run_id, expected_run_attempt=index["workflow_run_attempt"],
             expected_caller_event_name=caller_event_name, expected_caller_ref=caller_ref,
             expected_caller_workflow_ref=caller_workflow_ref,
-            expected_publication_id=expected_run_id, expected_sequence=index["publication_sequence"],
+            expected_publication_id=expected_publication_id,
+            expected_sequence=index["publication_sequence"],
             expected_snapshot_digest=index["publication_snapshot_digest"],
-            expected_source_commit=main_parent,
+            expected_source_commit=expected_publication_source_commit,
             verify_observer=True, observer_public_key=observer_public_key,
             observer_key_id=observer_key_id, enforce_observer_freshness=False,
         )
@@ -913,6 +948,7 @@ def main() -> int:
     commit.add_argument("--ledger-repo", type=Path, required=True)
     commit.add_argument("--main-parent", required=True)
     commit.add_argument("--ledger-parent", required=True)
+    commit.add_argument("--approval-target", required=True)
     commit.add_argument("--attestation-bundle", type=Path, required=True)
     commit.add_argument("--output", type=Path, required=True)
     completed = commands.add_parser("verify-completed")
@@ -922,6 +958,8 @@ def main() -> int:
     completed.add_argument("--main-commit", required=True)
     completed.add_argument("--main-parent", required=True)
     completed.add_argument("--expected-run-id", required=True)
+    completed.add_argument("--expected-publication-id", required=True)
+    completed.add_argument("--expected-publication-source-commit", required=True)
     completed.add_argument("--source-digest", required=True)
     completed.add_argument("--caller-event-name", required=True)
     completed.add_argument("--caller-ref", required=True)
@@ -936,6 +974,8 @@ def main() -> int:
                 args.source_repo, args.ledger_repo, repository=args.repository,
                 main_commit=args.main_commit, main_parent=args.main_parent,
                 expected_run_id=args.expected_run_id, source_digest=args.source_digest,
+                expected_publication_id=args.expected_publication_id,
+                expected_publication_source_commit=args.expected_publication_source_commit,
                 caller_event_name=args.caller_event_name, caller_ref=args.caller_ref,
                 caller_workflow_ref=args.caller_workflow_ref,
                 approval_tag=args.approval_tag,
@@ -985,7 +1025,8 @@ def main() -> int:
                 values = materialize_commits(
                     args.source_repo, args.ledger_repo, args.artifact_dir, files,
                     repository=args.repository, main_parent=args.main_parent,
-                    ledger_parent=args.ledger_parent, digest=digest,
+                    ledger_parent=args.ledger_parent, approval_target=args.approval_target,
+                    digest=digest,
                 )
         write_outputs(args.output, values)
     except (EvidenceError, PublicationError, RegistryError, OSError, subprocess.SubprocessError, KeyError, TypeError, ValueError) as error:

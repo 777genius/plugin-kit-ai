@@ -640,7 +640,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("rsync -a --delete --exclude=.git --exclude=registry --exclude=/discovery", body)
         self.assertIn("diff --exit-code -- discovery", body)
         self.assertIn("diff --cached --exit-code -- discovery", body)
-        self.assertIn("diff --exit-code \"${EXPECTED_LEDGER_COMMIT}\" HEAD -- discovery", body)
+        self.assertIn('[[ "${path}" == discovery/* ]]', body)
+        self.assertIn('"${EXISTING_MATERIALIZED_COMMIT}..${EXPECTED_LEDGER_HEAD}"', body)
         self.assertEqual(body.count("':!discovery'"), 2)
 
     def test_directory_materialization_delete_semantics_keep_signed_feeds(self) -> None:
@@ -1168,7 +1169,7 @@ class WorkflowContractTests(unittest.TestCase):
         for field in (
             "EXPECTED_SEQUENCE", "EXPECTED_SNAPSHOT_DIGEST", "EXPECTED_PUBLICATION_ID",
             "EXPECTED_SOURCE_COMMIT", "EXPECTED_SIGNED_LEDGER_COMMIT",
-            "EXPECTED_MATERIALIZED_LEDGER_COMMIT",
+            "EXPECTED_LEDGER_HEAD", "EXPECTED_PUBLICATION_COMMIT",
         ):
             self.assertIn(field, verify["env"])
         self.assertIn("raw.githubusercontent.com", verify["run"])
@@ -1326,8 +1327,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("resume_publication_id == ''", guard["if"])
         for required in (
             "refs/tags/${tag_name}^{commit}",
-            "chore(directory): materialize signed production site",
-            "git -C _publication-ledger diff --exit-code",
+            "directory_publication_cas.py staged-lineage-verify",
+            'echo "ledger_head=${ledger_head}"',
             "verify_directory_publication.py",
             'test "${production_sequence}" -lt "${sequence}"',
             'git merge-base --is-ancestor "${marker_commit}" "${SOURCE_HEAD}"',
@@ -1337,7 +1338,7 @@ class WorkflowContractTests(unittest.TestCase):
 
         signer = workflow["jobs"]["sign"]
         for output in (
-            "ledger_commit", "materialized_ledger_commit", "marker_commit",
+            "ledger_commit", "materialized_ledger_commit", "ledger_head", "marker_commit",
             "publication_id", "sequence", "snapshot_digest", "main_parent",
         ):
             self.assertIn("needs.prepare.outputs.resume_", signer["outputs"][output])
@@ -1355,6 +1356,7 @@ class WorkflowContractTests(unittest.TestCase):
         persist_body = commands(persist)
         self.assertIn('--main-parent "${EXPECTED_MAIN_PARENT}"', persist_body)
         self.assertIn('--main-old "${EXPECTED_MAIN_PARENT}"', persist_body)
+        self.assertIn('--approval-target "${EXPECTED_PUBLICATION_COMMIT}"', persist_body)
         self.assertIn('--expected-publication-source-commit "${EXPECTED_SOURCE_COMMIT}"', persist_body)
 
     def test_protected_observer_preflights_oidc_claim_names_without_logging_token(self) -> None:
@@ -1413,6 +1415,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(replay["permissions"], {"contents": "read"})
         state = next(step for step in replay["steps"] if step.get("id") == "state")
         self.assertIn("materialize_launch_evidence.py verify-completed", state["run"])
+        self.assertIn('--expected-publication-id "$expected_publication_id"', state["run"])
+        self.assertIn(
+            '--expected-publication-source-commit "$expected_publication_source_commit"',
+            state["run"],
+        )
+        self.assertIn('expected_main_parent="${EVENT_SOURCE_COMMIT}"', state["run"])
         self.assertNotIn("GH_TOKEN", yaml.safe_dump(replay))
         self.assertNotIn("github.token", yaml.safe_dump(workflow))
         self.assertIn("needs.prepare.outputs.completed != 'true'", workflow["jobs"]["sign"]["if"])
