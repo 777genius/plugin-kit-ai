@@ -1362,6 +1362,16 @@ class WorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn(field, verify["env"])
         self.assertIn("raw.githubusercontent.com", verify["run"])
+        compatibility = next(
+            step for step in exact["steps"]
+            if step.get("name") == "Prove compatibility with the exact released CLI"
+        )
+        self.assertNotIn("EXPECTED_SOURCE_COMMIT", compatibility["env"])
+        self.assertIn("staged-publication/registry/schemas/1/snapshots", compatibility["run"])
+        self.assertIn('item["distribution_id"] == "777genius/context7"', compatibility["run"])
+        self.assertIn("assert len(active_policies) == 1", compatibility["run"])
+        self.assertIn('expected_source = release["package_source"]', compatibility["run"])
+        self.assertIn('result["revision"] == expected_source["revision"]', compatibility["run"])
         deploy_needs = workflow["jobs"]["deploy"]["needs"]
         self.assertIn("sign", deploy_needs)
         self.assertIn("gate_exact_staged_publication", deploy_needs)

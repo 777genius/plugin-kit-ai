@@ -1660,15 +1660,15 @@ class PublicationWorkflowTests(unittest.TestCase):
             step for step in exact_gate["steps"]
             if step.get("name") == "Prove compatibility with the exact released CLI"
         )
-        self.assertEqual(
-            cli_step["env"]["EXPECTED_SOURCE_COMMIT"],
-            "${{ needs.sign.outputs.marker_commit }}",
-        )
+        self.assertNotIn("EXPECTED_SOURCE_COMMIT", cli_step["env"])
         for exact_identity in (
-            'result["distribution_id"] == "777genius/context7"',
-            'result["repository"] == "777genius/universal-agent-plugins"',
-            'result["revision"] == os.environ["EXPECTED_SOURCE_COMMIT"]',
-            'result["package_path"] == "plugins/context7"',
+            "staged-publication/registry/schemas/1/snapshots",
+            'item["distribution_id"] == "777genius/context7"',
+            "assert len(active_policies) == 1",
+            'expected_source = release["package_source"]',
+            'result["repository"] == expected_source["repository"]',
+            'result["revision"] == expected_source["revision"]',
+            'result["package_path"] == expected_source["path"]',
         ):
             self.assertIn(exact_identity, cli_step["run"])
         self.assertIn("gate_launch_approval", workflow["jobs"]["deploy"]["needs"])
