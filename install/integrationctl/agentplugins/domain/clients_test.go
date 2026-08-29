@@ -29,10 +29,14 @@ func TestClientRegistryReturnsDefensiveCapabilityCopies(t *testing.T) {
 }
 
 func TestNewClientsUsePreparedReadOnlyFoundation(t *testing.T) {
-	for _, id := range []ClientID{ClientClaude, ClientGemini, ClientOpenCode, ClientCline, ClientWindsurf} {
+	for _, id := range []ClientID{ClientGemini, ClientOpenCode, ClientCline, ClientWindsurf} {
 		definition, ok := ClientDefinitionFor(id)
 		if !ok || definition.Capabilities.PackageMode != PackagePrepared || definition.DirectoryDelivery != "prepared" || definition.LegacyCatalogRequired {
 			t.Fatalf("new client definition %s = %+v", id, definition)
 		}
+	}
+	claude, ok := ClientDefinitionFor(ClientClaude)
+	if !ok || claude.Capabilities.PackageMode != PackageProjection || claude.DirectoryDelivery != "managed" || claude.LegacyCatalogRequired {
+		t.Fatalf("Claude Code definition = %+v", claude)
 	}
 }
