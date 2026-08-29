@@ -201,6 +201,10 @@ type DeliveryPlan struct {
 	DeclaredName             string `json:"-"`
 	NativeRegistryRoot       string `json:"-"`
 	NativeRegistryExecutable string `json:"-"`
+	// TransientNativeRegistryPath is an exact manager-owned staging path that a
+	// client's native discovery command may observe between package staging and
+	// the atomic directory swap. It is never persisted or exposed publicly.
+	TransientNativeRegistryPath string `json:"-"`
 	// LocalPreparationAuthorized records signed package evidence that permits
 	// creation of the local prepared package even when a remote, manually
 	// activated registry cannot be observed. It is never evidence that the

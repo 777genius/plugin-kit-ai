@@ -102,6 +102,21 @@ func TestDetectorRespectsClaudeConfigDirectory(t *testing.T) {
 	}
 }
 
+func TestNewOSCapturesClientConfigOverrides(t *testing.T) {
+	home := t.TempDir()
+	claudeRoot := filepath.Join(home, "claude-config")
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeRoot)
+	detector := NewOS(home)
+	detector.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := clientOf(clients, domain.ClientClaude).ConfigRoot; got != claudeRoot {
+		t.Fatalf("Claude config root = %q, want %q", got, claudeRoot)
+	}
+}
+
 func TestDetectorFindsClineOnlyFromSupportedEditorSurfaces(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()

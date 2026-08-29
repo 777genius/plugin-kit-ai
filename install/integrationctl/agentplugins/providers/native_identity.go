@@ -177,7 +177,8 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		if result.ExitCode != 0 {
 			return registryIndeterminate, fmt.Errorf("Claude Code plugin registry command failed with exit code %d", result.ExitCode)
 		}
-		switch claudePluginStatus(result.Stdout, plan.DeclaredName, plan.ActivePath) {
+		ignoredPath := trustedClaudeTransientPath(plan)
+		switch claudePluginStatus(result.Stdout, plan.DeclaredName, plan.ActivePath, ignoredPath) {
 		case claudeStatusInstalled:
 			if managed == nil {
 				return registryCollision, nil
@@ -226,6 +227,20 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 	default:
 		return registryIndeterminate, nil
 	}
+}
+
+func trustedClaudeTransientPath(plan domain.DeliveryPlan) string {
+	path := strings.TrimSpace(plan.TransientNativeRegistryPath)
+	if path == "" || !filepath.IsAbs(path) {
+		return ""
+	}
+	path = filepath.Clean(path)
+	root := filepath.Clean(plan.TargetRoot)
+	if filepath.Dir(path) != root || path == filepath.Clean(plan.ActivePath) ||
+		!strings.HasPrefix(filepath.Base(path), ".agentplugins-staging-") {
+		return ""
+	}
+	return path
 }
 
 func (observer NativeIdentityObserver) inspectCodexCLI(ctx context.Context, plan domain.DeliveryPlan, managed *domain.ClientBinding) (registryFinding, error) {

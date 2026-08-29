@@ -625,7 +625,7 @@ const (
 	claudeStatusCollision
 )
 
-func claudePluginStatus(body []byte, name, activePath string) claudeStatus {
+func claudePluginStatus(body []byte, name, activePath string, ignoredPaths ...string) claudeStatus {
 	decoder := json.NewDecoder(strings.NewReader(string(body)))
 	decoder.UseNumber()
 	parsed, err := decodeUniqueJSONValue(decoder)
@@ -641,6 +641,12 @@ func claudePluginStatus(body []byte, name, activePath string) claudeStatus {
 	}
 	expectedID := name + "@skills-dir"
 	expectedPath := filepath.Clean(activePath)
+	ignored := map[string]struct{}{}
+	for _, path := range ignoredPaths {
+		if strings.TrimSpace(path) != "" {
+			ignored[filepath.Clean(path)] = struct{}{}
+		}
+	}
 	seen := map[string]struct{}{}
 	found := false
 	for _, value := range entries {
@@ -661,6 +667,9 @@ func claudePluginStatus(body []byte, name, activePath string) claudeStatus {
 		}
 		seen[identity] = struct{}{}
 		if id != expectedID {
+			continue
+		}
+		if _, skip := ignored[filepath.Clean(installPath)]; skip {
 			continue
 		}
 		if filepath.Clean(installPath) != expectedPath || scope != "user" {

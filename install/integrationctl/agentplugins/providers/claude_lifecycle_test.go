@@ -113,6 +113,34 @@ func TestClaudeNativeIdentityRejectsUnmanagedSkillsDirCollision(t *testing.T) {
 	}
 }
 
+func TestClaudeNativeIdentityIgnoresOnlyExactManagedStagingPath(t *testing.T) {
+	config := filepath.Join(t.TempDir(), "claude-config")
+	root := filepath.Join(config, "skills")
+	active := filepath.Join(root, "demo-managed")
+	staging := filepath.Join(root, ".agentplugins-staging-0123456789abcdef")
+	plan := domain.DeliveryPlan{
+		ClientID: domain.ClientClaude, DeclaredName: "demo", TargetRoot: root,
+		ActivePath: active, NativeRegistryExecutable: "/test/bin/claude",
+		TransientNativeRegistryPath: staging,
+	}
+	runner := &identityRunner{result: legacyports.CommandResult{Stdout: []byte(claudeListing("demo", staging, true))}}
+	observation, err := (NativeIdentityObserver{Runner: runner}).ObserveNativeIdentity(
+		context.Background(), domain.DetectedClient{ClientID: domain.ClientClaude}, plan, nil,
+	)
+	if err != nil || observation.State != domain.NativeIdentityAbsent {
+		t.Fatalf("exact staging observation = %+v, %v", observation, err)
+	}
+
+	foreign := filepath.Join(root, ".agentplugins-staging-foreign")
+	runner.result.Stdout = []byte(claudeListing("demo", foreign, true))
+	observation, err = (NativeIdentityObserver{Runner: runner}).ObserveNativeIdentity(
+		context.Background(), domain.DetectedClient{ClientID: domain.ClientClaude}, plan, nil,
+	)
+	if err != nil || observation.State != domain.NativeIdentityUnmanaged {
+		t.Fatalf("foreign staging observation = %+v, %v", observation, err)
+	}
+}
+
 func claudeListing(name, installPath string, enabled bool) string {
 	return fmt.Sprintf(`[{"id":%q,"version":"1.0.0","scope":"user","enabled":%t,"installPath":%q,"mcpServers":{}}]`, name+"@skills-dir", enabled, installPath)
 }
