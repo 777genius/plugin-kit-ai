@@ -642,7 +642,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("diff --cached --exit-code -- discovery", body)
         self.assertIn('[[ "${path}" == discovery/* ]]', body)
         self.assertIn('"${EXISTING_MATERIALIZED_COMMIT}..${EXPECTED_LEDGER_HEAD}"', body)
-        self.assertEqual(body.count("':!discovery'"), 2)
+        self.assertLess(
+            body.index('if test -n "${EXISTING_MATERIALIZED_COMMIT}"'),
+            body.index("rsync -a --delete"),
+        )
+        self.assertIn("commit --allow-empty", body)
+        self.assertEqual(body.count("':!discovery'"), 1)
 
     def test_directory_materialization_delete_semantics_keep_signed_feeds(self) -> None:
         rsync = shutil.which("rsync")

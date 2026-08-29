@@ -1527,7 +1527,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("deploy", production_observation["needs"])
         self.assertEqual(production_observation["permissions"], {"contents": "read"})
         self.assertIn("EXISTING_MATERIALIZED_COMMIT", site_commands)
-        self.assertIn("rerun site tree differs", site_commands)
+        self.assertIn("commit --allow-empty", site_commands)
         self.assertIn('--materialized-output ../materialized-ledger.commit', signer_commands)
         for match in __import__("re").findall(r"uses:\s+([^\s]+)", text):
             if match.startswith("./"):

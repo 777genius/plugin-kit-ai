@@ -808,10 +808,6 @@ jobs:
           EXISTING_MATERIALIZED_COMMIT: ${{ needs.sign.outputs.materialized_ledger_commit }}
         run: |
           test "$(git -C ledger rev-parse HEAD)" = "${EXPECTED_LEDGER_HEAD}"
-          rsync -a --delete --exclude=.git --exclude=registry --exclude=/discovery "${RUNNER_TEMP}/validated-site/" ledger/
-          git -C ledger diff --exit-code -- registry/schemas/1/snapshots
-          git -C ledger diff --exit-code -- registry
-          git -C ledger diff --exit-code -- discovery
           if test -n "${EXISTING_MATERIALIZED_COMMIT}"; then
             git -C ledger fetch --no-tags origin "${EXISTING_MATERIALIZED_COMMIT}"
             test "$(git -C ledger show -s --format=%P "${EXISTING_MATERIALIZED_COMMIT}")" = "${EXPECTED_LEDGER_COMMIT}"
@@ -830,21 +826,22 @@ jobs:
               done
               previous="${descendant}"
             done
-            git -C ledger add -A -- . ':!registry' ':!discovery'
-            test "$(git -C ledger write-tree)" = "$(git -C ledger show -s --format=%T "${EXPECTED_LEDGER_HEAD}")" || {
-              echo "rerun site tree differs from the authenticated shared-ledger head" >&2
-              exit 1
-            }
-            git -C ledger reset --quiet
-          elif test -n "$(git -C ledger status --porcelain)"; then
+            git -C ledger diff --exit-code
+            git -C ledger diff --cached --exit-code
+          else
             test "${EXPECTED_LEDGER_HEAD}" = "${EXPECTED_LEDGER_COMMIT}"
+            rsync -a --delete --exclude=.git --exclude=registry --exclude=/discovery "${RUNNER_TEMP}/validated-site/" ledger/
+            git -C ledger diff --exit-code -- registry/schemas/1/snapshots
+            git -C ledger diff --exit-code -- registry
+            git -C ledger diff --exit-code -- discovery
             git -C ledger config user.name "uap-directory-publisher[bot]"
             git -C ledger config user.email "uap-directory-publisher[bot]@users.noreply.github.com"
             git -C ledger add -A -- . ':!registry' ':!discovery'
             git -C ledger diff --cached --exit-code -- registry/schemas/1/snapshots
             git -C ledger diff --cached --exit-code -- registry
             git -C ledger diff --cached --exit-code -- discovery
-            git -C ledger -c core.hooksPath=/dev/null commit -m "chore(directory): materialize signed production site"
+            git -C ledger -c core.hooksPath=/dev/null commit --allow-empty \
+              -m "chore(directory): materialize signed production site"
             test "$(git -C ledger rev-parse HEAD^)" = "${EXPECTED_LEDGER_COMMIT}"
           fi
           echo "ledger_commit=$(git -C ledger rev-parse HEAD)" >> "$GITHUB_OUTPUT"
