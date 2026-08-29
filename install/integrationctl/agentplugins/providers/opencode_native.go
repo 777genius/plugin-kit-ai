@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -124,6 +125,10 @@ func neutralOpenCodeServer(server domain.MCPServer) (nativeconfig.Server, error)
 		if err != nil {
 			return nativeconfig.Server{}, fmt.Errorf("cwd: %w", err)
 		}
+		cwd, err = normalizeOpenCodeCWD(cwd)
+		if err != nil {
+			return nativeconfig.Server{}, fmt.Errorf("cwd: %w", err)
+		}
 		return nativeconfig.Server{Type: "stdio", Command: command, Args: args, Env: env, CWD: cwd}, nil
 	case "streamable-http", "sse":
 		url, ok := server.Decoded["url"].(string)
@@ -149,6 +154,21 @@ func openCodeOptionalString(value any) (string, error) {
 		return "", fmt.Errorf("must be a string")
 	}
 	return text, nil
+}
+
+func normalizeOpenCodeCWD(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || path.IsAbs(value) || filepath.IsAbs(value) || strings.Contains(value, "${") {
+		return value, nil
+	}
+	clean := path.Clean(strings.ReplaceAll(value, "\\", "/"))
+	if clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", fmt.Errorf("plugin-relative path escapes the package root")
+	}
+	if clean == "." {
+		return "${PLUGIN_ROOT}", nil
+	}
+	return "${PLUGIN_ROOT}/" + clean, nil
 }
 
 func openCodeStrings(value any) ([]string, error) {
@@ -368,8 +388,12 @@ func applyOpenCodeNative(configRoot, activePath string, previous, desired []doma
 		if err != nil {
 			return err
 		}
-		if !sameCleanPath(selected, expectedConfig) && (jsonExists || jsoncExists) {
-			return fmt.Errorf("OpenCode config selection changed after staging; rerun the operation")
+		if !sameCleanPath(selected, expectedConfig) {
+			if len(desired) > 0 || jsonExists || jsoncExists {
+				return fmt.Errorf("OpenCode config selection changed after staging; rerun the operation")
+			}
+			// Removal is already complete when both exact config variants are
+			// absent. Do not recreate either path just to remove an absent entry.
 		}
 	}
 	requests, err := openCodeMCPRequests(projection, previous, desired)
@@ -436,15 +460,6 @@ func openCodeMCPRequests(projection openCodeProjection, previous, desired []doma
 			}
 		}
 	}
-	jsonExists, jsoncExists, err := openCodeConfigPresence(filepath.Dir(paths.JSON))
-	if err != nil {
-		return nil, err
-	}
-	if !jsonExists && !jsoncExists && projection.ConfigPath != "" && sameCleanPath(projection.ConfigPath, projection.ConfigJSONC) {
-		// The exact previously selected JSONC file was deleted. Recreate that
-		// same owned path rather than silently switching to opencode.json.
-		paths = nativeconfig.Paths{JSON: projection.ConfigJSONC}
-	}
 	placeholders := nativeconfig.Placeholders{PackageRoot: projection.PackageRoot, DataRoot: projection.DataRoot}
 	var result []nativeconfig.Request
 	kernel := nativeconfig.New()
@@ -479,8 +494,9 @@ func openCodeMCPRequests(projection openCodeProjection, previous, desired []doma
 			}
 			action, receipt = nativeconfig.ActionAdd, nil
 		}
+		desiredReceipt := receiptFromOpenCodeObject(next)
 		result = append(result, nativeconfig.Request{Paths: paths, Codec: nativeconfig.CodecOpenCode, Action: action, Name: next.LogicalName,
-			Server: projection.MCPServers[next.LogicalName], Placeholders: placeholders, Owned: receipt})
+			Server: projection.MCPServers[next.LogicalName], Placeholders: placeholders, Owned: receipt, Desired: &desiredReceipt})
 	}
 	for id, object := range desiredByID {
 		if object.Kind != openCodeMCPObjectKind {
@@ -496,8 +512,9 @@ func openCodeMCPRequests(projection openCodeProjection, previous, desired []doma
 		if present {
 			return nil, fmt.Errorf("OpenCode MCP server %q already exists: %w", object.LogicalName, nativeconfig.ErrCollision)
 		}
+		desiredReceipt := receiptFromOpenCodeObject(object)
 		result = append(result, nativeconfig.Request{Paths: paths, Codec: nativeconfig.CodecOpenCode, Action: nativeconfig.ActionAdd, Name: object.LogicalName,
-			Server: projection.MCPServers[object.LogicalName], Placeholders: placeholders})
+			Server: projection.MCPServers[object.LogicalName], Placeholders: placeholders, Desired: &desiredReceipt})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil

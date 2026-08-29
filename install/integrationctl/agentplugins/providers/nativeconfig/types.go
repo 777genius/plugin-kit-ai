@@ -88,6 +88,11 @@ type Request struct {
 	Server       Server
 	Placeholders Placeholders
 	Owned        *Receipt
+	// Desired optionally binds add/update to the exact projected receipt the
+	// caller staged. ApplyBatch compares it before any config write, including
+	// the selected JSON/JSONC path, so selection drift cannot commit first and
+	// fail only during a provider postcondition.
+	Desired *Receipt
 }
 
 // FileIO abstracts exact no-follow reads and atomic replacement. WriteAtomic
@@ -140,6 +145,9 @@ func validateRequest(req Request) error {
 	}
 	if req.Action != ActionAdd && req.Owned == nil {
 		return fmt.Errorf("%s requires an ownership receipt: %w", req.Action, ErrNotOwned)
+	}
+	if req.Action == ActionRemove && req.Desired != nil {
+		return fmt.Errorf("remove must not declare a desired receipt")
 	}
 	return nil
 }

@@ -211,6 +211,37 @@ func TestApplyBatchWritesAllEntriesOnceAndFailsClosedOnCollision(t *testing.T) {
 	assertBytes(t, path, before)
 }
 
+func TestDesiredReceiptBindingRejectsResolvedIdentityDriftBeforeWrite(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*Receipt)
+	}{
+		{name: "path", mutate: func(receipt *Receipt) { receipt.Path += ".jsonc" }},
+		{name: "codec", mutate: func(receipt *Receipt) { receipt.Codec = CodecGemini }},
+		{name: "name", mutate: func(receipt *Receipt) { receipt.Name = "other" }},
+		{name: "digest", mutate: func(receipt *Receipt) { receipt.Digest = "sha256:00" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "opencode.json")
+			server := Server{Type: "stdio", Command: "node", CWD: "${PLUGIN_ROOT}/work"}
+			placeholders := Placeholders{PackageRoot: "/pkg"}
+			desired, err := DesiredReceipt(path, CodecOpenCode, "docs", server, placeholders)
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.mutate(&desired)
+			_, err = New().Apply(Request{Paths: Paths{JSON: path}, Codec: CodecOpenCode, Action: ActionAdd,
+				Name: "docs", Server: server, Placeholders: placeholders, Desired: &desired})
+			if !errors.Is(err, ErrConcurrentChange) {
+				t.Fatalf("expected pre-write desired receipt rejection, got %v", err)
+			}
+			if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+				t.Fatalf("desired identity drift wrote native config: %v", statErr)
+			}
+		})
+	}
+}
+
 func TestMalformedDuplicateAndAmbiguousInputsFailClosed(t *testing.T) {
 	tests := []string{
 		`{"mcpServers":{},"mcpServers":{}}`,

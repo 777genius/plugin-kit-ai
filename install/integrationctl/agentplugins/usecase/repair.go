@@ -116,12 +116,23 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 				BackendExecutable:     input.BackendExecutable,
 				PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
 			})
+			outcome = preserveManagedAuthentication(outcome, client.Authentication)
 			result.Activation = outcome
 			if activationErr != nil {
 				return result, fmt.Errorf("repair managed native state: %w", activationErr)
 			}
-			if _, updateErr := service.updateLifecycle(installation.InstallationID, clientKey, outcome); updateErr != nil {
-				return result, fmt.Errorf("persist repaired native lifecycle: %w", updateErr)
+			repairedClient := client
+			repairedClient.Materialization = domain.MaterializationMaterialized
+			repairedClient.Activation = outcome.Activation
+			repairedClient.Authentication = outcome.Authentication
+			repairedClient.Policy = outcome.Policy
+			repairedClient.Verification = outcome.Verification
+			repairedClient.UpdatedAt = service.now().Format("2006-01-02T15:04:05.999999999Z07:00")
+			installation.Clients[clientKey] = repairedClient
+			installation.UpdatedAt = repairedClient.UpdatedAt
+			state.Installations[index] = installation
+			if saveErr := service.StateStore.Save(state); saveErr != nil {
+				return result, fmt.Errorf("persist repaired native lifecycle: %w", saveErr)
 			}
 			result.Mutated = true
 			return result, nil
@@ -261,6 +272,7 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 			BackendExecutable:     input.BackendExecutable,
 			PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
 		})
+		outcome = preserveManagedAuthentication(outcome, client.Authentication)
 		result.Activation = outcome
 		if _, updateErr := service.updateLifecycle(installation.InstallationID, clientKey, outcome); updateErr != nil {
 			if activationErr != nil {

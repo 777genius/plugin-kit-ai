@@ -147,6 +147,14 @@ func TestOpenCodeSupportsAutomaticMCPAndSkillLifecycle(t *testing.T) {
 	if len(onlyBinding(state.Installations[0]).NativeObjects) != 3 {
 		t.Fatalf("OpenCode ownership receipts were not persisted: %+v", onlyBinding(state.Installations[0]).NativeObjects)
 	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Authentication = domain.AuthenticationComplete
+		binding.Materialization = domain.MaterializationDegraded
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
 	configPath := filepath.Join(client.ConfigRoot, "opencode.json")
 	if err := os.WriteFile(configPath, []byte(`{"mcp":{}}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -163,6 +171,13 @@ func TestOpenCodeSupportsAutomaticMCPAndSkillLifecycle(t *testing.T) {
 	repaired, err := service.Repair(context.Background(), update)
 	if err != nil || !repaired.Mutated || repaired.Activation.Verification != domain.VerificationInstalled {
 		t.Fatalf("native-only repair failed: result=%+v err=%v", repaired, err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding := onlyBinding(state.Installations[0]); binding.Materialization != domain.MaterializationMaterialized || binding.Authentication != domain.AuthenticationComplete {
+		t.Fatalf("native repair did not converge degraded/attested state: %+v", binding)
 	}
 	config = readUsecaseObject(t, configPath)
 	if _, exists := config["mcp"].(map[string]any)["docs"]; !exists {

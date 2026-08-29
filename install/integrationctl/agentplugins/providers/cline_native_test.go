@@ -72,6 +72,32 @@ func TestClineLifecycleInstallsUpdatesAndRemovesExactOwnedObjects(t *testing.T) 
 	}
 	desired = updated
 
+	// A confirmed repair may recreate an absent entry only when the desired
+	// receipt is exactly the one already owned by state.
+	writeTestFile(t, settings, `{"theme":"night","mcpServers":{"foreign":{"command":"foreign"}}}`)
+	request.PreviousNativeObjects = append([]domain.NativeObjectOwnership(nil), desired...)
+	request.Delivery.NativeObjects = append([]domain.NativeObjectOwnership(nil), desired...)
+	if _, err := (Activator{}).Activate(context.Background(), request); err != nil {
+		t.Fatalf("repair absent exact-owned Cline entry: %v", err)
+	}
+	doc = readObject(t, settings)
+	if doc["mcpServers"].(map[string]any)["docs"] == nil {
+		t.Fatalf("Cline repair did not recreate the exact entry: %+v", doc)
+	}
+
+	foreign := `{"mcpServers":{"docs":{"transport":{"type":"stdio","command":"foreign"}}}}`
+	writeTestFile(t, settings, foreign)
+	if _, err := (Activator{}).Activate(context.Background(), request); !errors.Is(err, nativeconfig.ErrNotOwned) && !strings.Contains(err.Error(), "changed outside") {
+		t.Fatalf("tampered Cline entry was not rejected: %v", err)
+	}
+	if body, err := os.ReadFile(settings); err != nil || string(body) != foreign {
+		t.Fatalf("failed Cline repair changed tampered entry: %s, %v", body, err)
+	}
+
+	// Missing at removal is an idempotent success; the owned skill is still
+	// removed while unrelated config survives.
+	writeTestFile(t, settings, `{"theme":"night","mcpServers":{"foreign":{"command":"foreign"}}}`)
+
 	remove := domain.DeactivationRequest{Client: request.Client, DeclaredName: "demo", CurrentActivation: domain.ActivationActive, Confirmed: true, NativeObjects: desired}
 	removed, err := (Activator{}).Deactivate(context.Background(), remove)
 	if err != nil || !removed.ExternalRemovalComplete || !removed.ArtifactRemovalAllowed {

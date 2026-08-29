@@ -191,9 +191,7 @@ func TestOpenCodeRepairRecreatesOnlyAnAbsentExactOwnedEntryAndRemoveIsIdempotent
 	}
 
 	// Missing is the only state that exact-same repair may recreate.
-	if err := os.Remove(configPath); err != nil {
-		t.Fatal(err)
-	}
+	writeOpenCodeTestFile(t, configPath, "{\n  // selected JSONC\n  \"mcp\": {\"foreign\": {\"type\":\"remote\",\"url\":\"https://foreign.test\"}},\n}\n")
 	if err := applyOpenCodeNative(configRoot, active, objects, objects); err != nil {
 		t.Fatalf("repair absent exact-owned entry: %v", err)
 	}
@@ -232,7 +230,7 @@ func TestOpenCodeProjectionPreservesOfficialLocalCWD(t *testing.T) {
 	active := filepath.Join(root, "managed", "demo")
 	envelope, plan := openCodeTestPackage(t, active, configRoot, "owned")
 	envelope.MCP.Servers["docs"] = domain.MCPServer{Name: "docs", Type: "stdio", Decoded: map[string]any{
-		"command": "node", "args": []any{"${PLUGIN_ROOT}/server.js"}, "cwd": "${PLUGIN_ROOT}/workspace",
+		"command": "node", "args": []any{"${PLUGIN_ROOT}/server.js"}, "cwd": "./workspace",
 	}}
 	if err := os.Remove(filepath.Join(active, openCodeProjectionFile)); err != nil {
 		t.Fatal(err)

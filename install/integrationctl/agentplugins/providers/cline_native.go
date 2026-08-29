@@ -329,12 +329,43 @@ func mutateClineMCP(configRoot, activePath string, previous, desired map[string]
 		prior, hadPrior := previous[id]
 		next, hasNext := desired[id]
 		req := nativeconfig.Request{Paths: nativeconfig.Paths{JSON: path}, Codec: nativeconfig.CodecCline}
+		var present, exactlyOwned bool
+		if hadPrior {
+			receipt := clineReceipt(prior)
+			var err error
+			present, exactlyOwned, err = kernel.Inspect(req.Paths, req.Codec, prior.LogicalName, &receipt)
+			if err != nil {
+				return fmt.Errorf("inspect managed Cline MCP server %q: %w", prior.LogicalName, err)
+			}
+			if present && !exactlyOwned {
+				return fmt.Errorf("managed Cline MCP server %q changed outside agentplugins: %w", prior.LogicalName, nativeconfig.ErrNotOwned)
+			}
+		} else if hasNext {
+			var err error
+			present, _, err = kernel.Inspect(req.Paths, req.Codec, next.LogicalName, nil)
+			if err != nil {
+				return fmt.Errorf("inspect Cline MCP server %q before add: %w", next.LogicalName, err)
+			}
+			if present {
+				return fmt.Errorf("Cline MCP server %q already exists: %w", next.LogicalName, nativeconfig.ErrCollision)
+			}
+		}
 		switch {
 		case hadPrior && hasNext:
-			receipt := clineReceipt(prior)
-			req.Action, req.Name, req.Owned = nativeconfig.ActionUpdate, next.LogicalName, &receipt
+			if !present {
+				if !sameClineMCPObject(prior, next) {
+					return fmt.Errorf("managed Cline MCP server %q is absent during update: %w", prior.LogicalName, nativeconfig.ErrNotOwned)
+				}
+				req.Action, req.Name = nativeconfig.ActionAdd, next.LogicalName
+			} else {
+				receipt := clineReceipt(prior)
+				req.Action, req.Name, req.Owned = nativeconfig.ActionUpdate, next.LogicalName, &receipt
+			}
 			req.Server = projection.Servers[next.LogicalName]
 		case hadPrior:
+			if !present {
+				continue
+			}
 			receipt := clineReceipt(prior)
 			req.Action, req.Name, req.Owned = nativeconfig.ActionRemove, prior.LogicalName, &receipt
 		case hasNext:
@@ -348,6 +379,7 @@ func mutateClineMCP(configRoot, activePath string, previous, desired map[string]
 			if receipt.Digest != next.ManagedDigest {
 				return fmt.Errorf("Cline MCP desired receipt mismatch for %q", next.LogicalName)
 			}
+			req.Desired = &receipt
 		}
 		requests = append(requests, req)
 	}
@@ -356,6 +388,11 @@ func mutateClineMCP(configRoot, activePath string, previous, desired map[string]
 		return err
 	}
 	return nil
+}
+
+func sameClineMCPObject(left, right domain.NativeObjectOwnership) bool {
+	return left.ObjectID == right.ObjectID && left.Kind == clineMCPObjectKind && right.Kind == clineMCPObjectKind &&
+		left.LogicalName == right.LogicalName && sameCleanPath(left.Path, right.Path) && left.ManagedDigest == right.ManagedDigest
 }
 
 func readClineProjection(root string) (clineProjection, error) {

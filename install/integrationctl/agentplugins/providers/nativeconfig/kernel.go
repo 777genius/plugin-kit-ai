@@ -127,6 +127,9 @@ func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 		if err != nil {
 			return nil, err
 		}
+		if req.Desired != nil && *req.Desired != desired {
+			return nil, fmt.Errorf("native config desired receipt changed before write: %w", ErrConcurrentChange)
+		}
 		member, _ := objectMember(entries, req.Name)
 		actualDigest, err := entryDigest(req.Codec, req.Name, member)
 		if err != nil {

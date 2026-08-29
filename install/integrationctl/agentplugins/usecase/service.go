@@ -727,10 +727,15 @@ func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput,
 	}
 	delivery := domain.StagedDelivery{ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot, ActivePath: client.TargetLocator, ArtifactDigest: managedDigest(client), NativeObjects: client.NativeObjects}
 	outcome, err := service.Activator.Activate(ctx, domain.ActivationRequest{Client: input.Client, Plan: result.Plan, Delivery: delivery, DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...), VerifyOnly: true})
-	if outcome.Authentication == "" || outcome.Authentication == domain.AuthenticationNotChecked {
-		outcome.Authentication = client.Authentication
-	}
+	outcome = preserveManagedAuthentication(outcome, client.Authentication)
 	return outcome, err
+}
+
+func preserveManagedAuthentication(outcome domain.ActivationOutcome, current domain.AuthenticationState) domain.ActivationOutcome {
+	if current == domain.AuthenticationComplete || outcome.Authentication == "" || outcome.Authentication == domain.AuthenticationNotChecked {
+		outcome.Authentication = current
+	}
+	return outcome
 }
 
 func (service Service) now() time.Time {
