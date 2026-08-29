@@ -758,10 +758,12 @@ class HttpBoundaryTests(unittest.TestCase):
             connection.putheader("Content-Type", "application/json")
             connection.putheader("Content-Length", str(MAX_REQUEST_BYTES + 1))
             connection.putheader("Authorization", "Bearer ignored")
-            connection.endheaders()
-            response = connection.getresponse()
-            self.assertEqual(response.status, 400)
-            self.assertEqual(json.loads(response.read()), {"error": "request rejected"})
+            with self.assertLogs("observer.http_server", level="WARNING") as captured:
+                connection.endheaders()
+                response = connection.getresponse()
+                self.assertEqual(response.status, 400)
+                self.assertEqual(json.loads(response.read()), {"error": "request rejected"})
+            self.assertIn("phase=body status=400", "\n".join(captured.output))
         finally:
             server.shutdown()
             server.server_close()
@@ -897,14 +899,18 @@ class ExternalSignerTests(unittest.TestCase):
         try:
             body = b"{}"
             connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
-            connection.request(
-                "POST", "/v1/stable-launch/observe", body=body,
-                headers={"Content-Type": "application/json", "Authorization": "Bearer fixture"},
-            )
-            response = connection.getresponse()
-            encoded = response.read()
-            self.assertEqual(response.status, 503)
-            self.assertNotIn(b"secret", encoded)
+            with self.assertLogs("observer.http_server", level="WARNING") as captured:
+                connection.request(
+                    "POST", "/v1/stable-launch/observe", body=body,
+                    headers={"Content-Type": "application/json", "Authorization": "Bearer fixture"},
+                )
+                response = connection.getresponse()
+                encoded = response.read()
+                self.assertEqual(response.status, 503)
+                self.assertNotIn(b"secret", encoded)
+            logs = "\n".join(captured.output)
+            self.assertIn("phase=execution status=503 error_type=ValueError", logs)
+            self.assertNotIn("provider secret", logs)
         finally:
             server.shutdown()
             server.server_close()

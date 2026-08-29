@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import socket
 import socketserver
 import threading
@@ -22,6 +23,7 @@ ROUTE = "/v1/stable-launch/observe"
 REQUEST_TOTAL_SECONDS = 20
 MAX_CONNECTIONS = 16
 END_TO_END_SECONDS = 900
+LOGGER = logging.getLogger(__name__)
 
 
 class VerifiedRateLimitError(ValueError):
@@ -114,11 +116,13 @@ class ObserverHandler(BaseHTTPRequestHandler):
             self._json_error(401, "authentication failed")
             return
         except VerifiedRateLimitError:
+            LOGGER.warning("verified_observer_request_failed phase=capacity status=429")
             self._json_error(429, "rate limit exceeded", retry_after="60")
             return
         try:
             request = self._read_request()
         except (ValueError, UnicodeError, json.JSONDecodeError, TimeoutError, socket.timeout):
+            LOGGER.warning("verified_observer_request_failed phase=body status=400")
             self._json_error(400, "request rejected")
             return
         try:
@@ -126,18 +130,26 @@ class ObserverHandler(BaseHTTPRequestHandler):
             if len(response) > MAX_RESPONSE_BYTES:
                 raise ValueError("observer response exceeds size bound")
         except AuthenticationError:
+            LOGGER.warning("verified_observer_request_failed phase=service_auth status=401")
             self._json_error(401, "authentication failed")
             return
         except RequestValidationError:
+            LOGGER.warning("verified_observer_request_failed phase=request_validation status=400")
             self._json_error(400, "request rejected")
             return
         except VerifiedRateLimitError:
+            LOGGER.warning("verified_observer_request_failed phase=service_capacity status=429")
             self._json_error(429, "rate limit exceeded", retry_after="60")
             return
         except WorkBusyError:
+            LOGGER.warning("verified_observer_request_failed phase=coordination status=409")
             self._json_error(409, "observer busy", retry_after="30")
             return
-        except Exception:
+        except Exception as error:
+            LOGGER.warning(
+                "verified_observer_request_failed phase=execution status=503 error_type=%s",
+                type(error).__name__,
+            )
             self._json_error(503, "observer unavailable")
             return
         self.send_response(200)
