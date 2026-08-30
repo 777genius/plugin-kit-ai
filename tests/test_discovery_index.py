@@ -1137,6 +1137,20 @@ class DiscoveryIndexTests(unittest.TestCase):
                 second = publish(candidate, feed, trusted, seed, "discovery-test", "run-2", "c" * 40, 3)
                 self.assertEqual(second["sequence"], 2)
                 latest = json.loads((feed / "latest.json").read_text())
+                envelope_path = feed / latest["envelope_path"]
+                envelope_body = envelope_path.read_bytes()
+                self.assertEqual(
+                    discovery_publication.load_latest_portably(feed, trusted)[0]["sequence"],
+                    2,
+                )
+                envelope = json.loads(envelope_body)
+                tampered_signature = bytearray(base64.b64decode(envelope["signature"], validate=True))
+                tampered_signature[0] ^= 1
+                envelope["signature"] = base64.b64encode(tampered_signature).decode("ascii")
+                envelope_path.write_bytes(canonical_json(envelope))
+                with self.assertRaisesRegex(PublicationError, "invalid Discovery snapshot signature"):
+                    discovery_publication.load_latest_portably(feed, trusted)
+                envelope_path.write_bytes(envelope_body)
                 search = feed / latest["search_path"]
                 original = search.read_bytes()
                 tampered = json.loads(original)

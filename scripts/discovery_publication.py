@@ -8,7 +8,7 @@ import json
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.directory_publication import (
@@ -41,6 +41,8 @@ MAX_SNAPSHOT_BYTES = 16 << 20
 MAX_SEARCH_BYTES = 10 << 20
 MAX_ENVELOPE_BYTES = 16 << 10
 MAX_LATEST_BYTES = 16 << 10
+
+SignatureVerifier = Callable[[bytes, bytes, bytes], None]
 
 
 def signature_message(snapshot: bytes) -> bytes:
@@ -94,7 +96,29 @@ def validate_search(search: dict[str, Any], snapshot: dict[str, Any]) -> bytes:
     return body
 
 
-def verify_bundle(snapshot_body: bytes, envelope_body: bytes, search_body: bytes, trusted_keys_path: Path) -> dict[str, Any]:
+def cryptography_ed25519_verify(public_key: bytes, message: bytes, signature: bytes) -> None:
+    """Verify Ed25519 material portably in read-only consumers."""
+    require(len(public_key) == 32, "Ed25519 public key must be 32 bytes")
+    require(len(signature) == 64, "Ed25519 signature must be 64 bytes")
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    except ImportError as error:
+        raise PublicationError("cryptography is required for portable Discovery verification") from error
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key).verify(signature, message)
+    except (InvalidSignature, ValueError) as error:
+        raise PublicationError("Ed25519 signature verification failed") from error
+
+
+def verify_bundle(
+    snapshot_body: bytes,
+    envelope_body: bytes,
+    search_body: bytes,
+    trusted_keys_path: Path,
+    *,
+    signature_verifier: SignatureVerifier | None = None,
+) -> dict[str, Any]:
     require(len(snapshot_body) <= MAX_SNAPSHOT_BYTES, "Discovery snapshot exceeds size limit")
     require(len(envelope_body) <= MAX_ENVELOPE_BYTES, "Discovery envelope exceeds size limit")
     require(len(search_body) <= MAX_SEARCH_BYTES, "Discovery search projection exceeds size limit")
@@ -116,7 +140,8 @@ def verify_bundle(snapshot_body: bytes, envelope_body: bytes, search_body: bytes
     trusted = load_public_keys(trusted_keys_path)
     require(envelope["key_id"] in trusted, "unknown Discovery signing key")
     try:
-        ed25519_verify(
+        verifier = ed25519_verify if signature_verifier is None else signature_verifier
+        verifier(
             trusted[envelope["key_id"]], signature_message(snapshot_body),
             b64decode_exact(envelope["signature"], 64, "Discovery signature"),
         )
@@ -126,7 +151,12 @@ def verify_bundle(snapshot_body: bytes, envelope_body: bytes, search_body: bytes
     return snapshot
 
 
-def load_latest(feed: Path, trusted_keys: Path) -> tuple[dict[str, Any], dict[str, Any]] | None:
+def load_latest(
+    feed: Path,
+    trusted_keys: Path,
+    *,
+    signature_verifier: SignatureVerifier | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
     latest_path = feed / "latest.json"
     if not latest_path.exists():
         return None
@@ -142,10 +172,16 @@ def load_latest(feed: Path, trusted_keys: Path) -> tuple[dict[str, Any], dict[st
         read_bytes_bounded(envelope_path, latest["fetch_contract"]["envelope_max_bytes"]),
         read_bytes_bounded(search_path, latest["fetch_contract"]["search_max_bytes"]),
         trusted_keys,
+        signature_verifier=signature_verifier,
     )
     require(snapshot["sequence"] == latest["sequence"], "Discovery latest sequence mismatch")
     require(snapshot["search_projection"]["path"] == latest["search_path"], "Discovery latest search path mismatch")
     return snapshot, latest
+
+
+def load_latest_portably(feed: Path, trusted_keys: Path) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Load a feed without relying on the host OpenSSL CLI implementation."""
+    return load_latest(feed, trusted_keys, signature_verifier=cryptography_ed25519_verify)
 
 
 def publish(candidate_path: Path, feed: Path, trusted_keys: Path, private_seed: bytes, key_id: str,

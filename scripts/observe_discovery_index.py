@@ -24,7 +24,11 @@ from scripts.directory_publication import (
     sha256_digest,
     validate_with_schema,
 )
-from scripts.discovery_publication import LATEST_SCHEMA, MAX_LATEST_BYTES, load_latest
+from scripts.discovery_publication import (
+    LATEST_SCHEMA,
+    MAX_LATEST_BYTES,
+    load_latest_portably,
+)
 from scripts.sequence_boundaries import parse_public_sequence, require_public_sequence
 
 
@@ -77,7 +81,7 @@ def observe_once(origin: str, trusted_keys: Path, minimum_sequence: int) -> dict
             destination = feed / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(fetch(opener, origin + "/" + relative, latest["fetch_contract"][maximum_field]))
-        loaded = load_latest(feed, trusted_keys)
+        loaded = load_latest_portably(feed, trusted_keys)
         if loaded is None:
             raise PublicationError("Discovery latest pointer disappeared")
         snapshot, _pointer = loaded

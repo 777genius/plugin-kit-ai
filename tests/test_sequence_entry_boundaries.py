@@ -207,11 +207,11 @@ class FloorBeforeIOTests(unittest.TestCase):
     def test_discovery_verifier_cli_rejects_before_load_and_accepts_maximum(self) -> None:
         base = ["verify", "--feed", "feed", "--trusted-keys", "keys", "--minimum-sequence"]
         for text in ("0", "+1", " 1", str(ALIASES[0]), str(ALIASES[1])):
-            with self.subTest(text=text), mock.patch.object(sys, "argv", [*base, text]), mock.patch.object(verify_discovery_index, "load_latest") as load:
+            with self.subTest(text=text), mock.patch.object(sys, "argv", [*base, text]), mock.patch.object(verify_discovery_index, "load_latest_portably") as load:
                 with self.assertRaises(SystemExit):
                     verify_discovery_index.main()
                 load.assert_not_called()
-        with mock.patch.object(sys, "argv", [*base, str(MAXIMUM)]), mock.patch.object(verify_discovery_index, "load_latest", side_effect=OSError("accepted")) as load:
+        with mock.patch.object(sys, "argv", [*base, str(MAXIMUM)]), mock.patch.object(verify_discovery_index, "load_latest_portably", side_effect=OSError("accepted")) as load:
             self.assertEqual(verify_discovery_index.main(), 1)
             load.assert_called_once()
 

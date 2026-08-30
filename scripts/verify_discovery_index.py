@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.directory_publication import PublicationError, parse_timestamp
-from scripts.discovery_publication import load_latest
+from scripts.discovery_publication import load_latest_portably
 from scripts.sequence_boundaries import parse_public_sequence, require_public_sequence
 
 
@@ -24,7 +24,7 @@ def main() -> int:
         minimum_sequence = None if args.minimum_sequence is None else require_public_sequence(
             args.minimum_sequence, "minimum sequence",
         )
-        loaded = load_latest(args.feed, args.trusted_keys)
+        loaded = load_latest_portably(args.feed, args.trusted_keys)
         if loaded is None:
             raise PublicationError("Discovery latest pointer is missing")
         snapshot, _latest = loaded
