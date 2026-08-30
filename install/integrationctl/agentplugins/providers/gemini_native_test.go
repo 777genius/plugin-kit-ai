@@ -50,6 +50,74 @@ func TestGeminiSkillRollbackRetainsOnlyBackupWhenRestoreRenameFails(t *testing.T
 	}
 }
 
+func TestGeminiSkillBackupDigestMismatchRestoresLiveDirectoryAndAborts(t *testing.T) {
+	configRoot := filepath.Join(t.TempDir(), ".gemini")
+	activeV1, desiredV1 := geminiNativeFixture(t, configRoot, "v1", "https://docs.test/v1")
+	if err := applyGeminiNativeMutation(configRoot, activeV1, nil, desiredV1); err != nil {
+		t.Fatal(err)
+	}
+	activeV2, desiredV2 := geminiNativeFixture(t, configRoot, "v2", "https://docs.test/v2")
+	liveSkill := filepath.Join(configRoot, "skills", "docs")
+	rename := func(oldPath, newPath string) error {
+		if sameCleanPath(oldPath, liveSkill) && strings.HasPrefix(filepath.Base(newPath), "old-") {
+			writeTestFile(t, filepath.Join(oldPath, "SKILL.md"), "concurrent user change\n")
+		}
+		return os.Rename(oldPath, newPath)
+	}
+
+	err := applyGeminiNativeMutationWithRename(configRoot, activeV2, desiredV1, desiredV2, rename)
+	if err == nil || !strings.Contains(err.Error(), "isolated Gemini skill backup") {
+		t.Fatalf("TOCTOU activation error = %v", err)
+	}
+	body, readErr := os.ReadFile(filepath.Join(liveSkill, "SKILL.md"))
+	if readErr != nil || string(body) != "concurrent user change\n" {
+		t.Fatalf("restored live Gemini skill = %q, %v", body, readErr)
+	}
+	document := readObject(t, filepath.Join(configRoot, "settings.json"))
+	server := document["mcpServers"].(map[string]any)["docs"].(map[string]any)
+	if server["httpUrl"] != "https://docs.test/v1" {
+		t.Fatalf("MCP configuration changed after backup mismatch: %+v", server)
+	}
+}
+
+func TestRenameGeminiDirectoryNoReplacePreservesLateTarget(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "staged")
+	target := filepath.Join(root, "live")
+	writeTestFile(t, filepath.Join(source, "SKILL.md"), "managed\n")
+	writeTestFile(t, filepath.Join(target, "SKILL.md"), "late unmanaged\n")
+	renameCalls := 0
+	err := renameGeminiDirectoryNoReplace(source, target, func(oldPath, newPath string) error {
+		renameCalls++
+		return os.Rename(oldPath, newPath)
+	})
+	if err == nil || renameCalls != 0 {
+		t.Fatalf("no-replace result = %v, rename calls = %d", err, renameCalls)
+	}
+	body, readErr := os.ReadFile(filepath.Join(target, "SKILL.md"))
+	if readErr != nil || string(body) != "late unmanaged\n" {
+		t.Fatalf("late target = %q, %v", body, readErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(source, "SKILL.md")); statErr != nil {
+		t.Fatalf("staged source was consumed: %v", statErr)
+	}
+}
+
+func TestRenameDirectoryExclusiveDoesNotReplaceExistingDirectory(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "staged")
+	target := filepath.Join(root, "live")
+	writeTestFile(t, filepath.Join(source, "SKILL.md"), "managed\n")
+	writeTestFile(t, filepath.Join(target, "SKILL.md"), "unmanaged\n")
+	if err := renameDirectoryExclusive(source, target); err == nil {
+		t.Fatal("exclusive rename replaced an existing target")
+	}
+	body, err := os.ReadFile(filepath.Join(target, "SKILL.md"))
+	if err != nil || string(body) != "unmanaged\n" {
+		t.Fatalf("existing target = %q, %v", body, err)
+	}
+}
+
 func TestGeminiNativeLifecyclePreservesUnmanagedConfiguration(t *testing.T) {
 	t.Parallel()
 	configRoot := filepath.Join(t.TempDir(), ".gemini")

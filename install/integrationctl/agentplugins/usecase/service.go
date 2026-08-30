@@ -456,7 +456,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		result.Activation = outcome
 	}
-	if _, updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
+	if _, updateErr := service.updateActivationResult(installationID, clientBindingID, outcome, activationErr, previousClient.NativeObjects); updateErr != nil {
 		if activationErr != nil {
 			return result, fmt.Errorf("activate client: %v; persist activation state: %w", activationErr, updateErr)
 		}
@@ -672,6 +672,18 @@ func (service Service) beginMutation(ctx context.Context, dryRun, confirmed bool
 }
 
 func (service Service) updateLifecycle(installationID, clientBindingID string, outcome domain.ActivationOutcome) (bool, error) {
+	return service.updateLifecycleAndNativeObjects(installationID, clientBindingID, outcome, nil, false)
+}
+
+func (service Service) updateActivationResult(installationID, clientBindingID string, outcome domain.ActivationOutcome, activationErr error, previousNativeObjects []domain.NativeObjectOwnership) (bool, error) {
+	if activationErr == nil {
+		return service.updateLifecycle(installationID, clientBindingID, outcome)
+	}
+	prior := append([]domain.NativeObjectOwnership(nil), previousNativeObjects...)
+	return service.updateLifecycleAndNativeObjects(installationID, clientBindingID, outcome, &prior, true)
+}
+
+func (service Service) updateLifecycleAndNativeObjects(installationID, clientBindingID string, outcome domain.ActivationOutcome, nativeObjects *[]domain.NativeObjectOwnership, preserveCommittedPackage bool) (bool, error) {
 	state, err := service.StateStore.Load()
 	if err != nil {
 		return false, err
@@ -684,14 +696,33 @@ func (service Service) updateLifecycle(installationID, clientBindingID string, o
 		if !ok {
 			return false, fmt.Errorf("client binding disappeared during activation")
 		}
-		if client.Activation == outcome.Activation && client.Authentication == outcome.Authentication &&
-			client.Policy == outcome.Policy && client.Verification == outcome.Verification {
+		if nativeObjects != nil && preserveCommittedPackage {
+			reconciled := make([]domain.NativeObjectOwnership, 0, len(client.NativeObjects)+len(*nativeObjects))
+			for _, object := range client.NativeObjects {
+				if object.Kind == "managed_package_directory" {
+					reconciled = append(reconciled, object)
+				}
+			}
+			for _, object := range *nativeObjects {
+				if object.Kind != "managed_package_directory" {
+					reconciled = append(reconciled, object)
+				}
+			}
+			nativeObjects = &reconciled
+		}
+		lifecycleUnchanged := client.Activation == outcome.Activation && client.Authentication == outcome.Authentication &&
+			client.Policy == outcome.Policy && client.Verification == outcome.Verification
+		nativeObjectsUnchanged := nativeObjects == nil || reflect.DeepEqual(client.NativeObjects, *nativeObjects)
+		if lifecycleUnchanged && nativeObjectsUnchanged {
 			return false, nil
 		}
 		client.Activation = outcome.Activation
 		client.Authentication = outcome.Authentication
 		client.Policy = outcome.Policy
 		client.Verification = outcome.Verification
+		if nativeObjects != nil {
+			client.NativeObjects = append([]domain.NativeObjectOwnership(nil), (*nativeObjects)...)
+		}
 		client.UpdatedAt = service.now().Format(time.RFC3339Nano)
 		installation.Clients[clientBindingID] = client
 		installation.UpdatedAt = client.UpdatedAt

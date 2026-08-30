@@ -352,6 +352,17 @@ func TestGroupedRepairAtomicallyRestoresHeterogeneousRecordedRevisions(t *testin
 	if _, err := service.UpdateGroup(context.Background(), GroupInput{Targets: []AddInput{cursorV2}, CompatibilityChecks: []AddInput{cursorV2, kiroV2}, OperationGroupID: "mixed-update", Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Authentication = domain.AuthenticationComplete
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
 	cursorV2.InstallationID = added.InstallationID
 	kiroV1.InstallationID = added.InstallationID
 	repaired, err := service.RepairGroup(context.Background(), GroupInput{Targets: []AddInput{cursorV2, kiroV1}, OperationGroupID: "mixed-repair", Confirmed: true, Repair: true})
@@ -361,13 +372,16 @@ func TestGroupedRepairAtomicallyRestoresHeterogeneousRecordedRevisions(t *testin
 	if repaired.Phase != GroupPhaseCompleted || len(repaired.Receipts) != 2 {
 		t.Fatalf("heterogeneous repair result = %+v", repaired)
 	}
-	state, err := store.Load()
+	state, err = store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	var versions = map[string]string{}
 	for _, binding := range state.Installations[0].Clients {
 		versions[binding.ClientID] = binding.PackageRevision.Version
+		if binding.Authentication != domain.AuthenticationComplete {
+			t.Fatalf("repair reset completed authentication for %s: %+v", binding.ClientID, binding)
+		}
 	}
 	if versions[string(domain.ClientCursor)] != "2.0.0" || versions[string(domain.ClientKiro)] == "2.0.0" {
 		t.Fatalf("repair did not preserve exact per-target revisions: %+v", versions)

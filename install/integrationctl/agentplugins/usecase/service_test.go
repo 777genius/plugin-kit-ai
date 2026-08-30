@@ -394,6 +394,69 @@ func TestAuthOnlyResumeRunsVerifierAndPersistsNegativeEvidence(t *testing.T) {
 	}
 }
 
+func TestFailedUpdateRestoresPreviousNativeOwnershipForRemoval(t *testing.T) {
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/native-receipt-v1")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	clientKey := binding.ClientBindingID
+	previous := append(append([]domain.NativeObjectOwnership(nil), binding.NativeObjects...), domain.NativeObjectOwnership{ObjectID: "native:demo", Kind: "test_native", LogicalName: "demo", ManagedDigest: "sha256:v1", ProtectionClass: "managed"})
+	desired := append(append([]domain.NativeObjectOwnership(nil), binding.NativeObjects...), domain.NativeObjectOwnership{ObjectID: "native:demo", Kind: "test_native", LogicalName: "demo", ManagedDigest: "sha256:v2", ProtectionClass: "managed"})
+	binding.NativeObjects = desired
+	state.Installations[0].Clients[clientKey] = binding
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	outcome := domain.ActivationOutcome{Activation: domain.ActivationFailed, Authentication: binding.Authentication, Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed}
+	if _, err := service.updateActivationResult(installed.InstallationID, clientKey, outcome, errors.New("injected V2 native activation failure"), previous); err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := onlyBinding(persisted.Installations[0]).NativeObjects; !reflect.DeepEqual(got, previous) {
+		t.Fatalf("failed-update native ownership = %+v, want prior %+v", got, previous)
+	}
+	binding = onlyBinding(persisted.Installations[0])
+	binding.NativeObjects = desired
+	persisted.Installations[0].Clients[clientKey] = binding
+	if err := store.Save(persisted); err != nil {
+		t.Fatal(err)
+	}
+	success := domain.ActivationOutcome{Activation: domain.ActivationActive, Authentication: binding.Authentication, Policy: domain.PolicyAllowed, Verification: domain.VerificationInstalled}
+	if _, err := service.updateActivationResult(installed.InstallationID, clientKey, success, nil, previous); err != nil {
+		t.Fatal(err)
+	}
+	persisted, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := onlyBinding(persisted.Installations[0]).NativeObjects; !reflect.DeepEqual(got, desired) {
+		t.Fatalf("successful-update native ownership = %+v, want desired %+v", got, desired)
+	}
+	if _, err := service.updateActivationResult(installed.InstallationID, clientKey, outcome, errors.New("second injected V2 native activation failure"), previous); err != nil {
+		t.Fatal(err)
+	}
+
+	activator := &capturingRemovalActivator{}
+	service.Activator = activator
+	if _, err := service.Remove(context.Background(), RemoveInput{Selector: installed.InstallationID, Client: client, Scope: domain.ScopeUser, Confirmed: true, OperationID: "remove-after-failed-update"}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(activator.nativeObjects, previous) {
+		t.Fatalf("remove received native ownership = %+v, want prior %+v", activator.nativeObjects, previous)
+	}
+}
+
 func TestConvergedManualVerifierOutcomeUsesConfirmationAndReplacesStaleState(t *testing.T) {
 	t.Parallel()
 	service, store, _ := serviceFixture(t)
@@ -1944,6 +2007,19 @@ type observedActivator struct {
 	err          error
 	preflightErr error
 	calls        int
+}
+
+type capturingRemovalActivator struct {
+	nativeObjects []domain.NativeObjectOwnership
+}
+
+func (*capturingRemovalActivator) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
+	return domain.ActivationOutcome{}, nil
+}
+
+func (activator *capturingRemovalActivator) Deactivate(_ context.Context, request domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
+	activator.nativeObjects = append([]domain.NativeObjectOwnership(nil), request.NativeObjects...)
+	return domain.DeactivationOutcome{Activation: domain.ActivationNotRequired, ArtifactRemovalAllowed: true, ExternalRemovalComplete: true}, nil
 }
 
 func (activator *observedActivator) PreflightActivation(domain.ActivationRequest) error {

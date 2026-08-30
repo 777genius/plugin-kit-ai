@@ -146,8 +146,17 @@ func verifyGeminiNativeObjects(configRoot string, objects []domain.NativeObjectO
 
 type geminiRenameFunc func(string, string) error
 
+func renameGeminiDirectoryNoReplace(oldPath, newPath string, rename geminiRenameFunc) error {
+	if _, err := os.Lstat(newPath); err == nil {
+		return fmt.Errorf("destination already exists: %s", newPath)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return rename(oldPath, newPath)
+}
+
 func applyGeminiNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
-	return applyGeminiNativeMutationWithRename(configRoot, activePath, previous, desired, os.Rename)
+	return applyGeminiNativeMutationWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
 }
 
 func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename geminiRenameFunc) (resultErr error) {
@@ -234,7 +243,7 @@ func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous
 				}
 			}
 			if backup := backups[id]; backup != "" {
-				if err := rename(backup, object.Path); err != nil {
+				if err := renameGeminiDirectoryNoReplace(backup, object.Path, rename); err != nil {
 					if rollbackErr == nil {
 						rollbackErr = err
 					}
@@ -247,7 +256,7 @@ func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous
 			if attempted[id] {
 				continue
 			}
-			if err := rename(backup, previousByID[id].Path); err != nil {
+			if err := renameGeminiDirectoryNoReplace(backup, previousByID[id].Path, rename); err != nil {
 				if rollbackErr == nil {
 					rollbackErr = err
 				}
@@ -287,10 +296,17 @@ func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous
 			return fmt.Errorf("backup Gemini skill %q: %w", object.LogicalName, err)
 		}
 		backups[id] = backup
+		digest, digestErr := digestKiroSkillDirectory(backup)
+		if digestErr != nil || digest != object.ManagedDigest {
+			if digestErr != nil {
+				return fmt.Errorf("verify isolated Gemini skill backup %q: %w", object.LogicalName, digestErr)
+			}
+			return fmt.Errorf("isolated Gemini skill backup %q changed outside agentplugins", object.LogicalName)
+		}
 	}
 	for id, source := range staged {
 		object := desiredByID[id]
-		if err := rename(source, object.Path); err != nil {
+		if err := renameGeminiDirectoryNoReplace(source, object.Path, rename); err != nil {
 			return fmt.Errorf("activate Gemini skill %q: %w", object.LogicalName, err)
 		}
 		installed[id] = object

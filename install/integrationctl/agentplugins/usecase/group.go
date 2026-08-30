@@ -570,6 +570,9 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 				return append([]domain.NativeObjectOwnership(nil), target.managed.NativeObjects...)
 			}(),
 			VerifyOnly: target.noChange, ActivationComplete: target.input.ActivationComplete})
+		if input.Repair && target.managed != nil {
+			outcome = preserveManagedAuthentication(outcome, target.managed.Authentication)
+		}
 		if target.noChange && target.managed != nil {
 			if activationErr == nil && !clientVerifierAvailable(target.input, target.plan) && target.managed.Activation == domain.ActivationActive && target.managed.Verification == domain.VerificationInstalled {
 				outcome.Activation = target.managed.Activation
@@ -582,7 +585,11 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 				outcome.Authentication = target.managed.Authentication
 			}
 		}
-		lifecycleChanged, persistErr := service.updateLifecycle(installationID, target.clientBindingID, outcome)
+		previousNativeObjects := []domain.NativeObjectOwnership(nil)
+		if target.managed != nil {
+			previousNativeObjects = target.managed.NativeObjects
+		}
+		lifecycleChanged, persistErr := service.updateActivationResult(installationID, target.clientBindingID, outcome, activationErr, previousNativeObjects)
 		if lifecycleChanged {
 			result.Mutated = true
 		}
