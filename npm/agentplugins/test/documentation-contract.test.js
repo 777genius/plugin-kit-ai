@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
@@ -16,7 +17,10 @@ function packagedDocuments() {
   return available;
 }
 
-const allowedTargets = new Set(["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]);
+const allowedTargets = new Set([
+  "codex", "chatgpt", "cursor", "copilot", "vscode", "kiro",
+  "claude", "gemini", "opencode", "cline", "windsurf"
+]);
 const exactSourcePattern = /^(?:github:)?[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-f]{40}\/\/[A-Za-z0-9._/-]+$/;
 
 function bashCommands(markdown) {
@@ -99,5 +103,43 @@ test("copyable direct-source examples use a marked replacement full SHA", () => 
     assert.ok(markdown.includes("add ./my-plugin --target cursor"), `${label}: local source example missing`);
     assert.match(markdown, new RegExp(`replace[\\s\\S]{0,180}${placeholder}|${placeholder}[\\s\\S]{0,180}replace`, "i"), `${label}: SHA replacement instruction missing`);
     assert.doesNotMatch(markdown, /@commit(?:\/\/|\b)/i, `${label}: literal @commit is not copyable`);
+  }
+});
+
+test("checked-in client E2E evidence remains exact and auditable", () => {
+  const evidenceDoc = path.resolve(__dirname, "../../../docs/AGENTPLUGINS_CLIENT_E2E.md");
+  const transcriptPath = path.resolve(__dirname, "../../../docs/evidence/agentplugins-client-e2e-2026-08-30.json");
+  const markdown = fs.readFileSync(evidenceDoc, "utf8");
+  const transcriptBytes = fs.readFileSync(transcriptPath);
+  const transcript = JSON.parse(transcriptBytes.toString("utf8"));
+  const digest = crypto.createHash("sha256").update(transcriptBytes).digest("hex");
+
+  assert.equal(transcript.schema_version, 1);
+  assert.match(transcript.installer.commit, /^[0-9a-f]{40}$/);
+  assert.match(transcript.installer.tree, /^[0-9a-f]{40}$/);
+  assert.match(transcript.installer.binary_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(
+    transcript.package.selector,
+    "ChromeDevTools/chrome-devtools-mcp@cb39d1d835c3baa3eff87501cd8c1de020604789"
+  );
+  assert.ok(markdown.includes(transcript.installer.commit), "evidence doc lost tested installer commit");
+  assert.ok(markdown.includes(transcript.installer.tree), "evidence doc lost tested installer tree");
+  assert.ok(markdown.includes(digest), "evidence doc lost exact transcript digest");
+
+  const add = transcript.transcript.find((entry) => entry.step === "add");
+  const repair = transcript.transcript.find((entry) => entry.step === "repair");
+  const remove = transcript.transcript.find((entry) => entry.step === "remove");
+  const postRemove = transcript.transcript.find((entry) => entry.step === "post_remove");
+  const targets = ["claude", "gemini", "opencode", "cline", "windsurf"];
+  assert.equal(add.acquisition_count, 1);
+  for (const target of targets) {
+    assert.equal(add.targets[target].outcome, "passed", `add evidence missing ${target}`);
+    assert.equal(repair.targets[target], "passed", `repair evidence missing ${target}`);
+    assert.equal(remove.targets[target], "external_completed", `remove evidence missing ${target}`);
+  }
+  assert.equal(postRemove.checks.agentplugins_installation_count, 0);
+  assert.equal(transcript.claim_boundary.lifecycle_e2e, true);
+  for (const claim of ["browser_tool_runtime_e2e", "model_turn_e2e", "login_e2e", "oauth_e2e"]) {
+    assert.equal(transcript.claim_boundary[claim], false, `evidence overclaims ${claim}`);
   }
 });

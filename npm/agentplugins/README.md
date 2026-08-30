@@ -70,11 +70,11 @@ the [isolated client E2E evidence](https://github.com/777genius/plugin-kit-ai/bl
 
 | Client | Evidence |
 | --- | --- |
-| Claude Code | Claude Code 2.1.205: real isolated `add`, native list, `update`, and `remove` lifecycle |
-| Gemini CLI | Gemini CLI 0.36.0: real isolated configuration and lifecycle |
-| OpenCode | OpenCode 1.18.4: real isolated configuration and lifecycle |
-| Cline | Real locally detected client; isolated native-configuration `add`, `update`, and `remove`; no client runtime or login |
-| Windsurf | Real locally detected configuration; isolated native-configuration `add`, `update`, and `remove`; no client runtime or login |
+| Claude Code | Claude Code 2.1.205: real isolated exact-SHA `add`, native list, `repair`, safe update preflight, and `remove` lifecycle |
+| Gemini CLI | Gemini CLI 0.36.0: real isolated configuration and the same exact-source lifecycle |
+| OpenCode | OpenCode 1.18.4: real isolated configuration and the same exact-source lifecycle |
+| Cline | Real locally detected client; isolated native configuration and exact-source lifecycle; no client runtime or login |
+| Windsurf | Real locally detected configuration and exact-source lifecycle; no client runtime or login |
 
 `repair` reapplies or reactivates the recorded revision; it does not update or
 change source. `switch` moves the complete installation to a qualified

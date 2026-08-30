@@ -9,13 +9,17 @@ model, OAuth, or login runtime claim.
 | Field | Value |
 | --- | --- |
 | Date | 2026-08-30 |
-| Installer source | `8070eaa4a83adfe3ec1a8fea0f3e4ccb4134d181` |
-| Installer binary SHA-256 | `895dd86bba9b9cbcaa02edb3c3e896f52092babdd231e014c7001f118398a721` |
-| Package source | ChromeDevTools/chrome-devtools-mcp PR #2623 at `cb39d1d835c3baa3eff87501cd8c1de020604789` |
+| Installer source | `5630ccd92aa91c8ac8cafb37eea8752fd82edce0` |
+| Installer tree | `cf13cbe2f64ae09d93ad34bfc6047fe99d5ca845` |
+| Installer version | `0.1.22` |
+| Installer binary SHA-256 | `8f417cea031d42b07badbe1b2a37dcd53deb2e5804f99d668f733309ecb4022b` |
+| Package source | `ChromeDevTools/chrome-devtools-mcp@cb39d1d835c3baa3eff87501cd8c1de020604789` |
 | Package version | `1.8.0` |
 | Package tree digest | `sha256:3bd47ccd3f990a6fdd8d3e2fa3dac48ac460a9043e0ccf0c5e14522fb4c472ea` |
 | Package manifest digest | `sha256:b34a4dcd71cd536a7f5a3a51d76d53ae5af3d0ce0f18783e71c7f01da865b867` |
 | Platform | macOS 15.6.1, arm64, Node.js 24.18.0 |
+| Structured transcript | [`evidence/agentplugins-client-e2e-2026-08-30.json`](evidence/agentplugins-client-e2e-2026-08-30.json) |
+| Transcript SHA-256 | `437da1bc7423a85b231be139ff9bfbd7e89c942ef216a61ebde668c08a9c2ee3` |
 
 The run used fresh temporary `HOME`, XDG, Claude, Gemini, Cline, and
 agentplugins state directories. It did not read or mutate an agent project or
@@ -27,7 +31,7 @@ confirmed that all five selected client families were present on the host.
 The same exact package acquisition was applied to all five clients:
 
 ```bash
-agentplugins add <exact-package> \
+agentplugins add ChromeDevTools/chrome-devtools-mcp@cb39d1d835c3baa3eff87501cd8c1de020604789 \
   --target claude,gemini,opencode,cline,windsurf \
   --format json
 ```
@@ -48,14 +52,20 @@ checks were then run inside the disposable profile.
 only findings were the expected `authentication_not_checked` notices because
 this run intentionally performed no login or OAuth flow.
 
-Next, one multi-target update completed with `no_change: true` for every
-client:
+An immutable full-SHA installation deliberately has no update channel. The
+multi-target update failed during preflight with no mutation and directed the
+user to `switch --to` with a new reviewed SHA. A repair then reacquired the
+exact recorded revision once and completed for every client:
 
 ```bash
-agentplugins update chrome-devtools \
+agentplugins repair chrome-devtools \
   --target claude,gemini,opencode,cline,windsurf \
   --format json
 ```
+
+The transcript records the exact update preflight and confirms the installation
+was unchanged. Directory-backed updates are a separate release/publication
+canary and are not inferred from this immutable-source run.
 
 Finally, one multi-target remove succeeded for all five clients. Post-removal
 checks proved:
