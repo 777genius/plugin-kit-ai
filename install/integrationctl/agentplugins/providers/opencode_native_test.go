@@ -256,6 +256,67 @@ func TestOpenCodeProjectionPreservesOfficialLocalCWD(t *testing.T) {
 	}
 }
 
+func TestOpenCodeProjectsClientManagedStdioDataContract(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, "opencode")
+	active := filepath.Join(root, "managed", "demo")
+	dataRoot := filepath.Join(root, "managed", "data")
+	envelope, plan := openCodeTestPackage(t, active, configRoot, "owned")
+	authorEnv := envelope.MCP.Servers["docs"].Decoded["env"].(map[string]any)
+	if err := os.Remove(filepath.Join(active, openCodeProjectionFile)); err != nil {
+		t.Fatal(err)
+	}
+	if err := projectOpenCodeNative(active, envelope, plan, dataRoot); err != nil {
+		t.Fatal(err)
+	}
+	objects, err := buildOpenCodeNativeObjects(active, envelope, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyOpenCodeNative(configRoot, active, nil, objects); err != nil {
+		t.Fatal(err)
+	}
+	document := map[string]any{}
+	if err := json.Unmarshal([]byte(readOpenCodeTestFile(t, filepath.Join(configRoot, "opencode.json"))), &document); err != nil {
+		t.Fatal(err)
+	}
+	entry := document["mcp"].(map[string]any)["docs"].(map[string]any)
+	env := entry["environment"].(map[string]any)
+	if env["PLUGIN_ROOT"] != active || env["PLUGIN_DATA"] != dataRoot || env["DATA"] != dataRoot {
+		t.Fatalf("OpenCode stdio environment = %#v", env)
+	}
+	if entry["cwd"] != active {
+		t.Fatalf("OpenCode default cwd = %v, want %v", entry["cwd"], active)
+	}
+	if len(authorEnv) != 1 || authorEnv["DATA"] != "${PLUGIN_DATA}" {
+		t.Fatalf("OpenCode projection mutated package env: %#v", authorEnv)
+	}
+}
+
+func TestOpenCodeRejectsReservedStdioEnvWithoutProjection(t *testing.T) {
+	root := t.TempDir()
+	active := filepath.Join(root, "active")
+	if err := os.MkdirAll(active, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	authorEnv := map[string]any{"KEEP": "value", "PLUGIN_ROOT": "/attacker"}
+	envelope := domain.PackageEnvelope{MCP: domain.MCPComponent{Servers: map[string]domain.MCPServer{
+		"docs": {Name: "docs", Type: "stdio", Decoded: map[string]any{"command": "node", "env": authorEnv}},
+	}}}
+	plan := domain.DeliveryPlan{ClientID: domain.ClientOpenCode, NativeRegistryRoot: filepath.Join(root, "config"), ActivePath: active,
+		Components: []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "docs", Support: domain.SupportPrepared}}}
+	err := projectOpenCodeNative(active, envelope, plan, filepath.Join(root, "data"))
+	if err == nil || !strings.Contains(err.Error(), "PLUGIN_ROOT is reserved") {
+		t.Fatalf("reserved OpenCode env error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(active, openCodeProjectionFile)); !os.IsNotExist(err) {
+		t.Fatalf("rejected OpenCode env created projection: %v", err)
+	}
+	if len(authorEnv) != 2 || authorEnv["KEEP"] != "value" || authorEnv["PLUGIN_ROOT"] != "/attacker" {
+		t.Fatalf("rejected OpenCode projection mutated package env: %#v", authorEnv)
+	}
+}
+
 func TestOpenCodeAmbiguousJSONVariantsFailBeforeProjection(t *testing.T) {
 	root := t.TempDir()
 	configRoot := filepath.Join(root, "opencode")

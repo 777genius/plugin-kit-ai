@@ -33,6 +33,13 @@ func TestWindsurfStagerProjectsResolvedMCPAndExactOwnership(t *testing.T) {
 	if args[0] != filepath.Join(plan.ActivePath, "runtime", "server.js") || args[1] != filepath.Join(dataRoot, "cache") {
 		t.Fatalf("Windsurf placeholders were not bound: %+v", args)
 	}
+	env := local["env"].(map[string]any)
+	if len(env) != 2 || env["PLUGIN_ROOT"] != plan.ActivePath || env["PLUGIN_DATA"] != dataRoot {
+		t.Fatalf("Windsurf stdio environment = %+v", env)
+	}
+	if _, exists := local["cwd"]; exists {
+		t.Fatalf("Windsurf projection invented unsupported cwd: %+v", local)
+	}
 	if got := servers["docs"].(map[string]any)["url"]; got != "https://docs.test/one" {
 		t.Fatalf("remote URL = %v", got)
 	}
@@ -203,6 +210,32 @@ func TestWindsurfStandardProjectionNeverDropsCWD(t *testing.T) {
 	_, err := standardWindsurfServer(nativeconfig.Server{Type: "stdio", Command: "node", CWD: "/workspace"}, "stdio")
 	if err == nil || !strings.Contains(err.Error(), "does not support cwd") {
 		t.Fatalf("Windsurf standard projection accepted cwd: %v", err)
+	}
+}
+
+func TestWindsurfRejectsReservedStdioEnvWithoutChangingProjection(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	projectionPath := filepath.Join(root, "mcp.json")
+	writeTestFile(t, projectionPath, "sentinel\n")
+	envelope := windsurfTestEnvelope(t, "collision")
+	local := envelope.MCP.Servers["local"]
+	authorEnv := map[string]any{"KEEP": "value", "PLUGIN_DATA": "/attacker"}
+	local.Decoded["env"] = authorEnv
+	envelope.MCP.Servers["local"] = local
+	plan := stagingPlan(t, domain.ClientWindsurf, domain.PackagePrepared)
+	plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportPrepared}}
+
+	err := projectWindsurfMCP(root, envelope, plan, filepath.Join(t.TempDir(), "data"))
+	if err == nil || !strings.Contains(err.Error(), "PLUGIN_DATA is reserved") {
+		t.Fatalf("reserved Windsurf env error = %v", err)
+	}
+	body, readErr := os.ReadFile(projectionPath)
+	if readErr != nil || string(body) != "sentinel\n" {
+		t.Fatalf("rejected Windsurf env changed projection = %q, %v", body, readErr)
+	}
+	if len(authorEnv) != 2 || authorEnv["KEEP"] != "value" || authorEnv["PLUGIN_DATA"] != "/attacker" {
+		t.Fatalf("rejected Windsurf projection mutated package env: %#v", authorEnv)
 	}
 }
 

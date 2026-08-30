@@ -121,6 +121,17 @@ func neutralOpenCodeServer(server domain.MCPServer) (nativeconfig.Server, error)
 		if err != nil {
 			return nativeconfig.Server{}, fmt.Errorf("env: %w", err)
 		}
+		if _, exists := env["PLUGIN_ROOT"]; exists {
+			return nativeconfig.Server{}, fmt.Errorf("env: PLUGIN_ROOT is reserved and client-managed")
+		}
+		if _, exists := env["PLUGIN_DATA"]; exists {
+			return nativeconfig.Server{}, fmt.Errorf("env: PLUGIN_DATA is reserved and client-managed")
+		}
+		if env == nil {
+			env = map[string]string{}
+		}
+		env["PLUGIN_ROOT"] = "${PLUGIN_ROOT}"
+		env["PLUGIN_DATA"] = "${PLUGIN_DATA}"
 		cwd, err := openCodeOptionalString(server.Decoded["cwd"])
 		if err != nil {
 			return nativeconfig.Server{}, fmt.Errorf("cwd: %w", err)
@@ -128,6 +139,9 @@ func neutralOpenCodeServer(server domain.MCPServer) (nativeconfig.Server, error)
 		cwd, err = normalizeOpenCodeCWD(cwd)
 		if err != nil {
 			return nativeconfig.Server{}, fmt.Errorf("cwd: %w", err)
+		}
+		if strings.TrimSpace(cwd) == "" {
+			cwd = "${PLUGIN_ROOT}"
 		}
 		return nativeconfig.Server{Type: "stdio", Command: command, Args: args, Env: env, CWD: cwd}, nil
 	case "streamable-http", "sse":

@@ -399,16 +399,36 @@ func windsurfServer(server domain.MCPServer, packageRoot, dataRoot string) (nati
 				result.Args = append(result.Args, value)
 			}
 		}
-		if rawEnv, ok := decoded["env"].(map[string]any); ok {
+		if rawEnv, exists := decoded["env"]; exists {
 			result.Env = map[string]string{}
-			for key, raw := range rawEnv {
-				value, ok := raw.(string)
-				if !ok {
-					return result, fmt.Errorf("stdio env values must be strings")
+			switch values := rawEnv.(type) {
+			case map[string]any:
+				for key, raw := range values {
+					value, ok := raw.(string)
+					if !ok {
+						return result, fmt.Errorf("stdio env values must be strings")
+					}
+					result.Env[key] = value
 				}
-				result.Env[key] = value
+			case map[string]string:
+				for key, value := range values {
+					result.Env[key] = value
+				}
+			default:
+				return result, fmt.Errorf("stdio env must be an object")
 			}
 		}
+		if _, exists := result.Env["PLUGIN_ROOT"]; exists {
+			return result, fmt.Errorf("stdio env PLUGIN_ROOT is reserved and client-managed")
+		}
+		if _, exists := result.Env["PLUGIN_DATA"]; exists {
+			return result, fmt.Errorf("stdio env PLUGIN_DATA is reserved and client-managed")
+		}
+		if result.Env == nil {
+			result.Env = map[string]string{}
+		}
+		result.Env["PLUGIN_ROOT"] = packageRoot
+		result.Env["PLUGIN_DATA"] = dataRoot
 	case "streamable-http", "sse":
 		result.Type = "remote"
 		result.RemoteTransport = server.Type
