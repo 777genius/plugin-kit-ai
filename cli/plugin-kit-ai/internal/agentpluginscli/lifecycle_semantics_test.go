@@ -164,6 +164,9 @@ func TestVSCodeOnlySharedUpdateRejectsExplicitUndetectedCopilotWithoutMutation(t
 	if _, _, err := fixture.execute(false, "update", "demo", "--target", "copilot,vscode"); err == nil || !strings.Contains(err.Error(), `target "copilot" was not detected`) {
 		t.Fatalf("explicit undetected Copilot update error = %v", err)
 	}
+	if _, _, err := fixture.execute(false, "repair", "demo", "--target", "copilot"); err == nil || !strings.Contains(err.Error(), `target "copilot" was not detected`) {
+		t.Fatalf("explicit undetected Copilot repair error = %v", err)
+	}
 	after, err := fixture.store.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -171,5 +174,78 @@ func TestVSCodeOnlySharedUpdateRejectsExplicitUndetectedCopilotWithoutMutation(t
 	bindingAfter := onlyCLIClient(after.Installations[0])
 	if bindingAfter.PackageRevision.Version != bindingBefore.PackageRevision.Version || len(bindingAfter.Receipts) != len(bindingBefore.Receipts) || bindingAfter.TargetLocator != bindingBefore.TargetLocator {
 		t.Fatalf("failed explicit shared update mutated binding: before=%+v after=%+v", bindingBefore, bindingAfter)
+	}
+}
+
+func TestImplicitSharedLifecycleResolvesInstalledPhysicalBinding(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		initiallyDetected []domain.ClientID
+		detected          []domain.ClientID
+	}{
+		{name: "vscode only", initiallyDetected: []domain.ClientID{domain.ClientVSCode}, detected: []domain.ClientID{domain.ClientVSCode}},
+		{name: "copilot only", initiallyDetected: []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode}, detected: []domain.ClientID{domain.ClientCopilot}},
+		{name: "both surfaces", initiallyDetected: []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode}, detected: []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode}},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			clientsByID := make(map[domain.ClientID]domain.DetectedClient, len(test.initiallyDetected))
+			initialClients := make([]domain.DetectedClient, 0, len(test.initiallyDetected))
+			for _, clientID := range test.initiallyDetected {
+				client := fixtureClient(t, clientID)
+				clientsByID[clientID] = client
+				initialClients = append(initialClients, client)
+			}
+			fixture := newCLIFixture(t, initialClients)
+			plugin := writeCLIPlugin(t)
+			if _, _, err := fixture.execute(false, "add", plugin, "--target", "vscode"); err != nil {
+				t.Fatal(err)
+			}
+			lifecycleClients := make([]domain.DetectedClient, 0, len(test.detected))
+			for _, clientID := range test.detected {
+				lifecycleClients = append(lifecycleClients, clientsByID[clientID])
+			}
+			fixture.app.Detector = staticDetector{clients: lifecycleClients}
+			manifestPath := filepath.Join(plugin, "plugin.json")
+			body, err := os.ReadFile(manifestPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(manifestPath, []byte(strings.Replace(string(body), `"version": "1.0.0"`, `"version": "2.0.0"`, 1)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, _, err := fixture.execute(false, "update", "demo"); err != nil {
+				t.Fatalf("implicit update: %v", err)
+			}
+			updated, err := fixture.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := onlyCLIClient(updated.Installations[0])
+			if binding.PackageRevision.Version != "2.0.0" || len(binding.Receipts) != 2 {
+				t.Fatalf("implicit update binding = %+v", binding)
+			}
+			if err := os.RemoveAll(binding.TargetLocator); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := fixture.execute(false, "repair", "demo"); err != nil {
+				t.Fatalf("implicit repair: %v", err)
+			}
+			repaired, err := fixture.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding = onlyCLIClient(repaired.Installations[0])
+			if len(binding.Receipts) != 3 {
+				t.Fatalf("implicit repair binding = %+v", binding)
+			}
+			if _, err := os.Stat(binding.TargetLocator); err != nil {
+				t.Fatalf("implicit repair did not restore physical binding: %v", err)
+			}
+		})
 	}
 }

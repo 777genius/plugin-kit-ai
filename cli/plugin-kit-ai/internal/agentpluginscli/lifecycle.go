@@ -39,7 +39,7 @@ func newUpdateCommand(app App, opts *options) *cobra.Command {
 				return fmt.Errorf("provide one installation or use --all")
 			}
 			if strings.TrimSpace(opts.target) == "" {
-				targets, err := defaultBoundTargets(app, args[0], opts.scope, false)
+				targets, err := defaultInstalledBindingTargets(cmd.Context(), app, args[0], opts.scope, false)
 				if err != nil {
 					return err
 				}
@@ -66,7 +66,7 @@ func newRepairCommand(app App, opts *options) *cobra.Command {
 				return err
 			}
 			if strings.TrimSpace(opts.target) == "" {
-				targets, err := defaultBoundTargets(app, args[0], opts.scope, true)
+				targets, err := defaultInstalledBindingTargets(cmd.Context(), app, args[0], opts.scope, true)
 				if err != nil {
 					return err
 				}
@@ -371,6 +371,34 @@ func defaultBoundTargets(app App, selector, scope string, degradedOnly bool) ([]
 	}
 	sortTargets(targets)
 	return targets, nil
+}
+
+func defaultInstalledBindingTargets(ctx context.Context, app App, selector, scope string, degradedOnly bool) ([]domain.ClientID, error) {
+	state, err := app.StateStore.Load()
+	if err != nil {
+		return nil, err
+	}
+	installation, err := selectInstallation(state, selector)
+	if err != nil {
+		return nil, err
+	}
+	var bindingTargets []domain.ClientID
+	for _, binding := range installation.Clients {
+		if binding.Scope != scope || binding.Materialization == domain.MaterializationAbsent {
+			continue
+		}
+		if degradedOnly && binding.Materialization != domain.MaterializationDegraded && binding.Activation != domain.ActivationFailed && binding.Activation != domain.ActivationManual && binding.Activation != domain.ActivationPrepared && binding.Authentication != domain.AuthenticationFailed && binding.Authentication != domain.AuthenticationPending && binding.Verification != domain.VerificationFailed {
+			continue
+		}
+		bindingTargets = append(bindingTargets, domain.ClientID(binding.ClientID))
+	}
+	if len(bindingTargets) == 0 {
+		if degradedOnly {
+			return defaultInstalledBindingTargets(ctx, app, selector, scope, false)
+		}
+		return nil, fmt.Errorf("plugin has no materialized target in %s scope", scope)
+	}
+	return resolveInstalledBindingTargets(ctx, app, bindingTargets, false)
 }
 
 func promptBoundTargets(cmd *cobra.Command, app App, selector, scope string) (string, error) {
