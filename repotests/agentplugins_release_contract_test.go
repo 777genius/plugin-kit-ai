@@ -214,9 +214,15 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"ref: ${{ inputs.expected_commit }}",
 		"agentplugins-proof-bundle",
 		"release-assets",
+		"git -C release-source diff --quiet HEAD --",
+		"docs/AGENTPLUGINS_CLIENT_E2E.md",
+		"docs/evidence/agentplugins-client-e2e-2026-08-30.json",
+		`--evidence-root "${GITHUB_WORKSPACE}/release-source/docs"`,
 	} {
 		mustContain(t, platformPrepareJob, want)
 	}
+	mustAppearBefore(t, platformPrepareJob, "git -C release-source diff --quiet HEAD --", "stage-release.js")
+	mustAppearBefore(t, platformPrepareJob, "stage-release.js", "npm test && npm pack --dry-run --ignore-scripts")
 	for _, want := range []string{
 		"ref: ${{ inputs.expected_commit }}",
 		`test "$(git rev-parse HEAD)" = "${{ inputs.expected_commit }}"`,
