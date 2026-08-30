@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -246,8 +247,14 @@ func ValidateAppBindingReference(binding domain.CatalogAppBinding) error {
 		return err
 	}
 	parsed, err := url.Parse(binding.MCPURL)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != binding.MCPURL {
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != binding.MCPURL {
 		return fmt.Errorf("mcp_url must be a normalized absolute HTTPS URL without userinfo, query, or fragment")
+	}
+	if port := parsed.Port(); port != "" {
+		value, err := strconv.Atoi(port)
+		if err != nil || value < 1 || value > 65535 {
+			return fmt.Errorf("mcp_url port must be numeric and between 1 and 65535")
+		}
 	}
 	return nil
 }

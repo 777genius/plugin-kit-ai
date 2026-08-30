@@ -157,6 +157,26 @@ func TestCatalogRejectsUnsafeOrMisplacedChatGPTAppBinding(t *testing.T) {
 	}
 }
 
+func TestValidateAppBindingReferenceRejectsInvalidHTTPSAuthority(t *testing.T) {
+	t.Parallel()
+	valid := domain.CatalogAppBinding{AppKey: "docs", ID: "asdk_app_docs_123", MCPServer: "docs", MCPURL: "https://example.test:443/mcp"}
+	if err := ValidateAppBindingReference(valid); err != nil {
+		t.Fatalf("valid reference rejected: %v", err)
+	}
+	for _, mcpURL := range []string{
+		"https://:443/mcp",
+		"https://example.test:0/mcp",
+		"https://example.test:65536/mcp",
+		"https://example.test:not-a-port/mcp",
+	} {
+		binding := valid
+		binding.MCPURL = mcpURL
+		if err := ValidateAppBindingReference(binding); err == nil {
+			t.Fatalf("invalid reference URL %q accepted", mcpURL)
+		}
+	}
+}
+
 func TestCatalogRejectsAnyCompatibilityMatrixDeviation(t *testing.T) {
 	t.Parallel()
 	tests := map[string]string{

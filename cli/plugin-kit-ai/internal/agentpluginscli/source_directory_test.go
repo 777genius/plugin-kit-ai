@@ -91,6 +91,7 @@ func TestDirectoryChatGPTBindingDerivesAuthenticatedMCPURLAndPrepares(t *testing
 
 func TestDirectoryChatGPTBindingFailsBeforeCompatibilityOrAppMutation(t *testing.T) {
 	t.Parallel()
+	fixture := newCLIFixture(t, nil)
 	base := loadedPackage{origin: domain.OriginModeDirectory, envelope: domain.PackageEnvelope{MCP: domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
 		"docs": {Name: "docs", Type: "streamable-http", Decoded: map[string]any{"url": "https://example.test/mcp"}},
 	}}}}
@@ -105,6 +106,12 @@ func TestDirectoryChatGPTBindingFailsBeforeCompatibilityOrAppMutation(t *testing
 		}},
 		{name: "unsafe URL", mutate: func(loaded *loadedPackage, _ *domain.DirectoryTarget) {
 			loaded.envelope.MCP.Servers["docs"] = domain.MCPServer{Name: "docs", Decoded: map[string]any{"url": "https://user@example.test/mcp"}}
+		}},
+		{name: "empty URL hostname", mutate: func(loaded *loadedPackage, _ *domain.DirectoryTarget) {
+			loaded.envelope.MCP.Servers["docs"] = domain.MCPServer{Name: "docs", Decoded: map[string]any{"url": "https://:443/mcp"}}
+		}},
+		{name: "overflow URL port", mutate: func(loaded *loadedPackage, _ *domain.DirectoryTarget) {
+			loaded.envelope.MCP.Servers["docs"] = domain.MCPServer{Name: "docs", Decoded: map[string]any{"url": "https://example.test:65536/mcp"}}
 		}},
 		{name: "malformed identity", mutate: func(_ *loadedPackage, target *domain.DirectoryTarget) { target.AppBinding.ID = "not/an/id" }},
 	}
@@ -122,6 +129,10 @@ func TestDirectoryChatGPTBindingFailsBeforeCompatibilityOrAppMutation(t *testing
 			}
 			if loaded.hints.Compatibility != nil || loaded.envelope.CatalogEvidence != nil || loaded.envelope.App.Present {
 				t.Fatalf("validation failure mutated package: %+v", loaded)
+			}
+			state, stateErr := fixture.store.Load()
+			if stateErr != nil || len(state.Installations) != 0 {
+				t.Fatalf("validation failure mutated state: %+v, %v", state, stateErr)
 			}
 		})
 	}
