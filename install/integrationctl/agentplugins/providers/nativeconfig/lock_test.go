@@ -141,19 +141,3 @@ func TestClineLockReleaseReportsLostDirectory(t *testing.T) {
 		t.Fatalf("lost lock directory was not surfaced: %v", err)
 	}
 }
-
-func TestJoinUnlockSurfacesReleaseFailureAndPreservesPrimaryError(t *testing.T) {
-	releaseErr := errors.New("release failed")
-	var successErr error
-	joinUnlock(&successErr, func() error { return releaseErr })
-	if !errors.Is(successErr, releaseErr) {
-		t.Fatalf("successful mutation hid release failure: %v", successErr)
-	}
-
-	primaryErr := errors.New("primary failed")
-	resultErr := primaryErr
-	joinUnlock(&resultErr, func() error { return releaseErr })
-	if !errors.Is(resultErr, primaryErr) || !errors.Is(resultErr, releaseErr) {
-		t.Fatalf("release failure masked primary error: %v", resultErr)
-	}
-}

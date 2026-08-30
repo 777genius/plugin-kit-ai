@@ -326,9 +326,3 @@ func releaseClineLock(lock *acquiredClineLock) error {
 	}
 	return heartbeatErr
 }
-
-func joinUnlock(errp *error, release func() error) {
-	if err := release(); err != nil {
-		*errp = errors.Join(*errp, fmt.Errorf("unlock native config: %w", err))
-	}
-}

@@ -22,13 +22,13 @@ type resolvedFile struct {
 
 func (kernel Kernel) Apply(req Request) (Receipt, error) {
 	receipts, err := kernel.ApplyBatch([]Request{req})
-	if err != nil {
+	if err != nil && !IsCommittedCleanup(err) {
 		return Receipt{}, err
 	}
 	if len(receipts) == 0 {
-		return Receipt{}, nil
+		return Receipt{}, err
 	}
-	return receipts[0], nil
+	return receipts[0], err
 }
 
 // ApplyBatch validates and renders related MCP entry mutations into one atomic
@@ -50,11 +50,34 @@ func (kernel Kernel) ApplyBatch(requests []Request) (receipts []Receipt, err err
 			return nil, fmt.Errorf("batched native config requests must share paths and codec")
 		}
 	}
-	release, err := kernel.acquireCandidateLocks(requests[0].Paths, requests[0].Codec)
+	acquireLocks := kernel.acquireLocks
+	if acquireLocks == nil {
+		acquireLocks = kernel.acquireCandidateLocks
+	}
+	release, err := acquireLocks(requests[0].Paths, requests[0].Codec)
 	if err != nil {
 		return nil, err
 	}
-	defer joinUnlock(&err, release)
+	if release == nil {
+		return nil, fmt.Errorf("native config lock acquirer returned no release operation")
+	}
+	committed := false
+	defer func() {
+		releaseErr := release()
+		if releaseErr == nil {
+			return
+		}
+		cleanupErr := fmt.Errorf("unlock native config: %w", releaseErr)
+		if err != nil {
+			err = errors.Join(err, cleanupErr)
+			return
+		}
+		if committed {
+			err = &CommittedCleanupError{Err: cleanupErr}
+			return
+		}
+		err = cleanupErr
+	}()
 	file, err := kernel.resolve(requests[0].Paths)
 	if err != nil {
 		return nil, err
@@ -149,6 +172,7 @@ func (kernel Kernel) ApplyBatch(requests []Request) (receipts []Receipt, err err
 	if err := kernel.writeVerified(file, requests[0].Codec, next); err != nil {
 		return nil, err
 	}
+	committed = true
 	return receipts, nil
 }
 

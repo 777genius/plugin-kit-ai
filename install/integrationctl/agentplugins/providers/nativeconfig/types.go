@@ -39,6 +39,24 @@ var (
 	ErrConcurrentChange = errors.New("native config changed during patch")
 )
 
+// CommittedCleanupError reports that the requested native config bytes and
+// receipts were committed, but releasing the cooperating writer lock did not
+// complete cleanly. Callers must keep the returned receipts and must not roll
+// back other state that was committed in the same provider transaction. The
+// wrapped error remains available so the cleanup degradation is observable.
+type CommittedCleanupError struct{ Err error }
+
+func (err *CommittedCleanupError) Error() string {
+	return "native config committed but lock cleanup degraded: " + err.Err.Error()
+}
+
+func (err *CommittedCleanupError) Unwrap() error { return err.Err }
+
+func IsCommittedCleanup(err error) bool {
+	var committed *CommittedCleanupError
+	return errors.As(err, &committed)
+}
+
 // Server is the transport-aware neutral MCP shape accepted by the supported
 // codecs. Type must be "stdio" or "remote". Placeholders are resolved
 // recursively in all strings. RemoteTransport is codec-specific and is
@@ -117,11 +135,20 @@ type conditionalFileIO interface {
 	RemoveIfUnchanged(path string, expected []byte) error
 }
 
-type Kernel struct{ files FileIO }
+type lockAcquirer func(Paths, Codec) (func() error, error)
+
+type Kernel struct {
+	files        FileIO
+	acquireLocks lockAcquirer
+}
 
 func New() Kernel { return Kernel{files: conditionalOSFiles{}} }
 
 func NewWithFileIO(files FileIO) Kernel { return Kernel{files: files} }
+
+func NewWithLockAcquirer(acquireLocks func(Paths, Codec) (func() error, error)) Kernel {
+	return Kernel{files: conditionalOSFiles{}, acquireLocks: acquireLocks}
+}
 
 func validateRequest(req Request) error {
 	if err := validateExactPath(req.Paths.JSON, "JSON native config path"); err != nil {

@@ -211,6 +211,54 @@ func TestApplyBatchWritesAllEntriesOnceAndFailsClosedOnCollision(t *testing.T) {
 	assertBytes(t, path, before)
 }
 
+func TestApplyBatchReturnsReceiptsWithTypedCleanupDegradationAfterCommit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	releaseErr := errors.New("injected lock release failure")
+	kernel := Kernel{
+		files: conditionalOSFiles{},
+		acquireLocks: func(Paths, Codec) (func() error, error) {
+			return func() error { return releaseErr }, nil
+		},
+	}
+	requests := []Request{{
+		Paths: Paths{JSON: path}, Codec: CodecCline, Action: ActionAdd, Name: "docs",
+		Server: Server{Type: "stdio", Command: "node"},
+	}}
+	receipts, err := kernel.ApplyBatch(requests)
+	if !IsCommittedCleanup(err) || !errors.Is(err, releaseErr) {
+		t.Fatalf("post-commit release error = %v", err)
+	}
+	if len(receipts) != 1 || receipts[0].Name != "docs" {
+		t.Fatalf("committed receipts = %#v", receipts)
+	}
+	present, owned, inspectErr := New().Inspect(Paths{JSON: path}, CodecCline, "docs", &receipts[0])
+	if inspectErr != nil || !present || !owned {
+		t.Fatalf("committed config/receipt diverged: present=%v owned=%v err=%v", present, owned, inspectErr)
+	}
+}
+
+func TestApplyBatchJoinsPrimaryAndReleaseErrorsBeforeCommit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	mustWrite(t, path, `{"mcpServers":{"docs":{"transport":{"type":"stdio","command":"foreign"}}}}`)
+	releaseErr := errors.New("injected lock release failure")
+	kernel := Kernel{
+		files: conditionalOSFiles{},
+		acquireLocks: func(Paths, Codec) (func() error, error) {
+			return func() error { return releaseErr }, nil
+		},
+	}
+	_, err := kernel.Apply(Request{
+		Paths: Paths{JSON: path}, Codec: CodecCline, Action: ActionAdd, Name: "docs",
+		Server: Server{Type: "stdio", Command: "node"},
+	})
+	if !errors.Is(err, ErrCollision) || !errors.Is(err, releaseErr) {
+		t.Fatalf("primary/release error precedence lost: %v", err)
+	}
+	if IsCommittedCleanup(err) {
+		t.Fatalf("pre-commit failure was marked committed: %v", err)
+	}
+}
+
 func TestDesiredReceiptBindingRejectsResolvedIdentityDriftBeforeWrite(t *testing.T) {
 	for _, test := range []struct {
 		name   string

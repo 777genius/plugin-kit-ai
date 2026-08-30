@@ -10,6 +10,7 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers/nativeconfig"
 )
 
 func TestSignedChatGPTPreparationSupportsAddUpdateAndRepairWhileRemoteActivationIsPending(t *testing.T) {
@@ -219,6 +220,19 @@ func TestClinePackageSupportsAutomaticAddUpdateRepairAndRemoveInIsolatedHome(t *
 	t.Setenv("CLINE_MCP_SETTINGS_PATH", settings)
 	service, store, _ := serviceFixture(t)
 	service.NativeObserver = providers.NativeIdentityObserver{Stager: service.Stager}
+	var lockCycle int
+	cleanupErr := fmt.Errorf("injected post-write Cline lock cleanup failure")
+	kernel := nativeconfig.NewWithLockAcquirer(func(nativeconfig.Paths, nativeconfig.Codec) (func() error, error) {
+		lockCycle++
+		cycle := lockCycle
+		return func() error {
+			if cycle == 2 || cycle == 3 {
+				return cleanupErr
+			}
+			return nil
+		}, nil
+	})
+	service.Activator = providers.Activator{NativeConfig: &kernel}
 	client := domain.DetectedClient{ClientID: domain.ClientCline, DisplayName: "Cline", Status: domain.DetectionDetected, ConfigRoot: filepath.Join(root, ".cline")}
 
 	add := clinePackageInput(t, client, "1.0.0", "sha256:cline-v1", "sha256:cline-manifest-v1", "sh")
@@ -237,8 +251,13 @@ func TestClinePackageSupportsAutomaticAddUpdateRepairAndRemoveInIsolatedHome(t *
 	}
 
 	update := clinePackageInput(t, client, "2.0.0", "sha256:cline-v2", "sha256:cline-manifest-v2", "env")
-	if _, err := service.UpdateGroup(context.Background(), GroupInput{Targets: []AddInput{update}, CompatibilityChecks: []AddInput{update}, OperationGroupID: "cline-update", Confirmed: true}); err != nil {
+	update.Confirmed = true
+	updated, err := service.Update(context.Background(), update)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !containsAction(updated.Activation.UserActions, "lock cleanup degraded") {
+		t.Fatalf("committed update cleanup degradation was not surfaced: %+v", updated.Activation)
 	}
 	state, err := store.Load()
 	if err != nil {
@@ -252,6 +271,29 @@ func TestClinePackageSupportsAutomaticAddUpdateRepairAndRemoveInIsolatedHome(t *
 	if err != nil || repaired.Targets[0].Activation.Verification != domain.VerificationInstalled {
 		t.Fatalf("Cline repair = %+v, %v", repaired, err)
 	}
+	if !containsAction(repaired.Targets[0].Activation.UserActions, "lock cleanup degraded") {
+		t.Fatalf("committed repair cleanup degradation was not surfaced: %+v", repaired.Targets[0].Activation)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	var mcpDigest string
+	for _, object := range binding.NativeObjects {
+		if object.Kind == "cline_global_mcp_server" {
+			mcpDigest = object.ManagedDigest
+		}
+	}
+	if mcpDigest == "" {
+		t.Fatalf("committed Cline receipt was reconciled away: %+v", binding.NativeObjects)
+	}
+	present, owned, inspectErr := nativeconfig.New().Inspect(nativeconfig.Paths{JSON: settings}, nativeconfig.CodecCline, "docs", &nativeconfig.Receipt{
+		Version: "1", Path: settings, Codec: nativeconfig.CodecCline, Name: "docs", Digest: mcpDigest,
+	})
+	if inspectErr != nil || !present || !owned {
+		t.Fatalf("Cline config/receipt diverged after degraded update+repair: present=%v owned=%v err=%v", present, owned, inspectErr)
+	}
 	removed, err := service.RemoveGroup(context.Background(), RemoveGroupInput{Selector: added.InstallationID, Targets: []RemoveInput{{Client: client, Scope: domain.ScopeUser}}, OperationGroupID: "cline-remove", Confirmed: true})
 	if err != nil || !removed.Mutated {
 		t.Fatalf("Cline remove = %+v, %v", removed, err)
@@ -259,6 +301,15 @@ func TestClinePackageSupportsAutomaticAddUpdateRepairAndRemoveInIsolatedHome(t *
 	if body, _ := os.ReadFile(settings); strings.Contains(string(body), `"docs"`) {
 		t.Fatalf("Cline remove retained MCP entry: %s", body)
 	}
+}
+
+func containsAction(actions []string, fragment string) bool {
+	for _, action := range actions {
+		if strings.Contains(action, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func signedChatGPTInput(t *testing.T, client domain.DetectedClient, version, treeDigest, manifestDigest string) AddInput {

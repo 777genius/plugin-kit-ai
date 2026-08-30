@@ -98,17 +98,25 @@ func buildGeminiNativeObjects(stagingRoot string, envelope domain.PackageEnvelop
 }
 
 func activateGeminiNative(ctx context.Context, request domain.ActivationRequest) error {
+	return activateGeminiNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func activateGeminiNativeWithKernel(ctx context.Context, request domain.ActivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyGeminiNativeMutation(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects)
+	return applyGeminiNativeMutationWithKernel(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects, kernel)
 }
 
 func deactivateGeminiNative(ctx context.Context, request domain.DeactivationRequest) error {
+	return deactivateGeminiNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func deactivateGeminiNativeWithKernel(ctx context.Context, request domain.DeactivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyGeminiNativeMutation(request.Client.ConfigRoot, "", request.NativeObjects, nil)
+	return applyGeminiNativeMutationWithKernel(request.Client.ConfigRoot, "", request.NativeObjects, nil, kernel)
 }
 
 func verifyGeminiNativeObjects(configRoot string, objects []domain.NativeObjectOwnership, allowMissing bool) error {
@@ -156,10 +164,18 @@ func renameGeminiDirectoryNoReplace(oldPath, newPath string, rename geminiRename
 }
 
 func applyGeminiNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
-	return applyGeminiNativeMutationWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
+	return applyGeminiNativeMutationWithKernel(configRoot, activePath, previous, desired, nativeconfig.New())
 }
 
 func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename geminiRenameFunc) (resultErr error) {
+	return applyGeminiNativeMutationWithKernelAndRename(configRoot, activePath, previous, desired, nativeconfig.New(), rename)
+}
+
+func applyGeminiNativeMutationWithKernel(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel) error {
+	return applyGeminiNativeMutationWithKernelAndRename(configRoot, activePath, previous, desired, kernel, renameDirectoryExclusive)
+}
+
+func applyGeminiNativeMutationWithKernelAndRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel, rename geminiRenameFunc) (resultErr error) {
 	if rename == nil {
 		return fmt.Errorf("Gemini rename operation is unavailable")
 	}
@@ -274,7 +290,7 @@ func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous
 	// A failed restore leaves the only recoverable copy inside transactionRoot.
 	// Keep that directory intact and report its exact location to the caller.
 	defer func() {
-		if resultErr == nil {
+		if resultErr == nil || nativeconfig.IsCommittedCleanup(resultErr) {
 			return
 		}
 		if rollbackErr := rollbackSkills(); rollbackErr != nil {
@@ -378,7 +394,7 @@ func applyGeminiNativeMutationWithRename(configRoot, activePath string, previous
 			return fmt.Errorf("Gemini MCP server %q does not match staged ownership", request.Name)
 		}
 	}
-	_, err := nativeconfig.New().ApplyBatch(requests)
+	_, err := kernel.ApplyBatch(requests)
 	if err != nil {
 		return err
 	}

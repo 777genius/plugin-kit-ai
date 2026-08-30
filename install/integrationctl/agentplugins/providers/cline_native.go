@@ -133,17 +133,25 @@ func buildClineNativeObjects(stagingRoot string, envelope domain.PackageEnvelope
 }
 
 func activateClineNative(ctx context.Context, request domain.ActivationRequest) error {
+	return activateClineNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func activateClineNativeWithKernel(ctx context.Context, request domain.ActivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyClineNativeMutation(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects)
+	return applyClineNativeMutationWithKernel(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects, kernel)
 }
 
 func deactivateClineNative(ctx context.Context, request domain.DeactivationRequest) error {
+	return deactivateClineNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func deactivateClineNativeWithKernel(ctx context.Context, request domain.DeactivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyClineNativeMutation(request.Client.ConfigRoot, "", request.NativeObjects, nil)
+	return applyClineNativeMutationWithKernel(request.Client.ConfigRoot, "", request.NativeObjects, nil, kernel)
 }
 
 func verifyClineNativeObjects(configRoot string, objects []domain.NativeObjectOwnership, allowMissing bool) error {
@@ -185,10 +193,18 @@ func renameClineDirectoryNoReplace(oldPath, newPath string, rename clineRenameFu
 }
 
 func applyClineNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
-	return applyClineNativeMutationWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
+	return applyClineNativeMutationWithKernel(configRoot, activePath, previous, desired, nativeconfig.New())
 }
 
 func applyClineNativeMutationWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename clineRenameFunc) (resultErr error) {
+	return applyClineNativeMutationWithKernelAndRename(configRoot, activePath, previous, desired, nativeconfig.New(), rename)
+}
+
+func applyClineNativeMutationWithKernel(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel) error {
+	return applyClineNativeMutationWithKernelAndRename(configRoot, activePath, previous, desired, kernel, renameDirectoryExclusive)
+}
+
+func applyClineNativeMutationWithKernelAndRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel, rename clineRenameFunc) (resultErr error) {
 	if rename == nil {
 		return fmt.Errorf("Cline rename operation is unavailable")
 	}
@@ -295,7 +311,7 @@ func applyClineNativeMutationWithRename(configRoot, activePath string, previous,
 		}
 	}()
 	defer func() {
-		if resultErr != nil {
+		if resultErr != nil && !nativeconfig.IsCommittedCleanup(resultErr) {
 			if rollbackErr := rollbackSkills(); rollbackErr != nil {
 				cleanupTransaction = false
 				resultErr = fmt.Errorf("%v; Cline skill rollback failed: %w; recovery retained at %q", resultErr, rollbackErr, transactionRoot)
@@ -339,13 +355,17 @@ func applyClineNativeMutationWithRename(configRoot, activePath string, previous,
 	if err := verifyClineNativeObjects(configRoot, clineSkillObjects(desired), false); err != nil {
 		return err
 	}
-	if err := mutateClineMCP(configRoot, activePath, previousByID, desiredByID); err != nil {
+	if err := mutateClineMCPWithKernel(configRoot, activePath, previousByID, desiredByID, kernel); err != nil {
 		return err
 	}
 	return nil
 }
 
 func mutateClineMCP(configRoot, activePath string, previous, desired map[string]domain.NativeObjectOwnership) error {
+	return mutateClineMCPWithKernel(configRoot, activePath, previous, desired, nativeconfig.New())
+}
+
+func mutateClineMCPWithKernel(configRoot, activePath string, previous, desired map[string]domain.NativeObjectOwnership, kernel nativeconfig.Kernel) error {
 	if !hasClineMCP(previous) && !hasClineMCP(desired) {
 		return nil
 	}
@@ -361,7 +381,6 @@ func mutateClineMCP(configRoot, activePath string, previous, desired map[string]
 			return err
 		}
 	}
-	kernel := nativeconfig.New()
 	ids := make([]string, 0, len(previous)+len(desired))
 	seen := map[string]bool{}
 	for id, object := range previous {

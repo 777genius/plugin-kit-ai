@@ -79,17 +79,25 @@ func buildWindsurfNativeObjects(stagingRoot string, plan domain.DeliveryPlan) ([
 }
 
 func activateWindsurfNative(ctx context.Context, request domain.ActivationRequest) error {
+	return activateWindsurfNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func activateWindsurfNativeWithKernel(ctx context.Context, request domain.ActivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyWindsurfNativeMutation(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects)
+	return applyWindsurfNativeMutationWithKernel(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects, kernel)
 }
 
 func deactivateWindsurfNative(ctx context.Context, request domain.DeactivationRequest) error {
+	return deactivateWindsurfNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func deactivateWindsurfNativeWithKernel(ctx context.Context, request domain.DeactivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyWindsurfNativeMutation(request.Client.ConfigRoot, "", request.NativeObjects, nil)
+	return applyWindsurfNativeMutationWithKernel(request.Client.ConfigRoot, "", request.NativeObjects, nil, kernel)
 }
 
 type windsurfMutation struct {
@@ -101,6 +109,10 @@ type windsurfMutation struct {
 }
 
 func applyWindsurfNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
+	return applyWindsurfNativeMutationWithKernel(configRoot, activePath, previous, desired, nativeconfig.New())
+}
+
+func applyWindsurfNativeMutationWithKernel(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel) error {
 	configPath, err := windsurfConfigPath(configRoot)
 	if err != nil {
 		return err
@@ -137,7 +149,6 @@ func applyWindsurfNativeMutation(configRoot, activePath string, previous, desire
 	}
 	sort.Strings(names)
 
-	kernel := nativeconfig.New()
 	mutations := make([]windsurfMutation, 0, len(names))
 	for _, name := range names {
 		oldObject, hadOld := previousMap[name]

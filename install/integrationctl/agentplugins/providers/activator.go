@@ -14,6 +14,7 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers/nativeconfig"
 	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
@@ -22,7 +23,31 @@ type CommandRunner interface {
 }
 
 type Activator struct {
-	Runner CommandRunner
+	Runner       CommandRunner
+	NativeConfig *nativeconfig.Kernel
+}
+
+func (activator Activator) nativeConfigKernel() nativeconfig.Kernel {
+	if activator.NativeConfig != nil {
+		return *activator.NativeConfig
+	}
+	return nativeconfig.New()
+}
+
+func committedNativeCleanup(outcome *domain.ActivationOutcome, err error) bool {
+	if !nativeconfig.IsCommittedCleanup(err) {
+		return false
+	}
+	outcome.UserActions = append(outcome.UserActions, "native config was committed, but lock cleanup degraded; retry repair if the next operation reports a busy lock")
+	return true
+}
+
+func committedNativeDeactivationCleanup(outcome *domain.DeactivationOutcome, err error) bool {
+	if !nativeconfig.IsCommittedCleanup(err) {
+		return false
+	}
+	outcome.UserActions = append(outcome.UserActions, "native config removal was committed, but lock cleanup degraded; retry removal if the next operation reports a busy lock")
+	return true
 }
 
 // AutomaticallyActivates reports whether Activate will use a managed client
@@ -154,8 +179,10 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove only its managed Cline skills and MCP entries")
 			return outcome, nil
 		}
-		if err := deactivateClineNative(ctx, request); err != nil {
-			return outcome, err
+		if err := deactivateClineNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeDeactivationCleanup(&outcome, err) {
+				return outcome, err
+			}
 		}
 		outcome.ExternalRemovalComplete = true
 		return outcome, nil
@@ -174,8 +201,10 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove its managed Gemini CLI skills and MCP entries automatically")
 			return outcome, nil
 		}
-		if err := deactivateGeminiNative(ctx, request); err != nil {
-			return outcome, err
+		if err := deactivateGeminiNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeDeactivationCleanup(&outcome, err) {
+				return outcome, err
+			}
 		}
 		outcome.ExternalRemovalComplete = true
 		return outcome, nil
@@ -190,8 +219,10 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove only its owned Windsurf MCP entries")
 			return outcome, nil
 		}
-		if err := deactivateWindsurfNative(ctx, request); err != nil {
-			return outcome, err
+		if err := deactivateWindsurfNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeDeactivationCleanup(&outcome, err) {
+				return outcome, err
+			}
 		}
 		outcome.ExternalRemovalComplete = true
 		return outcome, nil
@@ -379,8 +410,10 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			if err := verifyClineNativeObjects(request.Client.ConfigRoot, request.Delivery.NativeObjects, false); err != nil {
 				return failedActivation(outcome, "repair the managed Cline skills and MCP configuration", err)
 			}
-		} else if err := activateClineNative(ctx, request); err != nil {
-			return failedActivation(outcome, "retry the managed Cline native installation", err)
+		} else if err := activateClineNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeCleanup(&outcome, err) {
+				return failedActivation(outcome, "retry the managed Cline native installation", err)
+			}
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
@@ -413,8 +446,10 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			if err := verifyGeminiNativeObjects(request.Client.ConfigRoot, request.Delivery.NativeObjects, false); err != nil {
 				return failedActivation(outcome, "repair the managed Gemini CLI skills and MCP configuration", err)
 			}
-		} else if err := activateGeminiNative(ctx, request); err != nil {
-			return failedActivation(outcome, "retry the managed Gemini CLI native installation", err)
+		} else if err := activateGeminiNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeCleanup(&outcome, err) {
+				return failedActivation(outcome, "retry the managed Gemini CLI native installation", err)
+			}
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
@@ -435,8 +470,10 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			outcome.Verification = domain.VerificationInstalled
 			return outcome, nil
 		}
-		if err := activateWindsurfNative(ctx, request); err != nil {
-			return failedActivation(outcome, "retry the managed Windsurf MCP installation", err)
+		if err := activateWindsurfNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeCleanup(&outcome, err) {
+				return failedActivation(outcome, "retry the managed Windsurf MCP installation", err)
+			}
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
