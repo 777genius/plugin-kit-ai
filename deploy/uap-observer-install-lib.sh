@@ -237,6 +237,7 @@ observer_partial_paths() {
     /usr/local/libexec/uap-observer-attest-chatgpt.new \
     /usr/local/libexec/uap-observer-attest-consent.new \
     /usr/local/libexec/uap-observer-provision-profile.new \
+    /usr/local/libexec/uap-observer-recover-profile-seed.new \
     /usr/local/bin/caddy.new \
     /etc/uap-observer.json.new \
     /etc/uap-observer-egress-allowlist.json.new \
@@ -897,6 +898,7 @@ observer_validate_installed_closure_sources() {
   observer_compare_regular_files_neutral "$source_root/deploy/uap-observer-attest-chatgpt.py" "$closure/libexec/uap-observer-attest-chatgpt"
   observer_compare_regular_files_neutral "$source_root/deploy/uap-observer-attest-consent.py" "$closure/libexec/uap-observer-attest-consent"
   observer_compare_regular_files_neutral "$source_root/deploy/uap-observer-provision-profile.py" "$closure/libexec/uap-observer-provision-profile"
+  observer_compare_regular_files_neutral "$source_root/deploy/uap-observer-recover-profile-seed.py" "$closure/libexec/uap-observer-recover-profile-seed"
   for unit in $observer_units; do observer_compare_regular_files_neutral "$source_root/deploy/$unit" "$closure/systemd/$unit"; done
   PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$closure/runtime" observer_run_closure_python_neutral "$closure" "$closure/venv/bin/python" -B -c 'import cryptography,jsonschema; import observer.http_server'
   PYTHONDONTWRITEBYTECODE=1 observer_run_closure_python_script_neutral "$closure" python3 -B "$closure/etc/uap-observer-adapter-config.json" "$closure/etc/uap-observer-adapters.json" "$adapter_digest" <<'PY'

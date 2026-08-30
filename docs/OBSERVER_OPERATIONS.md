@@ -836,6 +836,73 @@ for client in codex cursor kiro; do
 done
 ```
 
+### Recover a seed from a previous disposable observer
+
+This is an operator-only recovery path for an authenticated archive from a
+previous **disposable Linux observer** and only for the exact same approved
+release tuple. It is not a backup restore: never use workstation or Mac state,
+a real project, a customer profile, or a differently approved tuple. Do not
+restore Caddy state or write archived data directly into `/var/lib/uap-observer`.
+
+Record and authenticate the archive SHA-256 out of band before extraction. The
+archive used below contains the previous observer's
+`var/lib/uap-observer/{profiles,proofs}/{codex,cursor,kiro}` trees and no other
+state. In particular, do not archive or restore Caddy state. As root, use one
+fresh protected staging root and deliberately discard archived ownership and
+modes:
+
+```sh
+RECOVERY_ARCHIVE=/root/uap-observer-profile-recovery.tar
+RECOVERY_ARCHIVE_SHA256=<authenticated-64-hex-sha256>
+test "$(id -u)" -eq 0
+test "$(sha256sum "$RECOVERY_ARCHIVE" | cut -d' ' -f1)" = "$RECOVERY_ARCHIVE_SHA256"
+test "$(stat -c '%u:%a:%h' "$RECOVERY_ARCHIVE")" = 0:600:1
+test ! -e /root/uap-observer-recovery
+install -d -o root -g root -m 0700 /root/uap-observer-recovery
+install -d -o root -g root -m 0700 \
+  /root/uap-observer-recovery/extracted /root/uap-observer-recovery/seeds
+(umask 077 && tar --restrict --no-same-owner --no-same-permissions --keep-old-files \
+  -xf "$RECOVERY_ARCHIVE" -C /root/uap-observer-recovery/extracted)
+test "$(find /root/uap-observer-recovery/extracted -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = "var "
+test "$(find /root/uap-observer-recovery/extracted/var -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = "lib "
+test "$(find /root/uap-observer-recovery/extracted/var/lib -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = "uap-observer "
+test "$(find /root/uap-observer-recovery/extracted/var/lib/uap-observer -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = "profiles proofs "
+for kind in profiles proofs; do
+  test "$(find "/root/uap-observer-recovery/extracted/var/lib/uap-observer/$kind" \
+    -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = "codex cursor kiro "
+done
+```
+
+The recovery helper rejects links, hardlinks, special files, unsafe ownership,
+unexpected proof inventory, tuple disagreement, substitution during copying,
+and oversized trees. It creates a new root-owned seed atomically and never
+imports into an active profile. Reconstruct and then use the unchanged installed
+provisioner's two-pass digest flow:
+
+```sh
+for client in codex cursor kiro; do
+  seed="/root/uap-observer-recovery/seeds/$client"
+  python3 -B /opt/uap-observer-current/libexec/uap-observer-recover-profile-seed \
+    --client "$client" \
+    --archived-profile "/root/uap-observer-recovery/extracted/var/lib/uap-observer/profiles/$client" \
+    --archived-proof "/root/uap-observer-recovery/extracted/var/lib/uap-observer/proofs/$client" \
+    --adapter-config /root/uap-observer-adapter-config.json \
+    --output-seed "$seed"
+  digest="$(/opt/uap-observer-current/libexec/uap-observer-provision-profile \
+    --client "$client" --root-owned-seed "$seed" --seed-digest show)"
+  /opt/uap-observer-current/libexec/uap-observer-provision-profile \
+    --client "$client" --root-owned-seed "$seed" --seed-digest "$digest"
+done
+```
+
+After all three provisions and their normal verification succeed, remove only
+the exact recovery staging and archive. Do not retain a second credential copy:
+
+```sh
+rm -rf -- /root/uap-observer-recovery
+rm -f -- /root/uap-observer-profile-recovery.tar
+```
+
 After the signing key, isolated profiles, firewall rules, and immutable proxy
 inputs exist, start the proxy socket first and prove its listener and service
 health before starting the four repository units:

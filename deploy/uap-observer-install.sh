@@ -6,7 +6,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 install_lib="$script_dir/uap-observer-install-lib.sh"
-test "$(sha256sum "$install_lib" | cut -d' ' -f1)" = 34b9d0797954f3b6b05c08e5cf9005002f90ba8a3607d0fa8f4a0a5e7f15eba8
+test "$(sha256sum "$install_lib" | cut -d' ' -f1)" = 04d36fecae6def52826e5ef704d4cfdc19bb91b1e386c8d8644da4c0f4aa15d2
 . "$install_lib"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -16,7 +16,7 @@ fi
 
 usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256 EGRESS_ALLOWLIST EGRESS_ALLOWLIST_SHA256'
 stage_root=/opt/uap-observer-source.new
-runtime_manifest_digest=8da8a04bdd24a2545f24296bf386d13e654eb22511fa525b8dc49bfdcefd337a
+runtime_manifest_digest=fec31067a296df40ce690c72ee64a3841c62d451baaa5f76f7e45981cb5ed329
 caddy_archive_digest=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
 runner_digest=e4ad9db2b74f2b07a29e6de61c32076d0a4c543e3c1e1e891cffa75729563d1e
 adapter_digest=6fa4cb693698d6d7c17accb0ce3072de5efd4d968b6b0a318d5382da442b1b11
@@ -369,6 +369,7 @@ done
 install -o root -g root -m 0555 "$source_root/deploy/uap-observer-attest-chatgpt.py" /usr/local/libexec/uap-observer-attest-chatgpt.new
 install -o root -g root -m 0555 "$source_root/deploy/uap-observer-attest-consent.py" /usr/local/libexec/uap-observer-attest-consent.new
 install -o root -g root -m 0555 "$source_root/deploy/uap-observer-provision-profile.py" /usr/local/libexec/uap-observer-provision-profile.new
+install -o root -g root -m 0555 "$source_root/deploy/uap-observer-recover-profile-seed.py" /usr/local/libexec/uap-observer-recover-profile-seed.new
 install -o root -g root -m 0755 "$caddy_binary" /usr/local/bin/caddy.new
 install -o root -g root -m 0644 "$observer_config" /etc/uap-observer.json.new
 install -o root -g root -m 0644 "$stage_root/egress-allowlist.json" /etc/uap-observer-egress-allowlist.json.new
@@ -458,6 +459,7 @@ done
 mv /usr/local/libexec/uap-observer-attest-chatgpt.new "$closure_stage/libexec/uap-observer-attest-chatgpt"
 mv /usr/local/libexec/uap-observer-attest-consent.new "$closure_stage/libexec/uap-observer-attest-consent"
 mv /usr/local/libexec/uap-observer-provision-profile.new "$closure_stage/libexec/uap-observer-provision-profile"
+mv /usr/local/libexec/uap-observer-recover-profile-seed.new "$closure_stage/libexec/uap-observer-recover-profile-seed"
 mv /usr/local/bin/caddy.new "$closure_stage/bin/caddy"
 mv /etc/uap-observer.json.new "$closure_stage/etc/uap-observer.json"
 mv /etc/uap-observer-egress-allowlist.json.new "$closure_stage/etc/uap-observer-egress-allowlist.json"

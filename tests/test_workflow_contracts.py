@@ -600,6 +600,18 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(manifest, {relative: file_digest(relative) for relative in manifest})
         self.assertEqual(manifest["observer/fixed_runner.py"], file_digest("observer/fixed_runner.py"))
         self.assertEqual(manifest["observer/fixed_adapters.py"], file_digest("observer/fixed_adapters.py"))
+        recovery_helper = "deploy/uap-observer-recover-profile-seed.py"
+        self.assertEqual(manifest[recovery_helper], file_digest(recovery_helper))
+        for phrase in (
+            'install -o root -g root -m 0555 "$source_root/deploy/uap-observer-recover-profile-seed.py"',
+            'mv /usr/local/libexec/uap-observer-recover-profile-seed.new "$closure_stage/libexec/uap-observer-recover-profile-seed"',
+        ):
+            self.assertIn(phrase, installer)
+        install_library = (ROOT / "deploy/uap-observer-install-lib.sh").read_text()
+        self.assertIn(
+            'observer_compare_regular_files_neutral "$source_root/deploy/uap-observer-recover-profile-seed.py" "$closure/libexec/uap-observer-recover-profile-seed"',
+            install_library,
+        )
         assignments = dict(re.findall(
             r"^(runner_digest|adapter_digest)=([a-f0-9]{64})$", installer, re.MULTILINE,
         ))
@@ -920,6 +932,18 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("/root/uap-observer-egress-proxy.service", runbook)
         self.assertNotIn("/usr/local/libexec/", runbook)
         self.assertIn("/opt/uap-observer-current/libexec/uap-observer-provision-profile", runbook)
+        for recovery_contract in (
+            "test ! -e /root/uap-observer-recovery",
+            "tar --restrict --no-same-owner --no-same-permissions --keep-old-files",
+            'python3 -B /opt/uap-observer-current/libexec/uap-observer-recover-profile-seed',
+            '--adapter-config /root/uap-observer-adapter-config.json',
+            '/extracted/var/lib/uap-observer/profiles/$client',
+            '/extracted/var/lib/uap-observer/proofs/$client',
+            '/extracted/var -mindepth 1 -maxdepth 1',
+            '/extracted/var/lib -mindepth 1 -maxdepth 1',
+        ):
+            self.assertIn(recovery_contract, runbook)
+        self.assertNotIn('-xpf "$RECOVERY_ARCHIVE"', runbook)
         self.assertIn("--matrix-file /root/uap-observer-matrix.json", runbook)
         self.assertIn("--post-doctor-directory", runbook)
         self.assertIn('if [ "$client" = codex ]; then\n    install -d -o root -g root -m 0700 "$seed/.codex"', runbook)
