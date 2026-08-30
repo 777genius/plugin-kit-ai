@@ -1,6 +1,7 @@
 import json
 import hashlib
 import importlib.util
+import os
 import re
 import shutil
 import subprocess
@@ -268,7 +269,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_installed_state_projection_validator_is_strict_and_nonempty(self) -> None:
         library = (ROOT / "deploy/uap-observer-install-lib.sh").read_text()
-        start = library.index("def native_projection(encoded,suffix,profile,proof):")
+        start = library.index('heroes={"agent-code-navigator"')
         end = library.index('\ndirectory("/var/empty"', start)
         namespace = {}
         exec("import json,math,re\nfrom pathlib import Path\n" + library[start:end], namespace)
@@ -434,6 +435,126 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('type(receipts.get("schema_version")) is not int', library)
         self.assertIn('record["tuple"]!=entry["tuple"]', library)
         self.assertIn('record.get(field)!=entry.get(field)', library)
+
+    def test_installed_state_validator_accepts_populated_projection_and_receipts(self) -> None:
+        library = (ROOT / "deploy/uap-observer-install-lib.sh").read_text()
+        function = library.index("observer_validate_installed_accounts_and_state()")
+        start = library.index("import grp,hashlib,json,math,os,pwd,re,stat", function)
+        source = library[start:library.index("\nPY\n}", start)]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            replacements = {
+                path: str(root / path.lstrip("/"))
+                for path in (
+                    "/var/lib/uap-observer-consent", "/var/lib/uap-observer-human",
+                    "/var/lib/uap-observer", "/var/empty", "/var/lib/caddy", "/var/log/caddy",
+                )
+            }
+            for index, original in enumerate(sorted(replacements, key=len, reverse=True)):
+                token = f"__UAP_FIXTURE_PATH_{index}__"
+                source = source.replace(original, token)
+                replacements[token] = replacements[original]
+            for token, replacement in tuple(replacements.items()):
+                if token.startswith("__UAP_FIXTURE_PATH_"):
+                    source = source.replace(token, replacement)
+            source = source.replace(
+                "from observer.fixed_runner import reviewed_service_identities",
+                "owner_uid,owner_gid=os.geteuid(),os.getegid()\n"
+                "def reviewed_service_identities():\n"
+                "    return {name:(owner_uid,owner_gid,'fixture') for name in "
+                "('codex','cursor','kiro','control','observer','caddy','egress')}",
+            )
+            source = source.replace(
+                'config_gid=grp.getgrnam("uap-observer-adapter-config").gr_gid', "config_gid=owner_gid",
+            )
+            source = source.replace(",0,0,", ",owner_uid,owner_gid,")
+            source = source.replace(",0,gid,", ",owner_uid,gid,")
+            source = source.replace(",0,identities[3][1],", ",owner_uid,identities[3][1],")
+            source = source.replace(",0,config_gid,", ",owner_uid,config_gid,")
+            source = source.replace("native_info.st_uid != 0", "native_info.st_uid != owner_uid")
+            source = re.sub(r"(?<![A-Za-z_])info\.st_uid != 0", "info.st_uid != owner_uid", source)
+
+            def mkdir(path: Path, mode: int) -> None:
+                path.mkdir(parents=True, exist_ok=True)
+                path.chmod(mode)
+
+            empty = Path(replacements["/var/empty"])
+            mkdir(empty, 0o755)
+            for client in ("codex", "cursor", "kiro", "control"):
+                mkdir(empty / f"uap-observer-{client}", 0o700)
+            state = Path(replacements["/var/lib/uap-observer"])
+            mkdir(state, 0o711)
+            mkdir(state / "state", 0o700)
+            for name in ("jobs", "workspaces", "profiles", "proofs"):
+                mkdir(state / name, 0o711)
+            for client in ("codex", "cursor", "kiro"):
+                mkdir(state / "workspaces" / client, 0o700)
+            for client in ("cursor", "kiro"):
+                mkdir(state / "profiles" / client, 0o700)
+
+            profile = state / "profiles" / "codex"
+            proof = state / "proofs" / "codex"
+            mkdir(profile, 0o700)
+            mkdir(proof / "native", 0o700)
+            digest_value = "sha256:" + "a" * 64
+            heroes = ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion")
+            entries, receipt_rows = [], []
+            for plugin in heroes:
+                body = json.dumps({"plugin": plugin}, separators=(",", ":")).encode()
+                active = (
+                    profile / "skills" / "code-tool-router" / "SKILL.md"
+                    if plugin == "agent-code-navigator" else profile / f"{plugin}.json"
+                )
+                mkdir(active.parent, 0o700)
+                active.write_bytes(body)
+                active.chmod(0o440)
+                native = proof / "native" / f"{plugin}.blob"
+                native.write_bytes(body)
+                native.chmod(0o440)
+                body_digest = "sha256:" + hashlib.sha256(body).hexdigest()
+                release = {
+                    "product_id": plugin, "tree_digest": digest_value, "manifest_digest": digest_value,
+                    "distribution_id": f"owner/{plugin}", "distribution_kind": "upstream",
+                    "release_sequence": 1, "package_version": "1.0.0",
+                    "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
+                    "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
+                    "snapshot_digest": digest_value, "binary_digest": digest_value,
+                    "dependency_identity": "locked", "installer_version": "0.1.18",
+                    "adapter_version": "r14d", "client_version": None, "os": "linux",
+                    "architecture": "x86_64", "observed_at": "2026-08-30T00:00:00Z",
+                }
+                evidence = {
+                    "manager_add_sha256": digest_value, "manager_info_sha256": digest_value,
+                    "post_add_doctor_sha256": digest_value,
+                }
+                entries.append({
+                    "plugin": plugin, "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                    "tuple": release, "native_config": {"path": str(native), "sha256": body_digest},
+                    "client_config": {"path": str(active), "sha256": body_digest}, **evidence,
+                })
+                receipt_rows.append({"name": plugin, "tuple": release, **evidence})
+            (proof / "native-projection.json").write_text(json.dumps({
+                "schema_version": 2, "client_id": "codex", "entries": entries,
+            }))
+            (proof / "receipts.json").write_text(json.dumps({
+                "schema_version": 1, "receipts": receipt_rows,
+            }))
+            for path in (proof / "native-projection.json", proof / "receipts.json"):
+                path.chmod(0o440)
+            for path in (profile / "skills" / "code-tool-router", profile / "skills", profile,
+                         proof / "native", proof):
+                path.chmod(0o510)
+
+            for base in (Path(replacements["/var/lib/uap-observer-human"]),
+                         Path(replacements["/var/lib/uap-observer-consent"])):
+                mkdir(base, 0o755)
+                mkdir(base / "pending", 0o750)
+                mkdir(base / "consumed", 0o700)
+                mkdir(base / "reserved", 0o700)
+            mkdir(Path(replacements["/var/lib/caddy"]), 0o700)
+            mkdir(Path(replacements["/var/log/caddy"]), 0o700)
+
+            exec(compile(source, "installed-state-validator", "exec"), {})
 
     def test_profile_provisioner_accepts_only_canonical_shared_client_configs(self) -> None:
         path = ROOT / "deploy/uap-observer-provision-profile.py"

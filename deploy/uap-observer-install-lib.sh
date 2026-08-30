@@ -669,6 +669,9 @@ def directory(path,uid,gid,mode):
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_gid != gid or stat.S_IMODE(info.st_mode) != mode:
         raise SystemExit(f"installed state directory {path} differs")
 
+heroes={"agent-code-navigator","context7","cloudflare-docs","chrome-devtools","notion"}
+digest=re.compile(r"sha256:[a-f0-9]{64}")
+
 def native_projection(encoded,suffix,profile,proof):
     if len(encoded) > 4 << 20:
         raise SystemExit(f"installed native projection for {suffix} is oversized")
@@ -690,7 +693,6 @@ def native_projection(encoded,suffix,profile,proof):
     value=json.loads(encoded,object_pairs_hook=pairs,parse_constant=constant,parse_float=finite)
     evidence={"manager_add_sha256","manager_info_sha256","post_add_doctor_sha256"}
     fields={"plugin","component_kind","tuple","native_config","client_config",*evidence}
-    digest=re.compile(r"sha256:[a-f0-9]{64}")
     tuple_fields={"product_id","tree_digest","manifest_digest","distribution_id","distribution_kind","release_sequence","package_version","source_repository","source_revision","source_path","snapshot_sequence","snapshot_digest","binary_digest","dependency_identity","installer_version","adapter_version","client_version","os","architecture","observed_at"}
     tuple_digests={"tree_digest","manifest_digest","snapshot_digest","binary_digest"}
     def release_tuple(item,plugin):
@@ -709,7 +711,6 @@ def native_projection(encoded,suffix,profile,proof):
         or type(value.get("client_id")) is not str or value["client_id"]!=suffix
         or not isinstance(value.get("entries"),list) or not value["entries"]):
         raise SystemExit(f"installed native projection for {suffix} is invalid")
-    heroes={"agent-code-navigator","context7","cloudflare-docs","chrome-devtools","notion"}
     plugins=set(); active_paths=set()
     for entry in value["entries"]:
         if (not isinstance(entry,dict) or set(entry)!=fields
