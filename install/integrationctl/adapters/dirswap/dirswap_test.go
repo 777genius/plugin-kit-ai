@@ -172,6 +172,78 @@ func TestApplyRejectsPathsOutsideOwnedBase(t *testing.T) {
 	}
 }
 
+func TestCrossParentStagingAtomicallyCommits(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	owned := filepath.Join(root, "skills")
+	active := filepath.Join(owned, "plugin")
+	staging := filepath.Join(root, ".agentplugins-staging-0123456789abcdef")
+	writeBody(t, active, "old")
+	writeBody(t, staging, "new")
+	manager := Manager{JournalDir: filepath.Join(root, "journal")}
+	receipt, err := manager.Apply(context.Background(), Input{
+		OperationID: "cross-parent", ClientBindingID: "binding-1", Sequence: 1,
+		OwnedBase: owned, ActivePath: active, StagingPath: staging,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertBody(t, active, "new")
+	if err := manager.Commit(context.Background(), receipt); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCrossParentStagingRecoversRollbackAfterActivationCrash(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	owned := filepath.Join(root, "skills")
+	active := filepath.Join(owned, "plugin")
+	staging := filepath.Join(root, ".agentplugins-staging-0123456789abcdef")
+	writeBody(t, active, "old")
+	writeBody(t, staging, "new")
+	manager := Manager{JournalDir: filepath.Join(root, "journal"), Fault: func(point string) error {
+		if point == FaultActivationApplied {
+			return errors.New("crash after cross-parent activation")
+		}
+		return nil
+	}}
+	if _, err := manager.Apply(context.Background(), Input{
+		OperationID: "cross-parent-crash", ClientBindingID: "binding-1", Sequence: 1,
+		OwnedBase: owned, ActivePath: active, StagingPath: staging,
+	}); err == nil {
+		t.Fatal("fault was not injected")
+	}
+	manager.Fault = nil
+	if err := manager.Recover(context.Background(), "cross-parent-crash", false); err != nil {
+		t.Fatal(err)
+	}
+	assertBody(t, active, "old")
+}
+
+func TestCrossParentStagingRejectsUnreservedOrForeignSibling(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	owned := filepath.Join(root, "skills")
+	active := filepath.Join(owned, "plugin")
+	writeBody(t, active, "old")
+	manager := Manager{JournalDir: filepath.Join(root, "journal")}
+	for name, staging := range map[string]string{
+		"unreserved": filepath.Join(root, "staging"),
+		"foreign":    filepath.Join(t.TempDir(), ".agentplugins-staging-0123456789abcdef"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			writeBody(t, staging, "new")
+			if _, err := manager.Apply(context.Background(), Input{
+				OperationID: "reject-" + name, ClientBindingID: "binding-1", Sequence: 1,
+				OwnedBase: owned, ActivePath: active, StagingPath: staging,
+			}); err == nil {
+				t.Fatal("unsafe cross-parent staging path was accepted")
+			}
+		})
+	}
+}
+
 func TestRemoveCommitsOrRollsBackAtomically(t *testing.T) {
 	t.Parallel()
 	for _, commit := range []bool{false, true} {

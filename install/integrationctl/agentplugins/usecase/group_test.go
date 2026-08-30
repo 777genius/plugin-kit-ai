@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/dirswap"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 )
 
 func TestGroupedAddUpdateAndRemoveUseOneCommitDecision(t *testing.T) {
@@ -352,6 +354,17 @@ func TestGroupedRepairAtomicallyRestoresHeterogeneousRecordedRevisions(t *testin
 	if _, err := service.UpdateGroup(context.Background(), GroupInput{Targets: []AddInput{cursorV2}, CompatibilityChecks: []AddInput{cursorV2, kiroV2}, OperationGroupID: "mixed-update", Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Authentication = domain.AuthenticationComplete
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
 	cursorV2.InstallationID = added.InstallationID
 	kiroV1.InstallationID = added.InstallationID
 	repaired, err := service.RepairGroup(context.Background(), GroupInput{Targets: []AddInput{cursorV2, kiroV1}, OperationGroupID: "mixed-repair", Confirmed: true, Repair: true})
@@ -361,17 +374,180 @@ func TestGroupedRepairAtomicallyRestoresHeterogeneousRecordedRevisions(t *testin
 	if repaired.Phase != GroupPhaseCompleted || len(repaired.Receipts) != 2 {
 		t.Fatalf("heterogeneous repair result = %+v", repaired)
 	}
-	state, err := store.Load()
+	state, err = store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	var versions = map[string]string{}
 	for _, binding := range state.Installations[0].Clients {
 		versions[binding.ClientID] = binding.PackageRevision.Version
+		if binding.Authentication != domain.AuthenticationComplete {
+			t.Fatalf("repair reset completed authentication for %s: %+v", binding.ClientID, binding)
+		}
 	}
 	if versions[string(domain.ClientCursor)] != "2.0.0" || versions[string(domain.ClientKiro)] == "2.0.0" {
 		t.Fatalf("repair did not preserve exact per-target revisions: %+v", versions)
 	}
+}
+
+func TestGroupedRepairPreservesCompletedAuthenticationWhenFinalizationFails(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	kiro := domain.DetectedClient{ClientID: domain.ClientKiro, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".kiro")}
+	cursorInput := addInput(t, cursor, "https://example.com/group-repair-auth")
+	kiroInput := addInput(t, kiro, "https://example.com/group-repair-auth")
+	added, err := service.AddGroup(context.Background(), GroupInput{Targets: []AddInput{cursorInput, kiroInput}, OperationGroupID: "repair-auth-add", Confirmed: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Authentication = domain.AuthenticationComplete
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	cursorInput.InstallationID = added.InstallationID
+	kiroInput.InstallationID = added.InstallationID
+	faulted := false
+	service.Kernel.Directory.Fault = func(phase string) error {
+		if phase == dirswap.PhaseCommitPending && !faulted {
+			faulted = true
+			return errors.New("injected post-commit finalization failure")
+		}
+		return nil
+	}
+	result, err := service.RepairGroup(context.Background(), GroupInput{Targets: []AddInput{cursorInput, kiroInput}, OperationGroupID: "repair-auth-late-failure", Confirmed: true})
+	if err == nil || transaction.FailurePhase(err) != transaction.GroupFailureCommitted || result.Phase != GroupPhaseManagedCommitted {
+		t.Fatalf("late repair failure = result=%+v err=%v phase=%s", result, err, transaction.FailurePhase(err))
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 1 || len(state.Installations[0].Clients) != 2 {
+		t.Fatalf("committed repair state = %+v", state.Installations)
+	}
+	for _, binding := range state.Installations[0].Clients {
+		if binding.Authentication != domain.AuthenticationComplete {
+			t.Fatalf("late repair failure reset authentication for %s: %+v", binding.ClientID, binding)
+		}
+	}
+	service.Kernel.Directory.Fault = nil
+	kernel := service.Kernel
+	kernel.StateStore = store
+	if err := kernel.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, binding := range state.Installations[0].Clients {
+		if binding.Authentication != domain.AuthenticationComplete {
+			t.Fatalf("recovery reset authentication for %s: %+v", binding.ClientID, binding)
+		}
+	}
+}
+
+func TestGroupedOpenAIOAuthPromotionMatchesSingleTargetSemantics(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	codex := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
+	inputs := func(version, tree, manifest string, explicitCodexCompatibility bool) (AddInput, AddInput) {
+		codexInput := addInput(t, codex, "https://example.com/group-oauth")
+		cursorInput := addInput(t, cursor, "https://example.com/group-oauth")
+		for _, input := range []*AddInput{&codexInput, &cursorInput} {
+			setEnvelopeVersion(t, &input.Envelope, version, tree, manifest)
+			input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+				"remote": {Name: "remote", Type: "streamable-http", Decoded: map[string]any{"url": "https://mcp.example.com"}},
+			}}
+			input.Envelope.Inventory.MCPServers = []string{"remote"}
+			input.Hints.OpenAIMCPAuth = map[string]domain.OpenAIMCPAuthHint{"remote": {OAuthResource: "https://mcp.example.com"}}
+		}
+		if explicitCodexCompatibility {
+			compatibility := map[string]domain.CatalogCompatibility{
+				string(domain.ClientCodex):  {Package: "projected", Authentication: domain.AuthenticationRequirementNotRequired},
+				string(domain.ClientCursor): {Package: "native", Authentication: domain.AuthenticationRequirementNotRequired},
+			}
+			codexInput.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: compatibility}
+			cursorInput.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: compatibility}
+		}
+		return codexInput, cursorInput
+	}
+
+	codexAdd, cursorAdd := inputs("1.0.0", "sha256:source-tree", "sha256:manifest", false)
+	added, err := service.AddGroup(context.Background(), GroupInput{Targets: []AddInput{codexAdd, cursorAdd}, OperationGroupID: "group-oauth-add", Confirmed: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added.Targets[0].Plan.Authentication != domain.AuthenticationPending || added.Targets[1].Plan.Authentication == domain.AuthenticationPending {
+		t.Fatalf("group add authentication plans = codex:%s cursor:%s", added.Targets[0].Plan.Authentication, added.Targets[1].Plan.Authentication)
+	}
+	assertGroupedAuthentication(t, store, domain.ClientCodex, domain.AuthenticationPending)
+	assertGroupedAuthenticationNot(t, store, domain.ClientCursor, domain.AuthenticationPending)
+
+	codexUpdate, cursorUpdate := inputs("2.0.0", "sha256:group-oauth-v2", "sha256:group-oauth-manifest-v2", false)
+	updated, err := service.UpdateGroup(context.Background(), GroupInput{Targets: []AddInput{codexUpdate, cursorUpdate}, CompatibilityChecks: []AddInput{codexUpdate, cursorUpdate}, OperationGroupID: "group-oauth-update", Confirmed: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Targets[0].Plan.Authentication != domain.AuthenticationPending || updated.Targets[1].Plan.Authentication == domain.AuthenticationPending {
+		t.Fatalf("group update authentication plans = codex:%s cursor:%s", updated.Targets[0].Plan.Authentication, updated.Targets[1].Plan.Authentication)
+	}
+	assertGroupedAuthentication(t, store, domain.ClientCodex, domain.AuthenticationPending)
+	assertGroupedAuthenticationNot(t, store, domain.ClientCursor, domain.AuthenticationPending)
+
+	explicitCodex, explicitCursor := inputs("3.0.0", "sha256:group-oauth-v3", "sha256:group-oauth-manifest-v3", true)
+	preview, err := service.UpdateGroup(context.Background(), GroupInput{Targets: []AddInput{explicitCodex, explicitCursor}, CompatibilityChecks: []AddInput{explicitCodex, explicitCursor}, OperationGroupID: "group-oauth-explicit", DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.Targets[0].Plan.Authentication == domain.AuthenticationPending || preview.Targets[1].Plan.Authentication == domain.AuthenticationPending {
+		t.Fatalf("explicit compatibility was falsely promoted: %+v", preview.Targets)
+	}
+}
+
+func assertGroupedAuthentication(t *testing.T, store interface {
+	Load() (domain.StateFileV2, error)
+}, clientID domain.ClientID, want domain.AuthenticationState) {
+	t.Helper()
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, binding := range state.Installations[0].Clients {
+		if binding.ClientID == string(clientID) {
+			if binding.Authentication != want {
+				t.Fatalf("%s authentication = %s, want %s", clientID, binding.Authentication, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("client %s was not persisted", clientID)
+}
+
+func assertGroupedAuthenticationNot(t *testing.T, store interface {
+	Load() (domain.StateFileV2, error)
+}, clientID domain.ClientID, unwanted domain.AuthenticationState) {
+	t.Helper()
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, binding := range state.Installations[0].Clients {
+		if binding.ClientID == string(clientID) {
+			if binding.Authentication == unwanted {
+				t.Fatalf("%s authentication was falsely promoted to %s", clientID, unwanted)
+			}
+			return
+		}
+	}
+	t.Fatalf("client %s was not persisted", clientID)
 }
 
 type fixedNativeObserver struct {

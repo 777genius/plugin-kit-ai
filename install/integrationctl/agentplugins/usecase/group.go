@@ -243,6 +243,9 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		if err != nil {
 			return result, err
 		}
+		if openAIOAuthApplies(target.Client.ClientID, target.Envelope, target.Hints) {
+			plan.Authentication = domain.AuthenticationPending
+		}
 		result.Targets[targetIndex] = AddResult{InstallationID: installationID, Plan: plan}
 		if target.ReleaseRevoked && normalizedOriginMode(target.OriginMode) == domain.OriginModeDirect {
 			result.Targets[targetIndex].Plan.Warnings = append(result.Targets[targetIndex].Plan.Warnings, "direct_source_digest_matches_known_revoked_directory_release")
@@ -398,6 +401,12 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			cleanup()
 			return result, err
 		}
+		delivery, err = bindStagedDeliveryToPhysicalOwner(delivery, target.plan, target.managed)
+		if err != nil {
+			_ = service.Stager.Discard(context.Background(), delivery)
+			cleanup()
+			return result, err
+		}
 		target.delivery = delivery
 	}
 	defer cleanup()
@@ -430,6 +439,12 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			client.AffectedSurfaces = append(client.AffectedSurfaces, string(input.Targets[resultIndex].Client.ClientID))
 		}
 		client.AffectedSurfaces = uniqueSortedSurfaces(client.AffectedSurfaces)
+		if input.Repair && target.managed != nil {
+			// A repair commit becomes authoritative before directory/receipt
+			// finalization. Preserve prior authentication evidence in that commit
+			// decision so a late failure cannot reset completed authentication.
+			client.Authentication = preservedGroupAuthentication(target.plan.Authentication, target.managed.Authentication)
+		}
 		if target.dataReceipt.DataReceiptID != "" {
 			if installation.DataReceipts == nil {
 				installation.DataReceipts = map[string]domain.DataReceipt{}
@@ -487,10 +502,14 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		}
 		operationID := fmt.Sprintf("%s-%03d", groupID, targetIndex+1)
 		delivery := target.delivery
+		authentication := target.plan.Authentication
+		if input.Repair && target.managed != nil {
+			authentication = preservedGroupAuthentication(authentication, target.managed.Authentication)
+		}
 		mutations = append(mutations, transaction.DirectoryMutation{OperationID: operationID, InstallationID: installationID, ClientBindingID: target.clientBindingID,
 			Sequence: nextSequence(client), OwnedBase: delivery.OwnedBase, ActivePath: delivery.ActivePath, StagingPath: delivery.StagingPath,
 			BeforeDigest: before, AfterDigest: delivery.ArtifactDigest, NativeObjects: delivery.NativeObjects, Activation: target.plan.Activation,
-			Authentication: target.plan.Authentication, Policy: domain.PolicyAllowed, Verification: target.plan.Verification,
+			Authentication: authentication, Policy: domain.PolicyAllowed, Verification: target.plan.Verification,
 			Verify: func(verifyContext context.Context, activePath string) error {
 				return service.Stager.Verify(verifyContext, activePath, delivery.ArtifactDigest)
 			}})
@@ -570,6 +589,9 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 				return append([]domain.NativeObjectOwnership(nil), target.managed.NativeObjects...)
 			}(),
 			VerifyOnly: target.noChange, ActivationComplete: target.input.ActivationComplete})
+		if input.Repair && target.managed != nil {
+			outcome = preserveManagedAuthentication(outcome, target.managed.Authentication)
+		}
 		if target.noChange && target.managed != nil {
 			if activationErr == nil && !clientVerifierAvailable(target.input, target.plan) && target.managed.Activation == domain.ActivationActive && target.managed.Verification == domain.VerificationInstalled {
 				outcome.Activation = target.managed.Activation
@@ -582,7 +604,11 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 				outcome.Authentication = target.managed.Authentication
 			}
 		}
-		lifecycleChanged, persistErr := service.updateLifecycle(installationID, target.clientBindingID, outcome)
+		previousNativeObjects := []domain.NativeObjectOwnership(nil)
+		if target.managed != nil {
+			previousNativeObjects = target.managed.NativeObjects
+		}
+		lifecycleChanged, persistErr := service.updateActivationResult(installationID, target.clientBindingID, outcome, activationErr, previousNativeObjects)
 		if lifecycleChanged {
 			result.Mutated = true
 		}
@@ -614,6 +640,13 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 	}
 	result.Phase = GroupPhaseCompleted
 	return result, nil
+}
+
+func preservedGroupAuthentication(planned, current domain.AuthenticationState) domain.AuthenticationState {
+	if current == domain.AuthenticationComplete || planned == "" || planned == domain.AuthenticationNotChecked {
+		return current
+	}
+	return planned
 }
 
 func switchPluginDataDecision(installation domain.Installation) domain.PluginDataDecision {

@@ -29,11 +29,15 @@ func (stager Stager) Discard(ctx context.Context, delivery domain.StagedDelivery
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if filepath.Dir(filepath.Clean(delivery.StagingPath)) != filepath.Clean(delivery.OwnedBase) ||
+	stagingBase := filepath.Clean(delivery.OwnedBase)
+	if delivery.ClientID == domain.ClientClaude {
+		stagingBase = filepath.Dir(stagingBase)
+	}
+	if filepath.Dir(filepath.Clean(delivery.StagingPath)) != stagingBase ||
 		!strings.HasPrefix(filepath.Base(delivery.StagingPath), ".agentplugins-staging-") {
 		return fmt.Errorf("refuse unsafe staged delivery cleanup")
 	}
-	return removeStaging(delivery.OwnedBase, delivery.StagingPath)
+	return removeStaging(stagingBase, delivery.StagingPath)
 }
 
 func (stager Stager) Verify(ctx context.Context, root, expectedDigest string) error {
@@ -149,8 +153,20 @@ func (stager Stager) stage(
 		return domain.StagedDelivery{}, err
 	}
 	suffix := sha256.Sum256([]byte(operationID))
-	stagingPath := filepath.Join(plan.TargetRoot, ".agentplugins-staging-"+hex.EncodeToString(suffix[:8]))
-	if err := pathpolicy.RequireContainedChild(plan.TargetRoot, stagingPath); err != nil {
+	stagingBase := plan.TargetRoot
+	// Claude Code discovers every plugin-shaped directory directly below its
+	// skills root. Keep the transaction staging directory beside that watched
+	// root so a pre-commit read-only `plugin list` cannot mistake it for an
+	// installed plugin. TargetAnchor and TargetRoot are on the same configured
+	// client filesystem; dirswap still performs the final atomic rename.
+	if plan.ClientID == domain.ClientClaude {
+		stagingBase = plan.TargetAnchor
+	}
+	if err := os.MkdirAll(stagingBase, 0o700); err != nil {
+		return domain.StagedDelivery{}, fmt.Errorf("create client staging root: %w", err)
+	}
+	stagingPath := filepath.Join(stagingBase, ".agentplugins-staging-"+hex.EncodeToString(suffix[:8]))
+	if err := pathpolicy.RequireContainedChild(stagingBase, stagingPath); err != nil {
 		return domain.StagedDelivery{}, fmt.Errorf("unsafe staging path: %w", err)
 	}
 	if _, statErr := os.Lstat(stagingPath); statErr == nil {
@@ -160,7 +176,7 @@ func (stager Stager) stage(
 	}
 	defer func() {
 		if err != nil {
-			_ = removeStaging(plan.TargetRoot, stagingPath)
+			_ = removeStaging(stagingBase, stagingPath)
 		}
 	}()
 	if err := filetree.CopyDir(envelope.SnapshotRoot, stagingPath); err != nil {
@@ -173,6 +189,10 @@ func (stager Stager) stage(
 		switch plan.ClientID {
 		case domain.ClientCodex:
 			if err := projectOpenAI(stagingPath, envelope, plan, hints, pluginDataPath); err != nil {
+				return domain.StagedDelivery{}, err
+			}
+		case domain.ClientClaude:
+			if err := projectClaude(stagingPath, envelope, plan, pluginDataPath); err != nil {
 				return domain.StagedDelivery{}, err
 			}
 		case domain.ClientChatGPT:
@@ -191,13 +211,36 @@ func (stager Stager) stage(
 			return domain.StagedDelivery{}, err
 		}
 	}
+	var geminiObjects []domain.NativeObjectOwnership
+	if plan.ClientID == domain.ClientGemini {
+		var err error
+		geminiObjects, err = buildGeminiNativeObjects(stagingPath, envelope, plan, pluginDataPath)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
 	if plan.ClientID == domain.ClientCursor {
 		if err := projectCursor(stagingPath, envelope, plan, pluginDataPath); err != nil {
 			return domain.StagedDelivery{}, err
 		}
 	}
+	if plan.ClientID == domain.ClientOpenCode {
+		if err := projectOpenCodeNative(stagingPath, envelope, plan, pluginDataPath); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
+	if plan.ClientID == domain.ClientCline {
+		if err := projectClineNative(stagingPath, envelope, plan, pluginDataPath); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
 	if plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode {
 		if err := projectCopilotMarketplace(stagingPath, envelope, plan); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
+	if plan.ClientID == domain.ClientWindsurf {
+		if err := projectWindsurfMCP(stagingPath, envelope, plan, pluginDataPath); err != nil {
 			return domain.StagedDelivery{}, err
 		}
 	}
@@ -225,6 +268,28 @@ func (stager Stager) stage(
 			return domain.StagedDelivery{}, err
 		}
 		objects = append(objects, kiroObjects...)
+	}
+	if plan.ClientID == domain.ClientOpenCode {
+		openCodeObjects, err := buildOpenCodeNativeObjects(stagingPath, envelope, plan)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+		objects = append(objects, openCodeObjects...)
+	}
+	if plan.ClientID == domain.ClientCline {
+		clineObjects, err := buildClineNativeObjects(stagingPath, envelope, plan)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+		objects = append(objects, clineObjects...)
+	}
+	objects = append(objects, geminiObjects...)
+	if plan.ClientID == domain.ClientWindsurf {
+		windsurfObjects, err := buildWindsurfNativeObjects(stagingPath, plan)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+		objects = append(objects, windsurfObjects...)
 	}
 	return domain.StagedDelivery{
 		ClientID:       plan.ClientID,
@@ -275,6 +340,9 @@ func validatePlanPaths(plan domain.DeliveryPlan) error {
 	}
 	if err := pathpolicy.RequireContainedChild(plan.TargetAnchor, plan.TargetRoot); err != nil {
 		return fmt.Errorf("unsafe delivery target root: %w", err)
+	}
+	if plan.ClientID == domain.ClientClaude && filepath.Clean(plan.TargetRoot) != filepath.Join(filepath.Clean(plan.TargetAnchor), "skills") {
+		return fmt.Errorf("Claude delivery target root must be the exact configured skills directory")
 	}
 	if filepath.Dir(filepath.Clean(plan.ActivePath)) != filepath.Clean(plan.TargetRoot) {
 		return fmt.Errorf("delivery active path must be a direct child of target root")
@@ -654,9 +722,34 @@ func hasSupported(plan domain.DeliveryPlan, kind domain.ComponentKind) bool {
 func cloneObject(source map[string]any) map[string]any {
 	result := make(map[string]any, len(source))
 	for key, value := range source {
-		result[key] = value
+		result[key] = cloneJSONValue(value)
 	}
 	return result
+}
+
+func cloneJSONValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		return cloneObject(value)
+	case []any:
+		result := make([]any, len(value))
+		for index, item := range value {
+			result[index] = cloneJSONValue(item)
+		}
+		return result
+	case map[string]string:
+		result := make(map[string]string, len(value))
+		for key, item := range value {
+			result[key] = item
+		}
+		return result
+	case []string:
+		return append([]string(nil), value...)
+	case json.RawMessage:
+		return append(json.RawMessage(nil), value...)
+	default:
+		return value
+	}
 }
 
 func applyStdioDataContract(config map[string]any, pluginRoot, dataPath string) error {

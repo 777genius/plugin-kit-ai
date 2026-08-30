@@ -50,10 +50,36 @@ npx universal-agent-plugins remove context7 --target codex,cursor,kiro
 npx universal-agent-plugins switch context7 --to upstash/context7
 ```
 
-`add`, `update`, `repair`, and `remove` accept comma-separated targets. `repair`
-reapplies or reactivates the recorded revision; it does not update or change
-source. `switch` moves the complete installation to a qualified Directory
-distribution or exact source, so it uses `--to` instead of `--target`.
+## Choose clients
+
+In an interactive terminal, `add` without `--target` detects supported clients.
+One detected client is selected automatically. With several clients, the CLI
+shows a multi-select with all detected clients selected by default; press Enter
+to keep all of them. Scripts and CI must choose explicitly, for example
+`--target claude,gemini,opencode`. `add`, `update`, `repair`, and `remove` accept
+the same comma-separated syntax.
+
+Detection checks installed executables and documented configuration surfaces.
+It does not start an agent, log in, complete OAuth, or prove browser/tool
+runtime behavior.
+
+The following matrix describes the current release source. New client support
+is available through `npx` once a release containing this source is published.
+The exact package, source revisions, commands, and limitations are recorded in
+the [isolated client E2E evidence](https://github.com/777genius/plugin-kit-ai/blob/main/docs/AGENTPLUGINS_CLIENT_E2E.md).
+
+| Client | Evidence |
+| --- | --- |
+| Claude Code | Claude Code 2.1.205: real isolated exact-SHA `add`, native list, `repair`, safe update preflight, and `remove` lifecycle |
+| Gemini CLI | Gemini CLI 0.36.0: real isolated configuration and the same exact-source lifecycle |
+| OpenCode | OpenCode 1.18.4: real isolated configuration and the same exact-source lifecycle |
+| Cline | Real locally detected client; isolated native configuration and exact-source lifecycle; no client runtime or login |
+| Windsurf | Real locally detected configuration and exact-source lifecycle; no client runtime or login |
+
+`repair` reapplies or reactivates the recorded revision; it does not update or
+change source. `switch` moves the complete installation to a qualified
+Directory distribution or exact source, so it uses `--to` instead of
+`--target`.
 
 `search` combines reviewed Directory releases with a separately signed
 Discovery Index. Discovery results remain visibly unreviewed and use an exact,
@@ -104,7 +130,11 @@ Every operation validates the source and preflights all affected targets before
 changing managed files or state. `--dry-run` prints the same plan without
 writing. Managed changes are staged and committed together; on failure the CLI
 rolls back what it can prove it owns, or preserves the safe state and prints a
-repair action. It never overwrites an unowned client installation.
+repair action. Observed unowned entries fail closed before mutation. Portable
+filesystems cannot provide a linearizable content compare-and-swap against a
+non-cooperating client that writes in the final syscall-sized window, so the CLI
+rechecks and reports identity conflicts instead of promising impossible
+concurrency isolation.
 
 Activation is reported per client. The CLI completes supported automatic steps;
 when a client requires its UI, it reports `prepared` or manual activation and

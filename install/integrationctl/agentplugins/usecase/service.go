@@ -374,6 +374,14 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		return result, err
 	}
+	delivery, err = bindStagedDeliveryToPhysicalOwner(delivery, plan, managedBinding)
+	if err != nil {
+		_ = service.Stager.Discard(context.Background(), delivery)
+		if dataCreated {
+			_ = service.PluginData.PurgeData(context.Background(), dataReceipt)
+		}
+		return result, err
+	}
 	keepCreatedData := false
 	defer func() {
 		if dataCreated && !keepCreatedData {
@@ -456,7 +464,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		result.Activation = outcome
 	}
-	if _, updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
+	if _, updateErr := service.updateActivationResult(installationID, clientBindingID, outcome, activationErr, previousClient.NativeObjects); updateErr != nil {
 		if activationErr != nil {
 			return result, fmt.Errorf("activate client: %v; persist activation state: %w", activationErr, updateErr)
 		}
@@ -555,11 +563,17 @@ func (service Service) resume(
 }
 
 func clientVerifierAvailable(input AddInput, plan domain.DeliveryPlan) bool {
+	switch input.Client.ClientID {
+	case domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf:
+		// These clients expose an exact, read-only native configuration verifier.
+		// It is intentionally independent of an optional client executable.
+		return len(plan.Components) > 0
+	}
 	if strings.TrimSpace(input.BackendExecutable) == "" {
 		return false
 	}
 	switch input.Client.ClientID {
-	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+	case domain.ClientCodex, domain.ClientClaude, domain.ClientCopilot, domain.ClientVSCode:
 		return true
 	case domain.ClientKiro:
 		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") || len(plan.Components) == 0 {
@@ -666,6 +680,18 @@ func (service Service) beginMutation(ctx context.Context, dryRun, confirmed bool
 }
 
 func (service Service) updateLifecycle(installationID, clientBindingID string, outcome domain.ActivationOutcome) (bool, error) {
+	return service.updateLifecycleAndNativeObjects(installationID, clientBindingID, outcome, nil, false)
+}
+
+func (service Service) updateActivationResult(installationID, clientBindingID string, outcome domain.ActivationOutcome, activationErr error, previousNativeObjects []domain.NativeObjectOwnership) (bool, error) {
+	if activationErr == nil {
+		return service.updateLifecycle(installationID, clientBindingID, outcome)
+	}
+	prior := append([]domain.NativeObjectOwnership(nil), previousNativeObjects...)
+	return service.updateLifecycleAndNativeObjects(installationID, clientBindingID, outcome, &prior, true)
+}
+
+func (service Service) updateLifecycleAndNativeObjects(installationID, clientBindingID string, outcome domain.ActivationOutcome, nativeObjects *[]domain.NativeObjectOwnership, preserveCommittedPackage bool) (bool, error) {
 	state, err := service.StateStore.Load()
 	if err != nil {
 		return false, err
@@ -678,14 +704,37 @@ func (service Service) updateLifecycle(installationID, clientBindingID string, o
 		if !ok {
 			return false, fmt.Errorf("client binding disappeared during activation")
 		}
-		if client.Activation == outcome.Activation && client.Authentication == outcome.Authentication &&
-			client.Policy == outcome.Policy && client.Verification == outcome.Verification {
+		if nativeObjects != nil && preserveCommittedPackage {
+			reconciledCapacity, capacityErr := checkedCombinedCapacity(len(client.NativeObjects), len(*nativeObjects))
+			if capacityErr != nil {
+				return false, fmt.Errorf("reconcile committed native objects: %w", capacityErr)
+			}
+			reconciled := make([]domain.NativeObjectOwnership, 0, reconciledCapacity)
+			for _, object := range client.NativeObjects {
+				if object.Kind == "managed_package_directory" {
+					reconciled = append(reconciled, object)
+				}
+			}
+			for _, object := range *nativeObjects {
+				if object.Kind != "managed_package_directory" {
+					reconciled = append(reconciled, object)
+				}
+			}
+			nativeObjects = &reconciled
+		}
+		lifecycleUnchanged := client.Activation == outcome.Activation && client.Authentication == outcome.Authentication &&
+			client.Policy == outcome.Policy && client.Verification == outcome.Verification
+		nativeObjectsUnchanged := nativeObjects == nil || reflect.DeepEqual(client.NativeObjects, *nativeObjects)
+		if lifecycleUnchanged && nativeObjectsUnchanged {
 			return false, nil
 		}
 		client.Activation = outcome.Activation
 		client.Authentication = outcome.Authentication
 		client.Policy = outcome.Policy
 		client.Verification = outcome.Verification
+		if nativeObjects != nil {
+			client.NativeObjects = append([]domain.NativeObjectOwnership(nil), (*nativeObjects)...)
+		}
 		client.UpdatedAt = service.now().Format(time.RFC3339Nano)
 		installation.Clients[clientBindingID] = client
 		installation.UpdatedAt = client.UpdatedAt
@@ -703,11 +752,15 @@ func lifecycleOutcome(client domain.ClientBinding) domain.ActivationOutcome {
 }
 
 func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput, result AddResult, client domain.ClientBinding) (domain.ActivationOutcome, error) {
-	if strings.TrimSpace(input.BackendExecutable) == "" {
-		return domain.ActivationOutcome{}, nil
-	}
 	switch input.Client.ClientID {
-	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+	case domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf:
+		// Native config and skill ownership are observable without starting the
+		// client. Do not let an absent executable turn a stale native projection
+		// into a successful no-change result.
+	case domain.ClientCodex, domain.ClientClaude, domain.ClientCopilot, domain.ClientVSCode:
+		if strings.TrimSpace(input.BackendExecutable) == "" {
+			return domain.ActivationOutcome{}, nil
+		}
 	case domain.ClientKiro:
 		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") {
 			return domain.ActivationOutcome{}, nil
@@ -717,10 +770,15 @@ func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput,
 	}
 	delivery := domain.StagedDelivery{ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot, ActivePath: client.TargetLocator, ArtifactDigest: managedDigest(client), NativeObjects: client.NativeObjects}
 	outcome, err := service.Activator.Activate(ctx, domain.ActivationRequest{Client: input.Client, Plan: result.Plan, Delivery: delivery, DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...), VerifyOnly: true})
-	if outcome.Authentication == "" || outcome.Authentication == domain.AuthenticationNotChecked {
-		outcome.Authentication = client.Authentication
-	}
+	outcome = preserveManagedAuthentication(outcome, client.Authentication)
 	return outcome, err
+}
+
+func preserveManagedAuthentication(outcome domain.ActivationOutcome, current domain.AuthenticationState) domain.ActivationOutcome {
+	if current == domain.AuthenticationComplete || outcome.Authentication == "" || outcome.Authentication == domain.AuthenticationNotChecked {
+		outcome.Authentication = current
+	}
+	return outcome
 }
 
 func (service Service) now() time.Time {
@@ -1100,11 +1158,43 @@ func rejectNativeNameCollision(state domain.StateFileV2, installationID, declare
 }
 
 func sameNativeBackend(first, second domain.ClientID) bool {
-	if first == second {
-		return true
+	return domain.SameClientBackend(first, second)
+}
+
+// bindStagedDeliveryToPhysicalOwner keeps a shared backend's immutable
+// ownership receipt bound to the client identity that originally created the
+// physical binding. The requested logical surface remains on the delivery and
+// plan so activation and user-facing results still describe what the caller
+// selected.
+func bindStagedDeliveryToPhysicalOwner(delivery domain.StagedDelivery, plan domain.DeliveryPlan, managed *domain.ClientBinding) (domain.StagedDelivery, error) {
+	if !sameNativeBackend(plan.ClientID, domain.ClientCopilot) {
+		return delivery, nil
 	}
-	return (first == domain.ClientCopilot || first == domain.ClientVSCode) &&
-		(second == domain.ClientCopilot || second == domain.ClientVSCode)
+	owner := plan.ClientID
+	if managed != nil {
+		owner = domain.ClientID(managed.ClientID)
+		if !sameNativeBackend(owner, plan.ClientID) || managed.PhysicalArtifact != plan.PhysicalArtifactID {
+			return delivery, fmt.Errorf("shared physical binding identity does not match the staged delivery")
+		}
+	}
+	expected := "package:" + string(plan.ClientID) + ":" + plan.PhysicalArtifactID
+	canonical := "package:" + string(owner) + ":" + plan.PhysicalArtifactID
+	found := false
+	for index := range delivery.NativeObjects {
+		object := &delivery.NativeObjects[index]
+		if object.Kind != "managed_package_directory" {
+			continue
+		}
+		if found || object.ObjectID != expected {
+			return delivery, fmt.Errorf("shared staged delivery has an invalid managed package ownership identity")
+		}
+		object.ObjectID = canonical
+		found = true
+	}
+	if !found {
+		return delivery, fmt.Errorf("shared staged delivery is missing its managed package ownership identity")
+	}
+	return delivery, nil
 }
 
 func initialLifecycle(plan domain.DeliveryPlan) (domain.ActivationState, domain.VerificationState) {

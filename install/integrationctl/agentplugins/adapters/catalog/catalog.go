@@ -34,12 +34,16 @@ var (
 	appIDPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$`)
 )
 
-var requiredCompatibility = map[string]string{
-	string(domain.ClientCodex):   "projected",
-	string(domain.ClientCursor):  "native",
-	string(domain.ClientCopilot): "native",
-	string(domain.ClientVSCode):  "prepared",
-	string(domain.ClientKiro):    "native",
+var requiredCompatibility = legacyRequiredCompatibility()
+
+func legacyRequiredCompatibility() map[string]string {
+	result := map[string]string{}
+	for _, definition := range domain.ClientDefinitions() {
+		if definition.LegacyCatalogRequired {
+			result[string(definition.ID)] = definition.CatalogPackage
+		}
+	}
+	return result
 }
 
 type Loader struct {
@@ -185,16 +189,13 @@ func validatePlugin(plugin domain.CatalogPlugin, schemaVersion int) error {
 		}
 	}
 	var authentication domain.AuthenticationRequirement
-	for client, expectedPackage := range requiredCompatibility {
-		compatibility, ok := plugin.Compatibility[client]
-		if !ok {
-			return fmt.Errorf("plugin %q compatibility is missing %q", plugin.Name, client)
-		}
-		if compatibility.Package != expectedPackage ||
+	for client, compatibility := range plugin.Compatibility {
+		definition, _ := domain.ClientDefinitionFor(domain.ClientID(client))
+		if compatibility.Package != definition.CatalogPackage ||
 			!validVerificationCompatibility(compatibility.Verification) || !validAuthCompatibility(compatibility.Authentication) {
 			return fmt.Errorf("plugin %q has invalid compatibility for %q", plugin.Name, client)
 		}
-		if compatibility.AppBinding != nil {
+		if definition.ID != domain.ClientChatGPT && compatibility.AppBinding != nil {
 			return fmt.Errorf("plugin %q app_binding is allowed only for chatgpt", plugin.Name)
 		}
 		if authentication == "" {
@@ -203,13 +204,12 @@ func validatePlugin(plugin domain.CatalogPlugin, schemaVersion int) error {
 			return fmt.Errorf("plugin %q must use one consistent authentication requirement for every client", plugin.Name)
 		}
 	}
+	for client := range requiredCompatibility {
+		if _, ok := plugin.Compatibility[client]; !ok {
+			return fmt.Errorf("plugin %q compatibility is missing %q", plugin.Name, client)
+		}
+	}
 	if compatibility, ok := plugin.Compatibility[string(domain.ClientChatGPT)]; ok {
-		if compatibility.Package != "projected" || !validVerificationCompatibility(compatibility.Verification) || !validAuthCompatibility(compatibility.Authentication) {
-			return fmt.Errorf("plugin %q has invalid compatibility for chatgpt", plugin.Name)
-		}
-		if authentication != "" && compatibility.Authentication != authentication {
-			return fmt.Errorf("plugin %q must use one consistent authentication requirement for every client", plugin.Name)
-		}
 		_, hasMCP := components["mcp"]
 		if hasMCP && compatibility.AppBinding == nil {
 			return fmt.Errorf("plugin %q ChatGPT MCP compatibility requires app_binding", plugin.Name)

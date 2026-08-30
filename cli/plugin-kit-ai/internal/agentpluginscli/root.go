@@ -18,7 +18,7 @@ func NewRoot(app App) *cobra.Command {
 	root.SetOut(app.output())
 	root.SetErr(app.errorOutput())
 	flags := root.PersistentFlags()
-	flags.StringVar(&opts.target, "target", "", "target client(s), comma-separated: codex, chatgpt, cursor, copilot, vscode, or kiro")
+	flags.StringVar(&opts.target, "target", "", "target client(s), comma-separated: "+supportedTargetHelp())
 	flags.StringVar(&opts.scope, "scope", "user", "installation scope (user only in this release)")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "show the exact plan without changes")
 	flags.StringVar(&opts.format, "format", "human", "output format: human or json")
