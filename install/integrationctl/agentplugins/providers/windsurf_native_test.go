@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -236,6 +237,77 @@ func TestWindsurfRejectsReservedStdioEnvWithoutChangingProjection(t *testing.T) 
 	}
 	if len(authorEnv) != 2 || authorEnv["KEEP"] != "value" || authorEnv["PLUGIN_DATA"] != "/attacker" {
 		t.Fatalf("rejected Windsurf projection mutated package env: %#v", authorEnv)
+	}
+}
+
+func TestWindsurfBundledCommandUsesManagedPluginRoot(t *testing.T) {
+	t.Parallel()
+	activeRoot := t.TempDir()
+	commandPath := filepath.Join(activeRoot, "bin", "server")
+	writeTestFile(t, commandPath, "#!/bin/sh\nprintf 'managed-root\\n'\n")
+	if err := os.Chmod(commandPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	envelope := windsurfTestEnvelope(t, "bundled")
+	local := envelope.MCP.Servers["local"]
+	local.Decoded = cloneObject(local.Decoded)
+	local.Decoded["command"] = "./bin/server"
+	local.Decoded["args"] = []any{}
+	envelope.MCP.Servers["local"] = local
+	plan := stagingPlan(t, domain.ClientWindsurf, domain.PackagePrepared)
+	plan.ActivePath = activeRoot
+	plan.NativeRegistryRoot = filepath.Join(t.TempDir(), ".codeium", "windsurf")
+	plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportPrepared}}
+
+	if err := projectWindsurfMCP(activeRoot, envelope, plan, filepath.Join(t.TempDir(), "data")); err != nil {
+		t.Fatal(err)
+	}
+	objects, err := buildWindsurfNativeObjects(activeRoot, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyWindsurfNativeMutation(plan.NativeRegistryRoot, activeRoot, nil, objects); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(plan.NativeRegistryRoot, "mcp_config.json")
+	entry := readObject(t, configPath)["mcpServers"].(map[string]any)["local"].(map[string]any)
+	if got := entry["command"]; got != commandPath {
+		t.Fatalf("bundled Windsurf command = %v, want %s", got, commandPath)
+	}
+	output, err := exec.Command(commandPath).CombinedOutput()
+	if err != nil || string(output) != "managed-root\n" {
+		t.Fatalf("projected bundled command output = %q, %v", output, err)
+	}
+	if got := envelope.MCP.Servers["local"].Decoded["command"]; got != "./bin/server" {
+		t.Fatalf("Windsurf projection mutated source command: %v", got)
+	}
+}
+
+func TestWindsurfBundledCommandTraversalFailsBeforeProjectionMutation(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	projectionPath := filepath.Join(root, "mcp.json")
+	writeTestFile(t, projectionPath, "sentinel\n")
+	envelope := windsurfTestEnvelope(t, "escape")
+	local := envelope.MCP.Servers["local"]
+	local.Decoded = cloneObject(local.Decoded)
+	local.Decoded["command"] = "./../outside"
+	envelope.MCP.Servers["local"] = local
+	plan := stagingPlan(t, domain.ClientWindsurf, domain.PackagePrepared)
+	plan.ActivePath = filepath.Join(t.TempDir(), "managed-plugin")
+	plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportPrepared}}
+
+	err := projectWindsurfMCP(root, envelope, plan, filepath.Join(t.TempDir(), "data"))
+	if err == nil || !strings.Contains(err.Error(), "escapes PLUGIN_ROOT") {
+		t.Fatalf("Windsurf traversal projection error = %v", err)
+	}
+	body, readErr := os.ReadFile(projectionPath)
+	if readErr != nil || string(body) != "sentinel\n" {
+		t.Fatalf("rejected bundled command changed projection = %q, %v", body, readErr)
+	}
+	if got := envelope.MCP.Servers["local"].Decoded["command"]; got != "./../outside" {
+		t.Fatalf("rejected Windsurf projection mutated source command: %v", got)
 	}
 }
 

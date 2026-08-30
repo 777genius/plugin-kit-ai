@@ -450,7 +450,21 @@ func windsurfServer(server domain.MCPServer, packageRoot, dataRoot string) (nati
 	default:
 		return result, fmt.Errorf("unsupported Windsurf MCP transport %q", server.Type)
 	}
-	return resolveWindsurfPlaceholders(result, packageRoot, dataRoot)
+	resolved, err := resolveWindsurfPlaceholders(result, packageRoot, dataRoot)
+	if err != nil {
+		return result, err
+	}
+	if resolved.Type == "stdio" && strings.HasPrefix(resolved.Command, "./") {
+		if strings.TrimSpace(packageRoot) == "" || !filepath.IsAbs(packageRoot) {
+			return result, fmt.Errorf("absolute PLUGIN_ROOT is required for bundled stdio command")
+		}
+		command := filepath.Clean(filepath.Join(packageRoot, filepath.FromSlash(strings.TrimPrefix(resolved.Command, "./"))))
+		if !pathContainedBy(packageRoot, command) {
+			return result, fmt.Errorf("stdio command escapes PLUGIN_ROOT")
+		}
+		resolved.Command = command
+	}
+	return resolved, nil
 }
 
 func resolveWindsurfPlaceholders(server nativeconfig.Server, packageRoot, dataRoot string) (nativeconfig.Server, error) {
