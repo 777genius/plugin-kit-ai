@@ -363,6 +363,9 @@ func validatePolicy(p domain.DirectoryReleasePolicy) error {
 			if t.AppBinding == nil || t.AppBinding.AppKey == "" || t.AppBinding.ID == "" || t.AppBinding.MCPServer == "" {
 				return fmt.Errorf("chatgpt app binding required")
 			}
+			if err := domain.ValidateAppBindingIdentity(t.AppBinding.AppKey, t.AppBinding.ID, t.AppBinding.MCPServer); err != nil {
+				return fmt.Errorf("invalid chatgpt app binding: %w", err)
+			}
 		} else if t.AppBinding != nil {
 			return fmt.Errorf("app binding only allowed for chatgpt")
 		}

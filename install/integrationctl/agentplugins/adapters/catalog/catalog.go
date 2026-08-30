@@ -30,8 +30,6 @@ var (
 	commitPattern     = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	digestPattern     = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	namePattern       = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,63}$`)
-	appAliasPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
-	appIDPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$`)
 )
 
 var requiredCompatibility = legacyRequiredCompatibility()
@@ -229,24 +227,27 @@ func validatePlugin(plugin domain.CatalogPlugin, schemaVersion int) error {
 }
 
 func ValidateAppBinding(binding domain.CatalogAppBinding) error {
-	if !appAliasPattern.MatchString(binding.AppKey) || !appAliasPattern.MatchString(binding.MCPServer) {
-		return fmt.Errorf("app_key and mcp_server must be safe aliases")
-	}
-	if binding.AppKey != binding.MCPServer {
-		return fmt.Errorf("app_key must equal mcp_server in v0.1")
-	}
-	if !appIDPattern.MatchString(binding.ID) {
-		return fmt.Errorf("id must be a non-empty opaque safe ASCII token")
-	}
-	parsed, err := url.Parse(binding.MCPURL)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != binding.MCPURL {
-		return fmt.Errorf("mcp_url must be a normalized absolute HTTPS URL without userinfo, query, or fragment")
+	if err := ValidateAppBindingReference(binding); err != nil {
+		return err
 	}
 	if err := validateSourcePath(binding.RuntimeEvidence); err != nil {
 		return fmt.Errorf("runtime_evidence: %w", err)
 	}
 	if !commitPattern.MatchString(binding.RuntimeEvidenceRevision) {
 		return fmt.Errorf("runtime_evidence_revision must be an exact lowercase Git commit")
+	}
+	return nil
+}
+
+// ValidateAppBindingReference validates the common registered-app identity
+// and URL contract without requiring legacy Catalog v2 runtime evidence.
+func ValidateAppBindingReference(binding domain.CatalogAppBinding) error {
+	if err := domain.ValidateAppBindingIdentity(binding.AppKey, binding.ID, binding.MCPServer); err != nil {
+		return err
+	}
+	parsed, err := url.Parse(binding.MCPURL)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != binding.MCPURL {
+		return fmt.Errorf("mcp_url must be a normalized absolute HTTPS URL without userinfo, query, or fragment")
 	}
 	return nil
 }

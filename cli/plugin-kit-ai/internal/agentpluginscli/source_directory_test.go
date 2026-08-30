@@ -57,6 +57,138 @@ func TestDirectoryCompatibilityUsesStablePublicPackageModes(t *testing.T) {
 	}
 }
 
+func TestDirectoryChatGPTBindingDerivesAuthenticatedMCPURLAndPrepares(t *testing.T) {
+	t.Parallel()
+	loaded := loadedPackage{
+		origin: domain.OriginModeDirectory,
+		envelope: domain.PackageEnvelope{MCP: domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+			"cloudflare-docs": {Name: "cloudflare-docs", Type: "streamable-http", Decoded: map[string]any{"type": "streamable-http", "url": "https://docs.mcp.cloudflare.com/mcp"}},
+		}}},
+	}
+	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{{
+		Client: domain.ClientChatGPT, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementNotRequired,
+		AppBinding: &domain.DirectoryAppBinding{AppKey: "cloudflare-docs", ID: "asdk_app_cloudflare_docs_123", MCPServer: "cloudflare-docs"},
+	}}}
+	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{Digest: "sha256:" + strings.Repeat("a", 64)}, domain.DirectorySelection{}, policy, directoryEvidenceEnvironment{}); err != nil {
+		t.Fatal(err)
+	}
+	binding := loaded.hints.Compatibility[string(domain.ClientChatGPT)].AppBinding
+	if binding == nil || binding.MCPURL != "https://docs.mcp.cloudflare.com/mcp" || binding.RuntimeEvidence != "" || binding.RuntimeEvidenceRevision != "" {
+		t.Fatalf("Directory binding = %+v", binding)
+	}
+	if err := prepareLoadedPackageForClient(&loaded, domain.ClientChatGPT); err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.envelope.App.Enabled || loaded.envelope.App.Bindings["cloudflare-docs"].ID != "asdk_app_cloudflare_docs_123" {
+		t.Fatalf("prepared app = %+v", loaded.envelope.App)
+	}
+
+	clone := cloneLoadedPackage(loaded)
+	if err := prepareLoadedPackageForClient(&clone, domain.ClientChatGPT); err != nil {
+		t.Fatalf("Directory clone lost source-specific validation: %v", err)
+	}
+}
+
+func TestDirectoryChatGPTBindingFailsBeforeCompatibilityOrAppMutation(t *testing.T) {
+	t.Parallel()
+	base := loadedPackage{origin: domain.OriginModeDirectory, envelope: domain.PackageEnvelope{MCP: domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+		"docs": {Name: "docs", Type: "streamable-http", Decoded: map[string]any{"url": "https://example.test/mcp"}},
+	}}}}
+	validTarget := domain.DirectoryTarget{Client: domain.ClientChatGPT, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementNotRequired,
+		AppBinding: &domain.DirectoryAppBinding{AppKey: "docs", ID: "asdk_app_docs_123", MCPServer: "docs"}}
+	tests := []struct {
+		name   string
+		mutate func(*loadedPackage, *domain.DirectoryTarget)
+	}{
+		{name: "missing server", mutate: func(_ *loadedPackage, target *domain.DirectoryTarget) {
+			target.AppBinding.MCPServer, target.AppBinding.AppKey = "other", "other"
+		}},
+		{name: "unsafe URL", mutate: func(loaded *loadedPackage, _ *domain.DirectoryTarget) {
+			loaded.envelope.MCP.Servers["docs"] = domain.MCPServer{Name: "docs", Decoded: map[string]any{"url": "https://user@example.test/mcp"}}
+		}},
+		{name: "malformed identity", mutate: func(_ *loadedPackage, target *domain.DirectoryTarget) { target.AppBinding.ID = "not/an/id" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			loaded := base
+			loaded.envelope.MCP.Servers = map[string]domain.MCPServer{"docs": base.envelope.MCP.Servers["docs"]}
+			target := validTarget
+			binding := *validTarget.AppBinding
+			target.AppBinding = &binding
+			test.mutate(&loaded, &target)
+			err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{}, domain.DirectorySelection{}, domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{target}}, directoryEvidenceEnvironment{})
+			if err == nil {
+				t.Fatal("invalid Directory binding accepted")
+			}
+			if loaded.hints.Compatibility != nil || loaded.envelope.CatalogEvidence != nil || loaded.envelope.App.Present {
+				t.Fatalf("validation failure mutated package: %+v", loaded)
+			}
+		})
+	}
+
+	loaded := base
+	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{}, domain.DirectorySelection{}, domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{validTarget}}, directoryEvidenceEnvironment{}); err != nil {
+		t.Fatal(err)
+	}
+	loaded.envelope.MCP.Servers["docs"] = domain.MCPServer{Name: "docs", Decoded: map[string]any{"url": "https://other.example.test/mcp"}}
+	if err := prepareLoadedPackageForClient(&loaded, domain.ClientChatGPT); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("MCP URL substitution accepted: %v", err)
+	}
+}
+
+func TestDirectoryChatGPTDryRunPreparesManualActivationWithoutState(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientChatGPT)
+	client.Version = "fixture-client"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	loaded, err := fixture.app.acquireLocal(context.Background(), plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	treeDigest, manifestDigest := loaded.envelope.TreeDigest, loaded.envelope.ManifestDigest
+	if err := loaded.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	revision := strings.Repeat("a", 40)
+	release := domain.DirectoryRelease{
+		Sequence: 1, PackageVersion: "1.0.0", ManifestName: "demo", AgentPluginsSchema: domain.PluginSchemaV1,
+		PackageSource:       domain.DirectorySource{Repository: "owner/demo", Revision: revision, Path: "plugin"},
+		TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: treeDigest, ManifestDigest: manifestDigest,
+		Components: []string{"mcp"}, PublishedAt: "2026-08-21T00:00:00Z",
+	}
+	materialization := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization/chatgpt", DistributionID: "owner/demo", ReleaseSequence: 1,
+		PackageTreeDigest: treeDigest, Level: "materialization", Outcome: "passed", Client: domain.ClientChatGPT,
+		ClientVersion: client.Version, InstallerVersion: fixture.app.Version})
+	policy := domain.DirectoryReleasePolicy{
+		ReleaseSequence: 1, Status: domain.ReleaseActive, MinimumInstallerVersion: "0.1.0", CurrentEvidence: []string{materialization.ID},
+		Targets: []domain.DirectoryTarget{{Client: domain.ClientChatGPT, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementNotRequired,
+			AppBinding: &domain.DirectoryAppBinding{AppKey: "demo", ID: "asdk_app_demo_123", MCPServer: "demo"}}},
+	}
+	snapshot := domain.DirectorySnapshot{
+		SnapshotSchemaVersion: 1, Sequence: 17, SourceCommit: strings.Repeat("b", 40),
+		Products: []domain.DirectoryProduct{{SchemaVersion: 1, ID: "demo", DisplayName: "Demo", Description: "Demo", ManifestName: "demo", Aliases: []string{"demo"}, ReservedAliases: []string{"demo"}, Categories: []string{},
+			MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "required"}, DefaultDistribution: "owner/demo", Distributions: []string{"owner/demo"}}},
+		Distributions: []domain.DirectoryDistribution{{SchemaVersion: 1, ID: "owner/demo", ProductID: "demo", Kind: domain.DistributionUpstream, Status: domain.DistributionActive, Packager: "owner", Releases: []domain.DirectoryRelease{release}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy}}},
+		Evidence:      []domain.DirectoryEvidence{materialization}, Revocations: []domain.DirectoryRevocation{},
+	}
+	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("c", 64)}}
+	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
+	fixture.app.DirectoryClient, fixture.app.SourceAcquirer = directory, acquirer
+	stdout, _, err := fixture.execute(false, "add", "demo", "--target", "chatgpt", "--dry-run", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, `"manual_activation_required"`) || directory.calls != 1 || acquirer.verifiedCalls != 1 {
+		t.Fatalf("Directory ChatGPT dry run = %s; calls directory=%d verified=%d", stdout, directory.calls, acquirer.verifiedCalls)
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 0 {
+		t.Fatalf("dry run mutated state: %+v, %v", state, err)
+	}
+}
+
 func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing.T) {
 	t.Parallel()
 	digest := "sha256:" + strings.Repeat("a", 64)

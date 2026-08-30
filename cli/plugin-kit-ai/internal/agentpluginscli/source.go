@@ -598,11 +598,19 @@ func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.Verif
 		}
 		entry := domain.CatalogCompatibility{Package: packageMode, Verification: directoryVerification(applicable), Authentication: target.Authentication, Evidence: applicable, EvidenceOutcomes: directoryEvidenceOutcomes(applicable)}
 		if target.AppBinding != nil {
-			mcpURL := ""
-			if server, ok := loaded.envelope.MCP.Servers[target.AppBinding.MCPServer]; ok {
-				mcpURL, _ = server.Decoded["url"].(string)
+			server, ok := loaded.envelope.MCP.Servers[target.AppBinding.MCPServer]
+			if !ok || !loaded.envelope.MCP.Enabled {
+				return fmt.Errorf("signed Directory ChatGPT app binding references missing MCP server %q", target.AppBinding.MCPServer)
 			}
-			entry.AppBinding = &domain.CatalogAppBinding{AppKey: target.AppBinding.AppKey, ID: target.AppBinding.ID, MCPServer: target.AppBinding.MCPServer, MCPURL: mcpURL}
+			mcpURL, ok := server.Decoded["url"].(string)
+			if !ok {
+				return fmt.Errorf("signed Directory ChatGPT app binding MCP server %q has no remote URL", target.AppBinding.MCPServer)
+			}
+			binding := domain.CatalogAppBinding{AppKey: target.AppBinding.AppKey, ID: target.AppBinding.ID, MCPServer: target.AppBinding.MCPServer, MCPURL: mcpURL}
+			if err := catalog.ValidateAppBindingReference(binding); err != nil {
+				return fmt.Errorf("signed Directory ChatGPT app binding is invalid: %w", err)
+			}
+			entry.AppBinding = &binding
 		}
 		compatibility[string(target.Client)] = entry
 	}
@@ -782,7 +790,11 @@ func prepareLoadedPackageForClient(loaded *loadedPackage, clientID domain.Client
 		return nil
 	}
 	binding := *compatibility.AppBinding
-	if err := catalog.ValidateAppBinding(binding); err != nil {
+	validateBinding := catalog.ValidateAppBinding
+	if loaded.origin == domain.OriginModeDirectory {
+		validateBinding = catalog.ValidateAppBindingReference
+	}
+	if err := validateBinding(binding); err != nil {
 		return fmt.Errorf("Directory ChatGPT app binding is invalid: %w", err)
 	}
 	server, ok := loaded.envelope.MCP.Servers[binding.MCPServer]

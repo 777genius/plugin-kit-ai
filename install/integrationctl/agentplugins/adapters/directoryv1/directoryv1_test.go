@@ -279,6 +279,18 @@ func TestSnapshotStrictSchemaOneSemantics(t *testing.T) {
 			v.Evidence[0].PackageTreeDigest = "sha256:" + strings.Repeat("d", 64)
 		}},
 		{"unsafe source path", func(v *domain.DirectorySnapshot) { v.Distributions[0].Releases[0].PackageSource.Path = "../plugin" }},
+		{"unsafe app binding alias", func(v *domain.DirectorySnapshot) {
+			v.Distributions[0].ReleasePolicies[0].Targets[0] = domain.DirectoryTarget{Client: domain.ClientChatGPT, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "prepared", Authentication: domain.AuthenticationRequirementUnknown,
+				AppBinding: &domain.DirectoryAppBinding{AppKey: "../docs", ID: "asdk_app_docs_123", MCPServer: "../docs"}}
+		}},
+		{"mismatched app binding aliases", func(v *domain.DirectorySnapshot) {
+			v.Distributions[0].ReleasePolicies[0].Targets[0] = domain.DirectoryTarget{Client: domain.ClientChatGPT, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "prepared", Authentication: domain.AuthenticationRequirementUnknown,
+				AppBinding: &domain.DirectoryAppBinding{AppKey: "docs", ID: "asdk_app_docs_123", MCPServer: "other"}}
+		}},
+		{"unsafe app binding id", func(v *domain.DirectorySnapshot) {
+			v.Distributions[0].ReleasePolicies[0].Targets[0] = domain.DirectoryTarget{Client: domain.ClientChatGPT, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "prepared", Authentication: domain.AuthenticationRequirementUnknown,
+				AppBinding: &domain.DirectoryAppBinding{AppKey: "docs", ID: "not/an/id", MCPServer: "docs"}}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

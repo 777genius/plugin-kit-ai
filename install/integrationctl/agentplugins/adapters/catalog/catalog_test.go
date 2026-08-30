@@ -143,7 +143,10 @@ func TestCatalogRejectsUnsafeOrMisplacedChatGPTAppBinding(t *testing.T) {
 		"unsafe-evidence": strings.Replace(valid,
 			`"tests/e2e/results/chatgpt-context7.json"`, `"../outside.json"`, 1),
 		"bad-evidence-revision": strings.Replace(valid, strings.Repeat("e", 40), `not-a-commit`, 1),
-		"non-chatgpt":           strings.Replace(valid, `"authentication":"not_required"}`, `"authentication":"not_required","app_binding":{"app_key":"context7","id":"asdk_app_context7_123","mcp_server":"context7","mcp_url":"https://example.test/mcp","runtime_evidence":"tests/e2e/results/chatgpt-context7.json"}}`, 1),
+		"missing-evidence":      strings.Replace(valid, `"tests/e2e/results/chatgpt-context7.json"`, `""`, 1),
+		"missing-evidence-revision": strings.Replace(valid,
+			strings.Repeat("e", 40), ``, 1),
+		"non-chatgpt": strings.Replace(valid, `"authentication":"not_required"}`, `"authentication":"not_required","app_binding":{"app_key":"context7","id":"asdk_app_context7_123","mcp_server":"context7","mcp_url":"https://example.test/mcp","runtime_evidence":"tests/e2e/results/chatgpt-context7.json"}}`, 1),
 	} {
 		name, body := name, body
 		t.Run(name, func(t *testing.T) {
