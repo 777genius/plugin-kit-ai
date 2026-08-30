@@ -1,0 +1,118 @@
+{
+  "client": "Agent Plugins CLI multi-client lifecycle",
+  "version": "0.1.24",
+  "date": "2026-08-30",
+  "date_timezone": "Europe/Kyiv",
+  "observed_at_utc": "2026-08-30T17:06:48Z",
+  "evidence_type": "isolated_manager_lifecycle_v1",
+  "product_id": "chrome-devtools",
+  "distribution_kind": "direct",
+  "package_version": "1.8.0",
+  "tree_digest": "sha256:3bd47ccd3f990a6fdd8d3e2fa3dac48ac460a9043e0ccf0c5e14522fb4c472ea",
+  "manifest_digest": "sha256:b34a4dcd71cd536a7f5a3a51d76d53ae5af3d0ce0f18783e71c7f01da865b867",
+  "installer_version": "0.1.24",
+  "adapter_version": "agentplugins-0.1.24",
+  "binary_digest": "sha256:c9d3dfe4b4b06d70733841d72fd9c8b9070ce066f6fa5dd7260073cf69565972",
+  "immutable_source_revision": "cb39d1d835c3baa3eff87501cd8c1de020604789",
+  "outcome": "passed",
+  "source": {
+    "repository": "ChromeDevTools/chrome-devtools-mcp",
+    "package_path": ".",
+    "package_standard": "Agent Plugins 1.0"
+  },
+  "targets": [
+    "claude",
+    "gemini",
+    "opencode",
+    "cline",
+    "windsurf"
+  ],
+  "checks": [
+    {
+      "scenario": "resolve and validate the exact upstream package once for five selected clients",
+      "operation": "multi_target_dry_run",
+      "status": "passed"
+    },
+    {
+      "scenario": "install the Claude Code compatibility projection and verify it with the installed Claude CLI",
+      "operation": "add_claude",
+      "status": "passed"
+    },
+    {
+      "scenario": "install and verify the Gemini CLI native projection",
+      "operation": "add_gemini",
+      "status": "passed"
+    },
+    {
+      "scenario": "install and verify the OpenCode prepared package",
+      "operation": "add_opencode",
+      "status": "passed"
+    },
+    {
+      "scenario": "install and verify the Cline native projection",
+      "operation": "add_cline",
+      "status": "passed"
+    },
+    {
+      "scenario": "install and verify the Windsurf prepared package",
+      "operation": "add_windsurf",
+      "status": "passed"
+    },
+    {
+      "scenario": "inspect the five-target installation without changing client state",
+      "operation": "doctor",
+      "status": "passed"
+    },
+    {
+      "scenario": "repair and reverify all five managed targets",
+      "operation": "repair",
+      "status": "passed"
+    },
+    {
+      "scenario": "remove all five targets and purge ownership-verified managed data",
+      "operation": "remove",
+      "status": "passed"
+    },
+    {
+      "scenario": "confirm no installation record or named managed file remains",
+      "operation": "post_remove_verification",
+      "status": "passed"
+    }
+  ],
+  "scope": {
+    "proved": [
+      "exact_upstream_agent_plugins_package_resolution",
+      "one_command_multi_target_install",
+      "manager_add_doctor_repair_remove_lifecycle",
+      "client_specific_projection_and_configuration",
+      "claude_cli_installation_discovery"
+    ],
+    "not_proved": [
+      "live_model_tool_invocation",
+      "chrome_browser_runtime_control",
+      "oauth_flow",
+      "directory_short_alias_resolution"
+    ]
+  },
+  "cleanup": {
+    "managed_installations_remaining": 0,
+    "managed_named_files_remaining": 0
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "temporary_paths",
+      "operation_ids",
+      "account identifiers",
+      "environment_variables",
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "authorization URLs"
+    ]
+  }
+}
