@@ -180,6 +180,15 @@ class ProfileRecoveryTests(unittest.TestCase):
                 self.assertEqual(path.stat().st_uid, os.geteuid())
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o700 if path.is_dir() else 0o600)
 
+    def test_recovery_discards_source_executable_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            profile, proof, output, adapter = self.fixture(Path(temporary))
+            source = profile / "auth" / "credential"
+            source.chmod(0o755)
+            self.recover(profile, proof, output, adapter)
+            recovered = output / "seed" / "auth" / "credential"
+            self.assertEqual(stat.S_IMODE(recovered.stat().st_mode), 0o600)
+
     def test_rejects_links_hardlinks_and_special_files(self) -> None:
         cases = ("symlink", "hardlink", "fifo", "writable")
         for case in cases:

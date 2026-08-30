@@ -465,6 +465,12 @@ class WorkflowContractTests(unittest.TestCase):
                 "('codex','cursor','kiro','control','observer','caddy','egress')}",
             )
             source = source.replace(
+                "from observer.fixed_adapters import verify_kiro_runtime",
+                "kiro_verifications=[]\n"
+                "def verify_kiro_runtime(profile,*,expected_gid,verify_tree_digest):\n"
+                "    kiro_verifications.append((str(profile),expected_gid,verify_tree_digest))",
+            )
+            source = source.replace(
                 'config_gid=grp.getgrnam("uap-observer-adapter-config").gr_gid', "config_gid=owner_gid",
             )
             source = source.replace(",0,0,", ",owner_uid,owner_gid,")
@@ -492,58 +498,77 @@ class WorkflowContractTests(unittest.TestCase):
             for client in ("cursor", "kiro"):
                 mkdir(state / "profiles" / client, 0o700)
 
-            profile = state / "profiles" / "codex"
-            proof = state / "proofs" / "codex"
-            mkdir(profile, 0o700)
-            mkdir(proof / "native", 0o700)
             digest_value = "sha256:" + "a" * 64
             heroes = ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion")
-            entries, receipt_rows = [], []
-            for plugin in heroes:
-                body = json.dumps({"plugin": plugin}, separators=(",", ":")).encode()
-                active = (
-                    profile / "skills" / "code-tool-router" / "SKILL.md"
-                    if plugin == "agent-code-navigator" else profile / f"{plugin}.json"
-                )
-                mkdir(active.parent, 0o700)
-                active.write_bytes(body)
-                active.chmod(0o440)
-                native = proof / "native" / f"{plugin}.blob"
-                native.write_bytes(body)
-                native.chmod(0o440)
-                body_digest = "sha256:" + hashlib.sha256(body).hexdigest()
-                release = {
-                    "product_id": plugin, "tree_digest": digest_value, "manifest_digest": digest_value,
-                    "distribution_id": f"owner/{plugin}", "distribution_kind": "upstream",
-                    "release_sequence": 1, "package_version": "1.0.0",
-                    "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
-                    "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
-                    "snapshot_digest": digest_value, "binary_digest": digest_value,
-                    "dependency_identity": "locked", "installer_version": "0.1.18",
-                    "adapter_version": "r14d", "client_version": None, "os": "linux",
-                    "architecture": "x86_64", "observed_at": "2026-08-30T00:00:00Z",
-                }
-                evidence = {
-                    "manager_add_sha256": digest_value, "manager_info_sha256": digest_value,
-                    "post_add_doctor_sha256": digest_value,
-                }
-                entries.append({
-                    "plugin": plugin, "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
-                    "tuple": release, "native_config": {"path": str(native), "sha256": body_digest},
-                    "client_config": {"path": str(active), "sha256": body_digest}, **evidence,
-                })
-                receipt_rows.append({"name": plugin, "tuple": release, **evidence})
-            (proof / "native-projection.json").write_text(json.dumps({
-                "schema_version": 2, "client_id": "codex", "entries": entries,
-            }))
-            (proof / "receipts.json").write_text(json.dumps({
-                "schema_version": 1, "receipts": receipt_rows,
-            }))
-            for path in (proof / "native-projection.json", proof / "receipts.json"):
-                path.chmod(0o440)
-            for path in (profile / "skills" / "code-tool-router", profile / "skills", profile,
-                         proof / "native", proof):
-                path.chmod(0o510)
+            def populate(client: str) -> None:
+                profile = state / "profiles" / client
+                proof = state / "proofs" / client
+                mkdir(profile, 0o700)
+                mkdir(proof / "native", 0o700)
+                entries, receipt_rows = [], []
+                protected_directories = {profile, proof, proof / "native"}
+                for plugin in heroes:
+                    if client == "kiro":
+                        body = (
+                            b'{"skill":"code-tool-router"}' if plugin == "agent-code-navigator"
+                            else b'{"mcpServers":{"fixture":{}}}'
+                        )
+                        active = (
+                            profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+                            if plugin == "agent-code-navigator"
+                            else profile / ".kiro" / "settings" / "mcp.json"
+                        )
+                    else:
+                        body = json.dumps({"plugin": plugin}, separators=(",", ":")).encode()
+                        active = (
+                            profile / "skills" / "code-tool-router" / "SKILL.md"
+                            if plugin == "agent-code-navigator" else profile / f"{plugin}.json"
+                        )
+                    mkdir(active.parent, 0o700)
+                    if not active.exists():
+                        active.write_bytes(body)
+                    self.assertEqual(active.read_bytes(), body)
+                    active.chmod(0o440)
+                    parent = active.parent
+                    while parent != profile:
+                        protected_directories.add(parent); parent = parent.parent
+                    native = proof / "native" / f"{plugin}.blob"
+                    native.write_bytes(body); native.chmod(0o440)
+                    body_digest = "sha256:" + hashlib.sha256(body).hexdigest()
+                    release = {
+                        "product_id": plugin, "tree_digest": digest_value, "manifest_digest": digest_value,
+                        "distribution_id": f"owner/{plugin}", "distribution_kind": "upstream",
+                        "release_sequence": 1, "package_version": "1.0.0",
+                        "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
+                        "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
+                        "snapshot_digest": digest_value, "binary_digest": digest_value,
+                        "dependency_identity": "locked", "installer_version": "0.1.18",
+                        "adapter_version": "r14d", "client_version": None, "os": "linux",
+                        "architecture": "x86_64", "observed_at": "2026-08-30T00:00:00Z",
+                    }
+                    evidence = {
+                        "manager_add_sha256": digest_value, "manager_info_sha256": digest_value,
+                        "post_add_doctor_sha256": digest_value,
+                    }
+                    entries.append({
+                        "plugin": plugin, "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                        "tuple": release, "native_config": {"path": str(native), "sha256": body_digest},
+                        "client_config": {"path": str(active), "sha256": body_digest}, **evidence,
+                    })
+                    receipt_rows.append({"name": plugin, "tuple": release, **evidence})
+                (proof / "native-projection.json").write_text(json.dumps({
+                    "schema_version": 2, "client_id": client, "entries": entries,
+                }))
+                (proof / "receipts.json").write_text(json.dumps({
+                    "schema_version": 1, "receipts": receipt_rows,
+                }))
+                for path in (proof / "native-projection.json", proof / "receipts.json"):
+                    path.chmod(0o440)
+                for path in protected_directories:
+                    path.chmod(0o510)
+
+            populate("codex")
+            populate("kiro")
 
             for base in (Path(replacements["/var/lib/uap-observer-human"]),
                          Path(replacements["/var/lib/uap-observer-consent"])):
@@ -554,7 +579,11 @@ class WorkflowContractTests(unittest.TestCase):
             mkdir(Path(replacements["/var/lib/caddy"]), 0o700)
             mkdir(Path(replacements["/var/log/caddy"]), 0o700)
 
-            exec(compile(source, "installed-state-validator", "exec"), {})
+            namespace: dict[str, object] = {}
+            exec(compile(source, "installed-state-validator", "exec"), namespace)
+            self.assertEqual(namespace["kiro_verifications"], [(
+                str(state / "profiles" / "kiro"), os.getegid(), True,
+            )])
 
     def test_profile_provisioner_accepts_only_canonical_shared_client_configs(self) -> None:
         path = ROOT / "deploy/uap-observer-provision-profile.py"
@@ -708,6 +737,57 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(fixture["public_contract"]["session_new_mcp_servers"], [])
         self.assertIn("multi-tool catalog", runbook)
         self.assertIn("unrelated `kiro_power` failure shapes", (ROOT / "observer/README.md").read_text())
+
+    def test_kiro_runtime_closure_is_bound_across_provision_invoke_and_install(self) -> None:
+        provisioner = (ROOT / "deploy/uap-observer-provision-profile.py").read_text()
+        adapter = (ROOT / "observer/fixed_adapters.py").read_text()
+        installer = (ROOT / "deploy/uap-observer-install-lib.sh").read_text()
+        spec = importlib.util.spec_from_file_location("workflow_contract_provisioner", ROOT / "deploy/uap-observer-provision-profile.py")
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        provisioner_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(provisioner_module)
+        from observer import fixed_adapters as adapter_module
+        for digest in (
+            "81925c0995b5c1427b5d538e6a90ca2fdc4daffb786b09af749beaf7369d4e90",
+            "b29d78892abd5a9398e0700f0cb602f725089602ed1a5082d681c7257b2bf4d0",
+            "2e4db6323c38b6fba18367e2fbf2a7e2951bed87638fd030e207e45a152d5fc2",
+            "e15cb01e83da5989999ca6529dc9b2f0992de588e6d87107651bd4a45dea8901",
+            "193906679498de4d939345b937fa24e0e69a03c244bd70c859f5e41232713f21",
+        ):
+            for body in (provisioner, adapter):
+                self.assertIn(digest, body)
+        for body in (provisioner, adapter):
+            self.assertIn("2.20.0-426339cf358a40306b73d09e69160be6201aba88d449893179d2a15a10020bdd", body)
+        normalized_digests = {
+            path[len(provisioner_module.KIRO_RUNTIME_ROOT):]: digest
+            for path, digest in provisioner_module.KIRO_RUNTIME_DIGESTS.items()
+        }
+        normalized_executables = {
+            path[len(provisioner_module.KIRO_RUNTIME_ROOT):]
+            for path in provisioner_module.KIRO_RUNTIME_EXECUTABLES
+        }
+        self.assertEqual(provisioner_module.KIRO_KAS_DIRECTORY, adapter_module.KIRO_KAS_DIRECTORY)
+        self.assertEqual(provisioner_module.KIRO_FEED_SOURCE, adapter_module.KIRO_FEED_SOURCE)
+        self.assertEqual(provisioner_module.KIRO_FEED_CACHE_SHA256, adapter_module.KIRO_FEED_CACHE_SHA256)
+        self.assertEqual(provisioner_module.KIRO_KAS_TREE_SHA256, adapter_module.KIRO_KAS_TREE_SHA256)
+        self.assertEqual(normalized_digests, adapter_module.KIRO_RUNTIME_DIGESTS)
+        self.assertEqual(normalized_executables, adapter_module.KIRO_RUNTIME_EXECUTABLES)
+        with tempfile.TemporaryDirectory() as temporary:
+            tree = Path(temporary)
+            (tree / "a").mkdir(); (tree / "a" / "child").write_bytes(b"one")
+            (tree / "a.b").write_bytes(b"two")
+            expected = "546f0a17356cc4fcb39223e6bc1eb52239931c013bb08ca257de4e885767708e"
+            tree_fd = os.open(tree, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                self.assertEqual(provisioner_module.canonical_kiro_tree_digest(tree_fd), expected)
+                self.assertEqual(adapter_module.canonical_kiro_tree_digest(tree_fd), expected)
+            finally:
+                os.close(tree_fd)
+        self.assertIn("protected_executables=protected_executables", provisioner)
+        self.assertEqual(adapter.count("verified_kiro_call("), 3)
+        self.assertIn("from observer.fixed_adapters import verify_kiro_runtime", installer)
+        self.assertIn('if suffix=="kiro": verify_kiro_runtime(profile,expected_gid=gid,verify_tree_digest=True)', installer)
 
     def test_installer_runtime_pins_equal_current_manifest_and_files(self) -> None:
         installer = (ROOT / "deploy/uap-observer-install.sh").read_text()

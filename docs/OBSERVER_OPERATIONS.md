@@ -688,6 +688,20 @@ read-only in the deployed namespace. The helper refuses a non-empty
 destination. Do not use any seed exported from a Mac or normal workstation,
 and never bake credentials into the source checkout or protected input tree.
 
+Kiro 2.20.0 also depends on the profile-local `.local/share/kiro-cli` runtime.
+Provisioning validates the reviewed Node, Bun, TUI, ACP server, current KAS
+directory, and ripgrep digests, then makes that entire subtree root-owned and
+client-group-readable. Directories are `0550`, ordinary files are `0440`, and
+only the reviewed Node, Bun, and current KAS ripgrep paths are executable
+(`0550`). Recovery deliberately keeps every seed file mode-neutral at `0600`;
+only provisioning may restore this executable allowlist. The adapter verifies
+the complete ownership/mode inventory and critical digests immediately before
+and after each Kiro process effect, while the installer rejects a divergent
+installed runtime. Provisioning and installed-state validation also require the
+official KAS 2.20.0 canonical tree digest
+`af228471d33f48c382819f9377fbb1f9d822eaf921348d0862785b7092be61c4`;
+the exact official feed cache and source URL bind the active release selector.
+
 The adapter config's `egress_hosts` is the canonical reviewed contract covering
 every exact MCP, observer, GitHub, client, and provider FQDN needed by this
 deployment. The operator must provide the proxy allowlist as an immutable deployment input,

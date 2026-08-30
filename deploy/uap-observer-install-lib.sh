@@ -656,6 +656,7 @@ observer_validate_installed_accounts_and_state() {
 import grp,hashlib,json,math,os,pwd,re,stat
 from pathlib import Path
 from observer.fixed_runner import reviewed_service_identities
+from observer.fixed_adapters import verify_kiro_runtime
 
 services=reviewed_service_identities()
 identities=[services[name][:2] for name in ("codex","cursor","kiro","control")]
@@ -843,6 +844,7 @@ for suffix,(uid,gid) in zip(("codex","cursor","kiro"),identities):
             if (len(active_body)>4 << 20 or len(native_body)>4 << 20 or active_body!=native_body
                 or "sha256:"+hashlib.sha256(active_body).hexdigest()!=expected_digest):
                 raise SystemExit(f"active native config {active} differs from its protected proof")
+        if suffix=="kiro": verify_kiro_runtime(profile,expected_gid=gid,verify_tree_digest=True)
     else:
         directory(str(profile),uid,gid,0o700)
 directory("/var/lib/uap-observer-human",0,0,0o755)

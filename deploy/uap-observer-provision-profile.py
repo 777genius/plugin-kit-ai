@@ -12,6 +12,8 @@ import os
 import pwd
 import re
 import stat
+import struct
+import unicodedata
 from pathlib import Path
 from typing import Protocol
 
@@ -34,6 +36,25 @@ TRANSACTION_VERSION = 1
 MAX_FILES = 50_000
 MAX_BYTES = 2 << 30
 OPEN_DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC | getattr(os, "O_NOATIME", 0)
+KIRO_RUNTIME_ROOT = (".local", "share", "kiro-cli")
+KIRO_KAS_DIRECTORY = "2.20.0-426339cf358a40306b73d09e69160be6201aba88d449893179d2a15a10020bdd"
+KIRO_RUNTIME_DIGESTS = {
+    KIRO_RUNTIME_ROOT + ("node",): "81925c0995b5c1427b5d538e6a90ca2fdc4daffb786b09af749beaf7369d4e90",
+    KIRO_RUNTIME_ROOT + ("bun",): "b29d78892abd5a9398e0700f0cb602f725089602ed1a5082d681c7257b2bf4d0",
+    KIRO_RUNTIME_ROOT + ("tui.js",): "2e4db6323c38b6fba18367e2fbf2a7e2951bed87638fd030e207e45a152d5fc2",
+    KIRO_RUNTIME_ROOT + ("kas", KIRO_KAS_DIRECTORY, "node_modules", "@kiro", "agent", "dist", "server", "acp-server.js"):
+        "e15cb01e83da5989999ca6529dc9b2f0992de588e6d87107651bd4a45dea8901",
+    KIRO_RUNTIME_ROOT + ("kas", KIRO_KAS_DIRECTORY, "node_modules", "@vscode", "ripgrep-linux-x64", "bin", "rg"):
+        "193906679498de4d939345b937fa24e0e69a03c244bd70c859f5e41232713f21",
+}
+KIRO_RUNTIME_EXECUTABLES = {
+    KIRO_RUNTIME_ROOT + ("node",), KIRO_RUNTIME_ROOT + ("bun",),
+    KIRO_RUNTIME_ROOT + ("kas", KIRO_KAS_DIRECTORY, "node_modules", "@vscode", "ripgrep-linux-x64", "bin", "rg"),
+}
+KIRO_FEED_SOURCE = b"https://prod.download.cli.kiro.dev/stable/2.20.0/feed.json"
+KIRO_FEED_FILES = ("feed.json", "feed-cache.json")
+KIRO_FEED_CACHE_SHA256 = "b2dcea68049b68264cb303eb252d385fe1e79984d38f7848feb89cb5f9603e82"
+KIRO_KAS_TREE_SHA256 = "af228471d33f48c382819f9377fbb1f9d822eaf921348d0862785b7092be61c4"
 TUPLE_FIELDS = {
     "product_id", "tree_digest", "manifest_digest", "distribution_id", "distribution_kind",
     "release_sequence", "package_version", "source_repository", "source_revision", "source_path",
@@ -242,10 +263,14 @@ def assign_tree(
     directory_fd: int, uid: int, gid: int, *, include_self: bool = True,
     logical_parent: tuple[str, ...] = (), protected_files: set[tuple[str, ...]] | None = None,
     protected_directories: set[tuple[str, ...]] | None = None,
+    protected_executables: set[tuple[str, ...]] | None = None,
+    protected_readable_directories: set[tuple[str, ...]] | None = None,
 ) -> None:
     """Assign only descriptors within the root-created staging tree, bottom-up."""
     protected_files = protected_files or set()
     protected_directories = protected_directories or set()
+    protected_executables = protected_executables or set()
+    protected_readable_directories = protected_readable_directories or set()
     for name in os.listdir(directory_fd):
         info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
         flags = OPEN_DIRECTORY if stat.S_ISDIR(info.st_mode) else os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -258,21 +283,211 @@ def assign_tree(
                 assign_tree(
                     descriptor, uid, gid, logical_parent=(*logical_parent, name),
                     protected_files=protected_files, protected_directories=protected_directories,
+                    protected_executables=protected_executables,
+                    protected_readable_directories=protected_readable_directories,
                 )
             elif not stat.S_ISREG(current.st_mode) or current.st_nlink != 1:
                 raise ValueError("staged profile was substituted")
             logical_path = (*logical_parent, name)
-            protected = logical_path in (protected_directories if stat.S_ISDIR(current.st_mode) else protected_files)
+            protected = logical_path in (
+                protected_directories | protected_readable_directories
+                if stat.S_ISDIR(current.st_mode) else protected_files | protected_executables
+            )
             os.fchown(descriptor, 0 if protected else uid, gid)
-            os.fchmod(descriptor, (0o510 if protected else 0o700) if stat.S_ISDIR(current.st_mode) else (0o440 if protected else 0o600))
+            mode = (
+                0o550 if logical_path in protected_readable_directories else 0o510 if protected else 0o700
+            ) if stat.S_ISDIR(current.st_mode) else (
+                0o550 if logical_path in protected_executables else 0o440 if protected else 0o600
+            )
+            os.fchmod(descriptor, mode)
             os.fsync(descriptor)
         finally:
             os.close(descriptor)
     if include_self:
-        protected = logical_parent in protected_directories
+        protected = logical_parent in protected_directories | protected_readable_directories
         os.fchown(directory_fd, 0 if protected else uid, gid)
-        os.fchmod(directory_fd, 0o510 if protected else 0o700)
+        os.fchmod(directory_fd, 0o550 if logical_parent in protected_readable_directories else 0o510 if protected else 0o700)
         os.fsync(directory_fd)
+
+
+def _open_relative_directory(root_fd: int, parts: tuple[str, ...]) -> tuple[int, list[int]]:
+    current = root_fd
+    opened: list[int] = []
+    try:
+        for component in parts:
+            current = os.open(component, OPEN_DIRECTORY, dir_fd=current)
+            opened.append(current)
+        return current, opened
+    except Exception:
+        for descriptor in reversed(opened):
+            os.close(descriptor)
+        raise
+
+
+def canonical_kiro_tree_digest(root_fd: int) -> str:
+    count = total = 0
+    entries: list[tuple[bytes, bytes, int, bytes]] = []
+
+    def visit(directory_fd: int, parent: tuple[str, ...]) -> None:
+        nonlocal count, total
+        for name in sorted(os.listdir(directory_fd)):
+            if (
+                name in {"", ".", ".."} or "/" in name or "\\" in name or "\x00" in name
+                or unicodedata.normalize("NFC", name) != name
+            ):
+                raise ValueError("Kiro KAS tree path is non-canonical")
+            try:
+                encoded = "/".join((*parent, name)).encode("utf-8", "strict")
+            except UnicodeEncodeError as error:
+                raise ValueError("Kiro KAS tree path is not UTF-8") from error
+            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            count += 1
+            if count > MAX_FILES:
+                raise ValueError("Kiro KAS tree exceeds file-count bound")
+            if stat.S_ISDIR(info.st_mode):
+                entries.append((encoded, b"D", 0, b""))
+                child = os.open(name, OPEN_DIRECTORY, dir_fd=directory_fd)
+                try:
+                    before = os.fstat(child)
+                    if (before.st_dev, before.st_ino) != (info.st_dev, info.st_ino):
+                        raise ValueError("Kiro KAS directory changed during hashing")
+                    visit(child, (*parent, name))
+                    after = os.fstat(child)
+                    if (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns) != (
+                        before.st_dev, before.st_ino, before.st_mtime_ns, before.st_ctime_ns,
+                    ):
+                        raise ValueError("Kiro KAS directory changed during hashing")
+                finally:
+                    os.close(child)
+                continue
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError("Kiro KAS tree contains a link or special file")
+            total += info.st_size
+            if total > MAX_BYTES:
+                raise ValueError("Kiro KAS tree exceeds byte bound")
+            file_digest = hashlib.sha256()
+            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory_fd)
+            try:
+                before = os.fstat(descriptor)
+                if (before.st_dev, before.st_ino, before.st_size) != (info.st_dev, info.st_ino, info.st_size):
+                    raise ValueError("Kiro KAS file changed during hashing")
+                copied = 0
+                while chunk := os.read(descriptor, 1 << 20):
+                    copied += len(chunk)
+                    file_digest.update(chunk)
+                after = os.fstat(descriptor)
+                if copied != before.st_size or (
+                    after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns
+                ) != (
+                    before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns
+                ):
+                    raise ValueError("Kiro KAS file changed during hashing")
+            finally:
+                os.close(descriptor)
+            entries.append((encoded, b"F", info.st_size, file_digest.digest()))
+
+    visit(root_fd, ())
+    digest = hashlib.sha256(b"uap-kiro-kas-tree-v1\0")
+    for encoded, kind, size, file_digest in sorted(entries):
+        digest.update(kind + struct.pack("!I", len(encoded)) + encoded)
+        if kind == b"F":
+            digest.update(struct.pack("!Q", size) + file_digest)
+    return digest.hexdigest()
+
+
+def kiro_runtime_paths(staging_fd: int) -> tuple[set[tuple[str, ...]], set[tuple[str, ...]], set[tuple[str, ...]]]:
+    """Validate the reviewed Kiro seed runtime and return its immutable mode sets."""
+    runtime_fd, opened = _open_relative_directory(staging_fd, KIRO_RUNTIME_ROOT)
+    files: set[tuple[str, ...]] = set()
+    directories: set[tuple[str, ...]] = {KIRO_RUNTIME_ROOT[:index] for index in range(1, len(KIRO_RUNTIME_ROOT) + 1)}
+    total = 0
+
+    def visit(directory_fd: int, parent: tuple[str, ...]) -> None:
+        nonlocal total
+        for name in sorted(os.listdir(directory_fd)):
+            if name in {"", ".", ".."} or "/" in name or "\x00" in name:
+                raise ValueError("Kiro runtime entry name is invalid")
+            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            logical = (*parent, name)
+            if stat.S_ISDIR(info.st_mode):
+                child = os.open(name, OPEN_DIRECTORY, dir_fd=directory_fd)
+                try:
+                    current = os.fstat(child)
+                    if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                        raise ValueError("Kiro runtime directory changed during validation")
+                    directories.add(logical)
+                    visit(child, logical)
+                    after = os.fstat(child)
+                    if (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns) != (
+                        info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns,
+                    ):
+                        raise ValueError("Kiro runtime directory changed during validation")
+                finally:
+                    os.close(child)
+                continue
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError("Kiro runtime contains a link, hardlink, or special file")
+            files.add(logical)
+            total += info.st_size
+            if len(files) + len(directories) > MAX_FILES or total > MAX_BYTES:
+                raise ValueError("Kiro runtime exceeds seed bounds")
+            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory_fd)
+            try:
+                current = os.fstat(descriptor)
+                if (current.st_dev, current.st_ino, current.st_size) != (info.st_dev, info.st_ino, info.st_size):
+                    raise ValueError("Kiro runtime file changed during validation")
+                expected = KIRO_RUNTIME_DIGESTS.get(logical)
+                if expected is not None:
+                    digest = hashlib.sha256()
+                    while chunk := os.read(descriptor, 1 << 20):
+                        digest.update(chunk)
+                    if digest.hexdigest() != expected:
+                        raise ValueError("Kiro runtime critical digest differs")
+            finally:
+                os.close(descriptor)
+
+    def runtime_body(name: str) -> bytes:
+        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=runtime_fd)
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError("Kiro runtime selector is not a regular file")
+            return read_bounded_regular(descriptor, info, 4 << 20)
+        finally:
+            os.close(descriptor)
+
+    try:
+        visit(runtime_fd, KIRO_RUNTIME_ROOT)
+        if runtime_body("feed-cache.source") != KIRO_FEED_SOURCE:
+            raise ValueError("Kiro runtime feed source differs")
+        if hashlib.sha256(runtime_body("feed-cache.json")).hexdigest() != KIRO_FEED_CACHE_SHA256:
+            raise ValueError("Kiro runtime official feed cache digest differs")
+        for name in KIRO_FEED_FILES:
+            feed = strict_json_loads(runtime_body(name))
+            entries = feed.get("entries") if isinstance(feed, dict) else None
+            active = entries[0] if isinstance(entries, list) and entries else None
+            if not isinstance(active, dict) or active.get("type") != "release" or active.get("version") != "2.20.0":
+                raise ValueError("Kiro runtime active feed release differs")
+        kas_fd, kas_opened = _open_relative_directory(runtime_fd, ("kas", KIRO_KAS_DIRECTORY))
+        try:
+            if canonical_kiro_tree_digest(kas_fd) != KIRO_KAS_TREE_SHA256:
+                raise ValueError("Kiro runtime official KAS tree digest differs")
+        finally:
+            for descriptor in reversed(kas_opened):
+                os.close(descriptor)
+    finally:
+        for descriptor in reversed(opened):
+            os.close(descriptor)
+    if not set(KIRO_RUNTIME_DIGESTS).issubset(files):
+        raise ValueError("Kiro runtime critical inventory is incomplete")
+    kas_prefix = KIRO_RUNTIME_ROOT + ("kas",)
+    current_versions = {
+        path[len(kas_prefix)] for path in directories
+        if len(path) == len(kas_prefix) + 1 and path[-1].startswith("2.20.0-")
+    }
+    if current_versions != {KIRO_KAS_DIRECTORY}:
+        raise ValueError("Kiro runtime active KAS version is ambiguous")
+    return files, directories, set(KIRO_RUNTIME_EXECUTABLES)
 
 
 def transaction_body(
@@ -1013,9 +1228,16 @@ def main() -> int:
         seal_proof_directory(proof_fd, account.pw_uid, account.pw_gid)
         checkpoint("after_proof_ownership")
         protected_files, protected_directories = active_native_paths(proof_fd, args.client, staging_fd)
+        protected_executables: set[tuple[str, ...]] = set()
+        protected_readable_directories: set[tuple[str, ...]] = set()
+        if args.client == "kiro":
+            runtime_files, protected_readable_directories, protected_executables = kiro_runtime_paths(staging_fd)
+            protected_files |= runtime_files - protected_executables
         assign_tree(
             staging_fd, account.pw_uid, account.pw_gid,
             protected_files=protected_files, protected_directories=protected_directories,
+            protected_executables=protected_executables,
+            protected_readable_directories=protected_readable_directories,
         )
         fsync_directory(staging_fd)
         checkpoint("after_profile_ownership")
