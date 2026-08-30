@@ -14,9 +14,9 @@
       "properties": {
         "catalog_repository": {"const": "777genius/universal-agent-plugins"},
         "cli_release_repository": {"const": "777genius/plugin-kit-ai"},
-        "cli_release_tag": {"const": "agentplugins-v0.1.18"},
-        "release_manifest_digest": {"const": "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57"},
-        "release_checksums_digest": {"const": "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8"},
+        "cli_release_tag": {"const": "agentplugins-v0.1.24"},
+        "release_manifest_digest": {"const": "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2"},
+        "release_checksums_digest": {"const": "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3"},
         "directory_digest": {"$ref": "#/$defs/digest"},
         "scenario_contract_digest": {"$ref": "#/$defs/digest"}
       },
@@ -73,8 +73,8 @@
         "source_revision": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
         "source_path": {"type": "string", "minLength": 1},
         "snapshot_sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}, "snapshot_digest": {"$ref": "#/$defs/digest"},
-        "binary_digest": {"$ref": "#/$defs/digest"}, "dependency_identity": {"type": "string", "minLength": 1},
-        "installer_version": {"type": "string", "minLength": 1}, "adapter_version": {"type": "string", "minLength": 1},
+        "binary_digest": {"const": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"}, "dependency_identity": {"type": "string", "minLength": 1},
+        "installer_version": {"const": "0.1.24"}, "adapter_version": {"const": "0.1.24"},
         "client_version": {"type": "null"}, "os": {"type": "string", "minLength": 1},
         "architecture": {"type": "string", "minLength": 1}, "observed_at": {"type": "string", "minLength": 1}
       },

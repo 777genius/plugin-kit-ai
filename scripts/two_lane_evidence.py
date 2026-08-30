@@ -13,7 +13,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,13 +27,21 @@ HERO_RUNTIME_PAIRS = frozenset((plugin, client) for plugin in HERO_PLUGINS for c
 RUNTIME_RESULT_COUNT = len(HERO_RUNTIME_PAIRS)
 POLICY_RESULT_COUNT = len(POLICY_SCENARIO_IDS)
 PLUGIN_KIT_REPOSITORY = "777genius/plugin-kit-ai"
-PLUGIN_KIT_TAG = "agentplugins-v0.1.18"
-PLUGIN_KIT_COMMIT = "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"
-PLUGIN_KIT_PRODUCTION_TREE_DIGEST = "sha256:4a64cddbf6680d55270a8bec9b3810673995b7328d8ff62feab8421a65378607"
+PLUGIN_KIT_TAG = "agentplugins-v0.1.24"
+PLUGIN_KIT_COMMIT = "c78c79e44efd5ad07083d63436d9170b107df6cb"
+PLUGIN_KIT_PRODUCTION_TREE_DIGEST = "sha256:3635457d320bc2c78a86b9b3d8e4937d14ac59848ffae70c6571167204130de8"
 FIXTURE_KEY_ID = "launch-conformance-only"
-RELEASED_LINUX_AMD64_DIGEST = "sha256:9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779"
-RELEASE_MANIFEST_DIGEST = "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57"
-RELEASE_CHECKSUMS_DIGEST = "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8"
+RELEASED_LINUX_AMD64_DIGEST = "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"
+RELEASE_MANIFEST_DIGEST = "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2"
+RELEASE_CHECKSUMS_DIGEST = "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3"
+
+# Frozen v4 replay identity. These values must never authorize a fresh run.
+V4_PLUGIN_KIT_TAG = "agentplugins-v0.1.18"
+V4_PLUGIN_KIT_COMMIT = "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"
+V4_PLUGIN_KIT_PRODUCTION_TREE_DIGEST = "sha256:4a64cddbf6680d55270a8bec9b3810673995b7328d8ff62feab8421a65378607"
+V4_RELEASED_LINUX_AMD64_DIGEST = "sha256:9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779"
+V4_RELEASE_MANIFEST_DIGEST = "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57"
+V4_RELEASE_CHECKSUMS_DIGEST = "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8"
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -69,13 +77,20 @@ def require_directory_ledger_sha(value: str, *, uap_sha: str) -> str:
     return value
 
 
-def validate_launch_schema(value: dict[str, Any], *, historical: bool = False) -> None:
-    """Route launch evidence to its frozen schema; unknown versions fail closed."""
+LaunchEvidencePurpose = Literal["current", "historical"]
+
+
+def validate_launch_schema(
+    value: dict[str, Any], *, purpose: LaunchEvidencePurpose = "current",
+) -> None:
+    """Route launch evidence by caller purpose; artifact bytes cannot downgrade it."""
+    if purpose not in {"current", "historical"}:
+        raise TwoLaneEvidenceError("unknown launch evidence validation purpose")
     version = value.get("schema_version")
-    if type(version) is not int or version not in {3, 4}:
+    if type(version) is not int or version not in {3, 4, 5}:
         raise TwoLaneEvidenceError("unknown launch evidence schema_version")
-    if version == 3 and not historical:
-        raise TwoLaneEvidenceError("launch evidence v3 is historical replay only")
+    if purpose == "current" and version != 5:
+        raise TwoLaneEvidenceError("current launch evidence requires schema_version 5")
     try:
         import jsonschema
         schema = json.loads((ROOT / f"tests/e2e/schemas/launch-evidence-v{version}.schema.json").read_text())
@@ -128,6 +143,7 @@ def validate_released_binary_evidence(
     value: dict[str, Any], *, uap_sha: str, directory_ledger_sha: str,
     publication_id: str, publication_sequence: int,
     publication_snapshot_digest: str, publication_source_commit: str,
+    purpose: Literal["current", "historical"] = "current",
 ) -> str:
     uap_sha = require_uap_sha(uap_sha)
     directory_ledger_sha = require_directory_ledger_sha(
@@ -143,7 +159,22 @@ def validate_released_binary_evidence(
         or SHA.fullmatch(publication_source_commit) is None
     ):
         raise TwoLaneEvidenceError("Directory publication identity is incomplete or invalid")
-    validate_launch_schema(value)
+    validate_launch_schema(value, purpose=purpose)
+    version = value.get("schema_version")
+    if version == 5:
+        release_version = "0.1.24"
+        release_tag = PLUGIN_KIT_TAG
+        release_commit = PLUGIN_KIT_COMMIT
+        binary_digest = RELEASED_LINUX_AMD64_DIGEST
+        manifest_digest = RELEASE_MANIFEST_DIGEST
+        checksums_digest = RELEASE_CHECKSUMS_DIGEST
+    else:
+        release_version = "0.1.18"
+        release_tag = V4_PLUGIN_KIT_TAG
+        release_commit = V4_PLUGIN_KIT_COMMIT
+        binary_digest = V4_RELEASED_LINUX_AMD64_DIGEST
+        manifest_digest = V4_RELEASE_MANIFEST_DIGEST
+        checksums_digest = V4_RELEASE_CHECKSUMS_DIGEST
     if value.get("evidence_class") != "released_binary":
         raise TwoLaneEvidenceError("runtime evidence_class must be released_binary")
     run = value.get("run", {})
@@ -156,14 +187,14 @@ def validate_released_binary_evidence(
     release = value.get("release", {})
     directory = value.get("directory", {})
     if not (
-        cli.get("version") == "0.1.18"
-        and cli.get("binary_digest") == RELEASED_LINUX_AMD64_DIGEST
+        cli.get("version") == release_version
+        and cli.get("binary_digest") == binary_digest
         and release.get("repository") == PLUGIN_KIT_REPOSITORY
-        and release.get("tag") == PLUGIN_KIT_TAG
-        and release.get("tag_commit") == PLUGIN_KIT_COMMIT
+        and release.get("tag") == release_tag
+        and release.get("tag_commit") == release_commit
         and release.get("immutable") is True
-        and release.get("manifest_digest") == RELEASE_MANIFEST_DIGEST
-        and release.get("checksums_digest") == RELEASE_CHECKSUMS_DIGEST
+        and release.get("manifest_digest") == manifest_digest
+        and release.get("checksums_digest") == checksums_digest
         and run.get("github_sha") == uap_sha
         and directory.get("origin") == f"https://raw.githubusercontent.com/777genius/universal-agent-plugins/{directory_ledger_sha}/registry/schemas/1/"
         and directory.get("ledger_commit") == directory_ledger_sha
@@ -181,29 +212,43 @@ def validate_released_binary_evidence(
     pairs = Counter((row.get("plugin"), row.get("client")) for row in hero)
     if set(pairs) != HERO_RUNTIME_PAIRS or any(count != 1 for count in pairs.values()):
         raise TwoLaneEvidenceError("released evidence requires the exact 5x3 hero runtime matrix once each")
+    protected = list(hero)
+    if version == 5:
+        chatgpt = [
+            row for row in rows
+            if row.get("scenario") == "chatgpt_registered_binding"
+            and row.get("plugin") == "cloudflare-docs"
+            and row.get("client") == "chatgpt"
+            and row.get("level") == "runtime"
+        ]
+        if len(chatgpt) != 1:
+            raise TwoLaneEvidenceError("released evidence requires exactly one Cloudflare Docs/ChatGPT runtime row")
+        protected.extend(chatgpt)
     expected_snapshot = directory.get("snapshot_digest")
     expected_sequence = directory.get("sequence")
-    for row in hero:
+    for row in protected:
         tuple_value = row.get("tuple", {})
         details = row.get("details", {})
+        is_chatgpt = row.get("client") == "chatgpt"
         if (
             row.get("level") != "runtime" or row.get("outcome") != "passed"
             or not isinstance(tuple_value, dict) or not isinstance(details, dict)
             or tuple_value.get("product_id") != row.get("plugin")
-            or tuple_value.get("binary_digest") != RELEASED_LINUX_AMD64_DIGEST
+            or tuple_value.get("binary_digest") != binary_digest
             or tuple_value.get("snapshot_digest") != expected_snapshot
             or tuple_value.get("snapshot_sequence") != expected_sequence
-            or tuple_value.get("installer_version") != "0.1.18"
-            or tuple_value.get("adapter_version") != "0.1.18"
+            or tuple_value.get("installer_version") != release_version
+            or tuple_value.get("adapter_version") != release_version
             or details.get("evidence_basis") != "protected_external_observer"
             or details.get("runtime_proof") is not True
-            or details.get("native_discovery_proof") is not True
-            or details.get("release_manifest_digest") != RELEASE_MANIFEST_DIGEST
-            or details.get("release_checksums_digest") != RELEASE_CHECKSUMS_DIGEST
+            or details.get("native_discovery_proof") is not (False if is_chatgpt else True)
+            or (is_chatgpt and details.get("public_mcp_proof") is not True)
+            or details.get("release_manifest_digest") != manifest_digest
+            or details.get("release_checksums_digest") != checksums_digest
             or details.get("directory_digest") != expected_snapshot
-            or details.get("scenario_id") != "hero_5x3_runtime"
+            or details.get("scenario_id") != row.get("scenario")
         ):
-            raise TwoLaneEvidenceError("hero runtime row lacks the canonical released-runtime tuple/fields")
+            raise TwoLaneEvidenceError("protected runtime row lacks the canonical released-runtime tuple/fields")
     if summary.get("hero_runtime_results") != RUNTIME_RESULT_COUNT:
         raise TwoLaneEvidenceError("released evidence summary differs from the canonical runtime matrix")
     return sha256(canonical_json(value))
@@ -211,14 +256,62 @@ def validate_released_binary_evidence(
 
 def validate_source_policy_evidence(
     value: dict[str, Any], *, scenario_digest: str, harness_digest: str,
-    overlay_digest: str, uap_sha: str,
+    overlay_digest: str, uap_sha: str, expected_schema_version: Literal[1, 2] = 2,
 ) -> str:
+    if type(expected_schema_version) is not int or expected_schema_version not in {1, 2}:
+        raise TwoLaneEvidenceError("unknown caller-selected source-policy schema_version")
+    if expected_schema_version == 2:
+        try:
+            import jsonschema
+            schema = json.loads(
+                (ROOT / "schemas/e2e/source-policy-conformance-v2.schema.json").read_text()
+            )
+            pending: list[Any] = [schema]
+            while pending:
+                node = pending.pop()
+                if isinstance(node, dict):
+                    reference = node.get("$ref")
+                    if reference is not None and (
+                        not isinstance(reference, str) or not reference.startswith("#/")
+                    ):
+                        raise TwoLaneEvidenceError(
+                            "source-policy v2 schema contains a non-local reference"
+                        )
+                    pending.extend(node.values())
+                elif isinstance(node, list):
+                    pending.extend(node)
+            errors = sorted(
+                jsonschema.Draft202012Validator(schema).iter_errors(value),
+                key=lambda item: list(item.absolute_path),
+            )
+        except ImportError as error:  # pragma: no cover - protected jobs install it
+            raise TwoLaneEvidenceError(
+                "jsonschema is required for source-policy evidence validation"
+            ) from error
+        if errors:
+            raise TwoLaneEvidenceError(
+                f"source-policy evidence v2 schema mismatch: {errors[0].message}"
+            )
     uap_sha = require_uap_sha(uap_sha)
+    if type(value.get("schema_version")) is not int or value.get("schema_version") != expected_schema_version:
+        raise TwoLaneEvidenceError("source-policy schema_version differs from caller purpose")
+    if expected_schema_version == 2:
+        release_tag = PLUGIN_KIT_TAG
+        release_commit = PLUGIN_KIT_COMMIT
+        manifest_digest = RELEASE_MANIFEST_DIGEST
+        checksums_digest = RELEASE_CHECKSUMS_DIGEST
+        production_tree_digest = PLUGIN_KIT_PRODUCTION_TREE_DIGEST
+    else:
+        release_tag = V4_PLUGIN_KIT_TAG
+        release_commit = V4_PLUGIN_KIT_COMMIT
+        manifest_digest = V4_RELEASE_MANIFEST_DIGEST
+        checksums_digest = V4_RELEASE_CHECKSUMS_DIGEST
+        production_tree_digest = V4_PLUGIN_KIT_PRODUCTION_TREE_DIGEST
     identities = value.get("identities", {})
     expected = {
         "plugin_kit_repository": PLUGIN_KIT_REPOSITORY,
-        "plugin_kit_tag": PLUGIN_KIT_TAG,
-        "plugin_kit_commit": PLUGIN_KIT_COMMIT,
+        "plugin_kit_tag": release_tag,
+        "plugin_kit_commit": release_commit,
         "uap_sha": uap_sha,
         "scenario_digest": scenario_digest,
         "harness_digest": harness_digest,
@@ -233,8 +326,8 @@ def validate_source_policy_evidence(
     if any(identities.get(key) != expected_value for key, expected_value in expected.items()):
         raise TwoLaneEvidenceError("source-policy identity mismatch")
     if (
-        identities.get("release_manifest_digest") != RELEASE_MANIFEST_DIGEST
-        or identities.get("release_checksums_digest") != RELEASE_CHECKSUMS_DIGEST
+        identities.get("release_manifest_digest") != manifest_digest
+        or identities.get("release_checksums_digest") != checksums_digest
     ):
         raise TwoLaneEvidenceError("release manifest/checksum identity mismatch")
     rows = value.get("results")
@@ -280,7 +373,7 @@ def validate_source_policy_evidence(
         raise TwoLaneEvidenceError("revoked policy unit oracle is incomplete")
     before = identities.get("production_source_tree_before")
     after = identities.get("production_source_tree_after")
-    if value.get("production_source_unchanged") is not True or before != after or before != PLUGIN_KIT_PRODUCTION_TREE_DIGEST:
+    if value.get("production_source_unchanged") is not True or before != after or before != production_tree_digest:
         raise TwoLaneEvidenceError("production source tree was not proven unchanged")
     if value.get("policy_conformance_gate_complete") is not True:
         raise TwoLaneEvidenceError("policy conformance gate is incomplete")
@@ -292,7 +385,16 @@ def build_readiness_envelope(runtime: dict[str, Any], policy: dict[str, Any], *,
                              overlay_digest: str, uap_sha: str,
                              directory_ledger_sha: str, publication_id: str,
                              publication_sequence: int, publication_snapshot_digest: str,
-                             publication_source_commit: str) -> dict[str, Any]:
+                             publication_source_commit: str,
+                             schema_version: Literal[1, 2] = 2,
+                             purpose: Literal["current", "historical"] = "current") -> dict[str, Any]:
+    if type(schema_version) is not int or schema_version not in {1, 2}:
+        raise TwoLaneEvidenceError("unknown caller-selected readiness schema_version")
+    expected_schema_version = 2 if purpose == "current" else (
+        2 if runtime.get("schema_version") == 5 else 1
+    )
+    if schema_version != expected_schema_version:
+        raise TwoLaneEvidenceError("readiness schema_version differs from caller purpose")
     uap_sha = require_uap_sha(uap_sha)
     directory_ledger_sha = require_directory_ledger_sha(
         directory_ledger_sha, uap_sha=uap_sha,
@@ -302,13 +404,15 @@ def build_readiness_envelope(runtime: dict[str, Any], policy: dict[str, Any], *,
         publication_id=publication_id, publication_sequence=publication_sequence,
         publication_snapshot_digest=publication_snapshot_digest,
         publication_source_commit=publication_source_commit,
+        purpose=purpose,
     )
     policy_digest = validate_source_policy_evidence(
         policy, scenario_digest=scenario_digest, harness_digest=harness_digest,
         overlay_digest=overlay_digest, uap_sha=uap_sha,
+        expected_schema_version=schema_version,
     )
     return {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "evidence_class": "two_lane_readiness",
         "runtime_evidence_digest": runtime_digest,
         "source_policy_evidence_digest": policy_digest,
@@ -318,14 +422,18 @@ def build_readiness_envelope(runtime: dict[str, Any], policy: dict[str, Any], *,
         "publication_sequence": publication_sequence,
         "publication_snapshot_digest": publication_snapshot_digest,
         "publication_source_commit": publication_source_commit,
-        "runtime_results": RUNTIME_RESULT_COUNT,
+        "runtime_results": RUNTIME_RESULT_COUNT + (1 if schema_version == 2 else 0),
         "policy_results": POLICY_RESULT_COUNT,
         "readiness_gate_complete": True,
     }
 
 
 def validate_completed_readiness(envelope: dict[str, Any], runtime: dict[str, Any],
-                                 policy: dict[str, Any], **identity: Any) -> None:
-    expected = build_readiness_envelope(runtime, policy, **identity)
+                                 policy: dict[str, Any], *, schema_version: Literal[1, 2] = 2,
+                                 purpose: Literal["current", "historical"] = "current",
+                                 **identity: Any) -> None:
+    expected = build_readiness_envelope(
+        runtime, policy, schema_version=schema_version, purpose=purpose, **identity,
+    )
     if envelope != expected:
         raise TwoLaneEvidenceError("completed readiness replay differs from either canonical evidence digest")

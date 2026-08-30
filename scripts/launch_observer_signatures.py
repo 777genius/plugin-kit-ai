@@ -196,6 +196,7 @@ def validate_evidence_redaction(value: Any, *, context: str = "evidence") -> Non
 def verify_observer_bundle(
     bundle: dict[str, Any], *, challenge: str, public_key_base64: str,
     expected_key_id: str, now: datetime | None = None, enforce_freshness: bool = True,
+    require_chatgpt: bool = True,
 ) -> dict[str, Any]:
     """Return signed artifacts after strict Ed25519 and freshness validation."""
     required = {"schema_version", "challenge", "signed_at", "key_id", "artifacts", "signature"}
@@ -218,8 +219,10 @@ def verify_observer_bundle(
     artifacts = bundle.get("artifacts")
     expected_artifacts = {
         "runtime-attestations.json", "notion-oauth-attestations.json",
-        "chatgpt-cloudflare-attestation.json", "consent.json",
+        "consent.json",
     }
+    if require_chatgpt:
+        expected_artifacts.add("chatgpt-cloudflare-attestation.json")
     if not isinstance(artifacts, dict) or set(artifacts) != expected_artifacts:
         raise ValueError("protected observer bundle has a non-canonical artifact set")
     validate_evidence_redaction(artifacts, context="protected observer bundle")

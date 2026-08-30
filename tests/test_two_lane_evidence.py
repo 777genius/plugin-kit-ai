@@ -28,7 +28,14 @@ FIXTURE_PUBLICATION_ID = "fixture-publication"
 FIXTURE_SOURCE_COMMIT = "c" * 40
 
 
-def runtime_evidence(passed: int = 15) -> dict:
+def runtime_evidence(passed: int = 15, *, schema_version: int = 4) -> dict:
+    current = schema_version == 5
+    release_version = "0.1.24" if current else "0.1.18"
+    release_tag = lanes.PLUGIN_KIT_TAG if current else lanes.V4_PLUGIN_KIT_TAG
+    release_commit = lanes.PLUGIN_KIT_COMMIT if current else lanes.V4_PLUGIN_KIT_COMMIT
+    binary_digest = lanes.RELEASED_LINUX_AMD64_DIGEST if current else lanes.V4_RELEASED_LINUX_AMD64_DIGEST
+    manifest_digest = lanes.RELEASE_MANIFEST_DIGEST if current else lanes.V4_RELEASE_MANIFEST_DIGEST
+    checksums_digest = lanes.RELEASE_CHECKSUMS_DIGEST if current else lanes.V4_RELEASE_CHECKSUMS_DIGEST
     rows = []
     pairs = ((plugin, client) for plugin in lanes.HERO_PLUGINS for client in lanes.RUNTIME_CLIENTS)
     for ordinal, (plugin, client) in enumerate(pairs):
@@ -37,8 +44,8 @@ def runtime_evidence(passed: int = 15) -> dict:
             "distribution_id": f"fixture/{plugin}", "distribution_kind": "community",
             "release_sequence": 1, "package_version": "1.0.0", "source_repository": "fixture/repository",
             "source_revision": "d" * 40, "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
-            "snapshot_digest": digest("a"), "binary_digest": lanes.RELEASED_LINUX_AMD64_DIGEST,
-            "dependency_identity": "fixture", "installer_version": "0.1.18", "adapter_version": "0.1.18",
+            "snapshot_digest": digest("a"), "binary_digest": binary_digest,
+            "dependency_identity": "fixture", "installer_version": release_version, "adapter_version": release_version,
             "client_version": "1.0.0", "os": "linux", "architecture": "amd64",
             "observed_at": "2026-08-28T00:00:00Z",
         }
@@ -47,13 +54,32 @@ def runtime_evidence(passed: int = 15) -> dict:
             "level": "runtime", "outcome": "passed" if ordinal < passed else "failed", "tuple": tuple_value,
             "reason": "fixture", "details": {"evidence_basis": "protected_external_observer",
                 "runtime_proof": True, "native_discovery_proof": True,
-                "release_manifest_digest": lanes.RELEASE_MANIFEST_DIGEST,
-                "release_checksums_digest": lanes.RELEASE_CHECKSUMS_DIGEST,
+                "release_manifest_digest": manifest_digest,
+                "release_checksums_digest": checksums_digest,
                 "directory_digest": digest("a"), "scenario_id": "hero_5x3_runtime",
                 "native_discovery_evidence": {}},
         })
+    if current:
+        tuple_value = copy.deepcopy(rows[0]["tuple"])
+        tuple_value.update({
+            "product_id": "cloudflare-docs", "distribution_id": "fixture/cloudflare-docs",
+            "source_path": "plugins/cloudflare-docs",
+        })
+        rows.append({
+            "id": f"{len(rows):024x}", "scenario": "chatgpt_registered_binding",
+            "plugin": "cloudflare-docs", "client": "chatgpt", "level": "runtime",
+            "outcome": "passed", "tuple": tuple_value, "reason": "fixture",
+            "details": {
+                "evidence_basis": "protected_external_observer", "runtime_proof": True,
+                "native_discovery_proof": False, "public_mcp_proof": True,
+                "release_manifest_digest": manifest_digest,
+                "release_checksums_digest": checksums_digest,
+                "directory_digest": digest("a"), "scenario_id": "chatgpt_registered_binding",
+                "public_mcp_evidence": {},
+            },
+        })
     return {
-        "schema_version": 4,
+        "schema_version": schema_version,
         "evidence_class": "released_binary",
         "run": {"id": "1" * 16, "mode": "enforced", "runtime_claims": True, "github_sha": FIXTURE_UAP_SHA,
                 "observed_at": "2026-08-28T00:00:00Z", "platform": "linux", "architecture": "amd64",
@@ -61,11 +87,11 @@ def runtime_evidence(passed: int = 15) -> dict:
                 "caller_event_name": "push", "caller_ref": "refs/heads/main",
                 "caller_workflow_ref": "fixture/repository/.github/workflows/directory-publication.yml@refs/heads/main",
                 "challenge": "3" * 64, "observer_bundle_digest": digest("4"),
-                "cli": {"available": True, "version": "0.1.18", "binary_digest": lanes.RELEASED_LINUX_AMD64_DIGEST}},
-        "release": {"repository": lanes.PLUGIN_KIT_REPOSITORY, "tag": lanes.PLUGIN_KIT_TAG,
-                    "tag_commit": lanes.PLUGIN_KIT_COMMIT, "release_id": 1, "immutable": True,
-                    "manifest_digest": lanes.RELEASE_MANIFEST_DIGEST,
-                    "checksums_digest": lanes.RELEASE_CHECKSUMS_DIGEST},
+                "cli": {"available": True, "version": release_version, "binary_digest": binary_digest}},
+        "release": {"repository": lanes.PLUGIN_KIT_REPOSITORY, "tag": release_tag,
+                    "tag_commit": release_commit, "release_id": 379284682 if current else 1, "immutable": True,
+                    "manifest_digest": manifest_digest,
+                    "checksums_digest": checksums_digest},
         "directory": {"origin": "https://raw.githubusercontent.com/777genius/universal-agent-plugins/" + FIXTURE_LEDGER_SHA + "/registry/schemas/1/",
                       "ledger_commit": FIXTURE_LEDGER_SHA, "publication_id": FIXTURE_PUBLICATION_ID,
                       "source_commit": FIXTURE_SOURCE_COMMIT, "sequence": 1,
@@ -75,7 +101,7 @@ def runtime_evidence(passed: int = 15) -> dict:
             "required_singleton_ids": [f"singleton-{i}" for i in range(27)],
             "expected_counts": {f"count-{i}": 1 for i in range(9)}},
         "summary": {
-            "passed": passed, "failed": 15 - passed, "inconclusive": 0, "not_applicable": 0,
+            "passed": passed + (1 if current else 0), "failed": 15 - passed, "inconclusive": 0, "not_applicable": 0,
             "required_gates_complete": passed == 15,
             "released_binary_gate_complete": passed == 15,
             "hero_runtime_results": passed,
@@ -89,19 +115,20 @@ def runtime_evidence(passed: int = 15) -> dict:
     }
 
 
-def policy_evidence(passed: int = 11) -> dict:
+def policy_evidence(passed: int = 11, *, schema_version: int = 2) -> dict:
+    current = schema_version == 2
     identities = {
         "plugin_kit_repository": lanes.PLUGIN_KIT_REPOSITORY,
-        "plugin_kit_tag": lanes.PLUGIN_KIT_TAG,
-        "plugin_kit_commit": lanes.PLUGIN_KIT_COMMIT,
-        "release_manifest_digest": lanes.RELEASE_MANIFEST_DIGEST,
-        "release_checksums_digest": lanes.RELEASE_CHECKSUMS_DIGEST,
+        "plugin_kit_tag": lanes.PLUGIN_KIT_TAG if current else lanes.V4_PLUGIN_KIT_TAG,
+        "plugin_kit_commit": lanes.PLUGIN_KIT_COMMIT if current else lanes.V4_PLUGIN_KIT_COMMIT,
+        "release_manifest_digest": lanes.RELEASE_MANIFEST_DIGEST if current else lanes.V4_RELEASE_MANIFEST_DIGEST,
+        "release_checksums_digest": lanes.RELEASE_CHECKSUMS_DIGEST if current else lanes.V4_RELEASE_CHECKSUMS_DIGEST,
         "uap_sha": FIXTURE_UAP_SHA,
         "scenario_digest": digest("3"),
         "harness_digest": digest("4"),
         "overlay_digest": digest("5"),
-        "production_source_tree_before": lanes.PLUGIN_KIT_PRODUCTION_TREE_DIGEST,
-        "production_source_tree_after": lanes.PLUGIN_KIT_PRODUCTION_TREE_DIGEST,
+        "production_source_tree_before": lanes.PLUGIN_KIT_PRODUCTION_TREE_DIGEST if current else lanes.V4_PLUGIN_KIT_PRODUCTION_TREE_DIGEST,
+        "production_source_tree_after": lanes.PLUGIN_KIT_PRODUCTION_TREE_DIGEST if current else lanes.V4_PLUGIN_KIT_PRODUCTION_TREE_DIGEST,
     }
     results = []
     harness = json.loads((ROOT / "tests/e2e/source-policy-tests.json").read_text())["tests"]
@@ -129,7 +156,7 @@ def policy_evidence(passed: int = 11) -> dict:
             "proof_digest": lanes.sha256(lanes.canonical_json(proof)),
         })
     return {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "evidence_class": "source_policy_conformance",
         "runtime_claims": False,
         "released_binary_executed": False,
@@ -172,14 +199,44 @@ class TwoLaneEvidenceTests(unittest.TestCase):
                     lanes.validate_source_policy_evidence(value, **self.policy_identity())
 
     def test_readiness_requires_15_runtime_and_11_policy(self) -> None:
-        complete = lanes.build_readiness_envelope(runtime_evidence(), policy_evidence(), **self.identity())
+        complete = lanes.build_readiness_envelope(runtime_evidence(schema_version=5), policy_evidence(), **self.identity())
         self.assertTrue(complete["readiness_gate_complete"])
-        for runtime, policy in ((runtime_evidence(), policy_evidence(10)), (runtime_evidence(14), policy_evidence())):
+        self.assertEqual((complete["schema_version"], complete["runtime_results"]), (2, 16))
+        for runtime, policy in ((runtime_evidence(schema_version=5), policy_evidence(10)), (runtime_evidence(14, schema_version=5), policy_evidence())):
             with self.assertRaises(lanes.TwoLaneEvidenceError):
                 lanes.build_readiness_envelope(runtime, policy, **self.identity())
 
+    def test_historical_v4_replay_keeps_v1_sidecars_but_cannot_authorize_current(self) -> None:
+        runtime = runtime_evidence(schema_version=4)
+        policy = policy_evidence(schema_version=1)
+        complete = lanes.build_readiness_envelope(
+            runtime, policy, schema_version=1, purpose="historical", **self.identity(),
+        )
+        self.assertEqual((complete["schema_version"], complete["runtime_results"]), (1, 15))
+        lanes.validate_completed_readiness(
+            complete, runtime, policy, schema_version=1, purpose="historical", **self.identity(),
+        )
+        for schema_version, candidate_policy in (
+            (1, policy), (2, policy_evidence()),
+        ):
+            with self.subTest(schema_version=schema_version), self.assertRaises(lanes.TwoLaneEvidenceError):
+                lanes.build_readiness_envelope(
+                    runtime, candidate_policy, schema_version=schema_version,
+                    purpose="current", **self.identity(),
+                )
+        invalid_policy = copy.deepcopy(policy)
+        invalid_policy["schema_version"] = True
+        with self.assertRaisesRegex(lanes.TwoLaneEvidenceError, "schema_version"):
+            lanes.validate_source_policy_evidence(
+                invalid_policy, expected_schema_version=1, **self.policy_identity(),
+            )
+        with self.assertRaisesRegex(lanes.TwoLaneEvidenceError, "caller-selected"):
+            lanes.build_readiness_envelope(
+                runtime, policy, schema_version=True, purpose="historical", **self.identity(),
+            )
+
     def test_uap_and_directory_publication_identities_are_distinct_and_exact(self) -> None:
-        runtime = runtime_evidence()
+        runtime = runtime_evidence(schema_version=5)
         complete = lanes.build_readiness_envelope(runtime, policy_evidence(), **self.identity())
         self.assertNotEqual(complete["uap_sha"], complete["directory_ledger_sha"])
         substitutions = (
@@ -233,7 +290,7 @@ class TwoLaneEvidenceTests(unittest.TestCase):
             )
 
     def test_runtime_rejects_arbitrary_fifteen_rows_and_identity_forgery(self) -> None:
-        baseline = runtime_evidence()
+        baseline = runtime_evidence(schema_version=5)
         mutations = []
         duplicate = copy.deepcopy(baseline)
         duplicate["matrix"][0]["plugin"] = duplicate["matrix"][1]["plugin"]
@@ -244,7 +301,7 @@ class TwoLaneEvidenceTests(unittest.TestCase):
         policy_row = copy.deepcopy(baseline); policy_row["matrix"][0]["scenario"] = lanes.POLICY_SCENARIO_IDS[0]; mutations.append(policy_row)
         wrong_sha = copy.deepcopy(baseline); wrong_sha["run"]["github_sha"] = "c" * 40; mutations.append(wrong_sha)
         import jsonschema
-        schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence-v4.schema.json").read_text())
+        schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence-v5.schema.json").read_text())
         for value in mutations[:4]:
             with self.assertRaises(jsonschema.ValidationError):
                 jsonschema.Draft202012Validator(schema).validate(value)
@@ -260,7 +317,7 @@ class TwoLaneEvidenceTests(unittest.TestCase):
         bad_transcript = copy.deepcopy(baseline); bad_transcript["results"][0]["test"]["transcript_digest"] = "bad"; mutations.append(bad_transcript)
         changed_tree = copy.deepcopy(baseline); changed_tree["identities"]["production_source_tree_after"] = digest("8"); mutations.append(changed_tree)
         import jsonschema
-        schema = json.loads((ROOT / "schemas/e2e/source-policy-conformance.schema.json").read_text())
+        schema = json.loads((ROOT / "schemas/e2e/source-policy-conformance-v2.schema.json").read_text())
         for value in (wrong_package, bad_transcript, changed_tree):
             with self.assertRaises(jsonschema.ValidationError):
                 jsonschema.Draft202012Validator(schema).validate(value)
@@ -268,8 +325,35 @@ class TwoLaneEvidenceTests(unittest.TestCase):
             with self.assertRaises(lanes.TwoLaneEvidenceError):
                 lanes.validate_source_policy_evidence(value, **self.policy_identity())
 
+    def test_current_readiness_rejects_policy_shape_outside_v2_schema(self) -> None:
+        mutations = []
+        root_extra = copy.deepcopy(policy_evidence())
+        root_extra["unexpected"] = True
+        mutations.append(root_extra)
+        nested_extra = copy.deepcopy(policy_evidence())
+        nested_extra["identities"]["unexpected"] = True
+        mutations.append(nested_extra)
+        malformed_details = copy.deepcopy(policy_evidence())
+        malformed_details["results"][0]["details"] = {"claimed": True}
+        mutations.append(malformed_details)
+        for policy in mutations:
+            with self.subTest(policy=mutations.index(policy)), self.assertRaisesRegex(
+                lanes.TwoLaneEvidenceError, "v2 schema mismatch",
+            ):
+                lanes.build_readiness_envelope(
+                    runtime_evidence(schema_version=5), policy, **self.identity(),
+                )
+
+        # Frozen v1 remains governed by its historical semantic validator.
+        historical = policy_evidence(schema_version=1)
+        historical["historical_annotation"] = "preserved"
+        lanes.build_readiness_envelope(
+            runtime_evidence(schema_version=4), historical,
+            schema_version=1, purpose="historical", **self.identity(),
+        )
+
     def test_schema_versions_route_without_reinterpreting_v3(self) -> None:
-        v3 = runtime_evidence()
+        v3 = runtime_evidence(schema_version=4)
         v3["schema_version"] = 3
         v3.pop("evidence_class")
         for field in ("ledger_commit", "publication_id", "source_commit"):
@@ -277,21 +361,17 @@ class TwoLaneEvidenceTests(unittest.TestCase):
         v3["scenario_contract"]["expected_ids"] = [f"acceptance-{i}" for i in range(13)]
         v3["scenario_contract"]["required_singleton_ids"] = [f"singleton-{i}" for i in range(38)]
         v3["summary"].pop("released_binary_gate_complete")
-        lanes.validate_launch_schema(v3, historical=True)
-        with self.assertRaisesRegex(lanes.TwoLaneEvidenceError, "historical replay only"):
+        lanes.validate_launch_schema(v3, purpose="historical")
+        with self.assertRaisesRegex(lanes.TwoLaneEvidenceError, "current"):
             lanes.validate_launch_schema(v3)
-        unknown = copy.deepcopy(v3); unknown["schema_version"] = 5
+        v4 = runtime_evidence(schema_version=4)
+        lanes.validate_launch_schema(v4, purpose="historical")
+        with self.assertRaisesRegex(lanes.TwoLaneEvidenceError, "current"):
+            lanes.validate_launch_schema(v4)
+        lanes.validate_launch_schema(runtime_evidence(schema_version=5), purpose="current")
+        unknown = copy.deepcopy(v3); unknown["schema_version"] = 6
         with self.assertRaisesRegex(lanes.TwoLaneEvidenceError, "unknown"):
-            lanes.validate_launch_schema(unknown, historical=True)
-
-        schema_root = ROOT / "tests/e2e/schemas"
-        router = json.loads((schema_root / "launch-evidence.schema.json").read_text())
-        self.assertEqual(router["oneOf"], [
-            {"$ref": "launch-evidence-v3.schema.json"},
-            {"$ref": "launch-evidence-v4.schema.json"},
-        ])
-        self.assertEqual(json.loads((schema_root / "launch-evidence-v3.schema.json").read_text())["properties"]["schema_version"], {"const": 3})
-        self.assertEqual(json.loads((schema_root / "launch-evidence-v4.schema.json").read_text())["properties"]["schema_version"], {"const": 4})
+            lanes.validate_launch_schema(unknown, purpose="historical")
 
     def test_all_two_lane_clis_require_explicit_uap_sha(self) -> None:
         scripts = (
@@ -305,7 +385,7 @@ class TwoLaneEvidenceTests(unittest.TestCase):
                 self.assertNotIn("b37eda9a710b4e41bde3cc27ada56dd3b17edc40", body)
 
     def test_completed_replay_rejects_either_digest_mutation(self) -> None:
-        runtime, policy = runtime_evidence(), policy_evidence()
+        runtime, policy = runtime_evidence(schema_version=5), policy_evidence()
         complete = lanes.build_readiness_envelope(runtime, policy, **self.identity())
         lanes.validate_completed_readiness(complete, runtime, policy, **self.identity())
         runtime_changed = copy.deepcopy(runtime); runtime_changed["matrix"][0]["note"] = "changed"
@@ -386,7 +466,7 @@ class TwoLaneEvidenceTests(unittest.TestCase):
             checksums = Path(temporary) / "checksums.txt"
             manifest.write_text(json.dumps({
                 "repository": lanes.PLUGIN_KIT_REPOSITORY, "tag": lanes.PLUGIN_KIT_TAG,
-                "commit": lanes.PLUGIN_KIT_COMMIT, "version": "0.1.18",
+                "commit": lanes.PLUGIN_KIT_COMMIT, "version": "0.1.24",
             }))
             checksums.write_text("9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779  agentplugins_0.1.18_linux_amd64\n")
             fake = lambda source, package, name, go, **kwargs: {
@@ -397,7 +477,10 @@ class TwoLaneEvidenceTests(unittest.TestCase):
                 producer, "validate_release_identity",
                 return_value=(lanes.RELEASE_MANIFEST_DIGEST, lanes.RELEASE_CHECKSUMS_DIGEST),
             ):
-                value = producer.produce(source, manifest, checksums, go="go", uap_sha=FIXTURE_UAP_SHA)
+                value = producer.produce(
+                    source, manifest, checksums, go="go", uap_sha=FIXTURE_UAP_SHA,
+                    schema_version=2,
+                )
         self.assertTrue(value["production_source_unchanged"])
         self.assertEqual([row["id"] for row in value["results"]], list(lanes.POLICY_SCENARIO_IDS))
         self.assertEqual(
@@ -422,10 +505,10 @@ class TwoLaneEvidenceTests(unittest.TestCase):
             "production_source_tree_before": lanes.PLUGIN_KIT_PRODUCTION_TREE_DIGEST,
             "production_source_tree_after": lanes.PLUGIN_KIT_PRODUCTION_TREE_DIGEST,
         })
-        policy_schema = json.loads((ROOT / "schemas/e2e/source-policy-conformance.schema.json").read_text())
-        readiness_schema = json.loads((ROOT / "schemas/e2e/two-lane-readiness.schema.json").read_text())
+        policy_schema = json.loads((ROOT / "schemas/e2e/source-policy-conformance-v2.schema.json").read_text())
+        readiness_schema = json.loads((ROOT / "schemas/e2e/two-lane-readiness-v2.schema.json").read_text())
         jsonschema.Draft202012Validator(policy_schema).validate(policy)
-        readiness = lanes.build_readiness_envelope(runtime_evidence(), policy_evidence(), **self.identity())
+        readiness = lanes.build_readiness_envelope(runtime_evidence(schema_version=5), policy_evidence(), **self.identity())
         jsonschema.Draft202012Validator(readiness_schema).validate(readiness)
 
 

@@ -1,10 +1,10 @@
 {
   "$schema": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v2.schema.json",
   "schema_version": 2,
-  "catalog_version": "0.2.0",
+  "catalog_version": "0.2.1",
   "repository": "777genius/universal-agent-plugins",
-  "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
-  "published_at": "2026-08-09T22:28:33Z",
+  "revision": "2135a58b5fe8d94d351734196774ffec42af0c8d",
+  "published_at": "2026-08-27T12:29:16Z",
   "plugins": [
     {
       "name": "agent-code-navigator",
@@ -12,7 +12,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/agent-code-navigator",
-      "tree_digest": "sha256:2da970986164b2ba56aee452205bb2312927814f66596653b248c127e4e767e0",
+      "tree_digest": "sha256:889ca0933920da7c517392aada63ee8d44334465166fa1b8e1b20c8ac53a2e7c",
       "manifest_digest": "sha256:675fb48dff9431f75e2986211039b3bfb04860a84d6a5bd157b9658514a2394e",
       "components": [
         "skills"
@@ -51,7 +51,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/atlassian",
-      "tree_digest": "sha256:a5988dbe73fa2efa8892a3918aabc6273a8398d56f3d247e7e921fdb1ee8a167",
+      "tree_digest": "sha256:4ca9887692dda344e7468ed388935a76835766253cf5c48d8dd1cdea650722aa",
       "manifest_digest": "sha256:e83ade754f1251554622e4b48d596ebf72510bd7292b19a7793df4de8e546d04",
       "components": [
         "mcp"
@@ -86,24 +86,24 @@
     },
     {
       "name": "chrome-devtools",
-      "version": "0.1.0",
+      "version": "1.7.0-uap.1",
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/chrome-devtools",
-      "tree_digest": "sha256:07cae09debbcd3f4ab7c18ef00db5fba58b0185b2c502d759732155e47a65f7b",
-      "manifest_digest": "sha256:e7d43a8e39b0e83f2c05777e297f6a3884002dc2601d70528b55a44132db8091",
+      "tree_digest": "sha256:ecfab3839cf55726e5616e3c748257fa9ff5c955f588387ae7098153d6bb896f",
+      "manifest_digest": "sha256:38c1ccf9c0857300832c140caf1049aaaacaa09594011d45e68b85a416734265",
       "components": [
         "mcp"
       ],
       "compatibility": {
         "codex": {
           "package": "projected",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         },
         "cursor": {
           "package": "native",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         },
         "copilot": {
@@ -118,7 +118,7 @@
         },
         "kiro": {
           "package": "native",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         }
       }
@@ -129,7 +129,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/cloudflare",
-      "tree_digest": "sha256:788761d3f9da6d95d7ab8c6253942f057ecef5e0fb8e2815fbca8dcbb5fcee40",
+      "tree_digest": "sha256:52dee02da5caf47c403bf72e9c5f7b46b20ec908a9c53d9711058c9552d6ec72",
       "manifest_digest": "sha256:9bec7cfed2ecb217145c2a02658296670a328416566433518b4da0246e91d382",
       "components": [
         "mcp"
@@ -168,7 +168,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/cloudflare-bindings",
-      "tree_digest": "sha256:98573830f703a479dece5bb964353117151e533abff0fa77597c5a654dc56729",
+      "tree_digest": "sha256:f2588b501a2129067a27d59daecd3ee6cbb7272a6556ad32c356eda65c5afdfb",
       "manifest_digest": "sha256:6b945cf035f784216e71425cf7b6ca477b27a2069d2580e9713a65f5ec2ca0bf",
       "components": [
         "mcp"
@@ -203,24 +203,24 @@
     },
     {
       "name": "cloudflare-docs",
-      "version": "0.1.0",
+      "version": "0.4.13",
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/cloudflare-docs",
-      "tree_digest": "sha256:ebfc3239ab774dea35897919362f4ca0b2b3bfc6d33863d977940ab493907b74",
-      "manifest_digest": "sha256:6b575562e527194ccd31238fde8c5f764409ecc98e211e92dfb81455eef88bdd",
+      "tree_digest": "sha256:377bce2952cbfa3f91146b3a758890b7756deb6e4240763c6adaf13814d95330",
+      "manifest_digest": "sha256:7d1ada5818ced00257f39edd0bea371630ad5167dbfa572fbf01d7504012119c",
       "components": [
         "mcp"
       ],
       "compatibility": {
         "codex": {
           "package": "projected",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         },
         "cursor": {
           "package": "native",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         },
         "copilot": {
@@ -235,20 +235,20 @@
         },
         "kiro": {
           "package": "native",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         },
         "chatgpt": {
           "package": "projected",
-          "verification": "tested",
+          "verification": "not_tested",
           "authentication": "not_required",
           "app_binding": {
             "app_key": "cloudflare-docs",
-            "id": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4",
+            "id": "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b",
             "mcp_server": "cloudflare-docs",
             "mcp_url": "https://docs.mcp.cloudflare.com/mcp",
-            "runtime_evidence": "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json",
-            "runtime_evidence_revision": "2ddbb99dd190c1792b79904f9875e6322bccd243"
+            "runtime_evidence": "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-30.json",
+            "runtime_evidence_revision": "b89b8ffc3ccd2d8e0987ec9f105f4001cc08b834"
           }
         }
       }
@@ -259,7 +259,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/cloudflare-observability",
-      "tree_digest": "sha256:dbabe94312d1d780f6f96c6f9c595cb46dbdef49ce31182906c3cc4077e4b295",
+      "tree_digest": "sha256:2150a8aebfe343a1d08a5809ce36a59b6764a69ceaffaf82f2b9e1e4b5025779",
       "manifest_digest": "sha256:41573bb020202619d72fe2cbbf35c56cb5ed4b885b17867ffd2e4a74ebcb5064",
       "components": [
         "mcp"
@@ -298,7 +298,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/cloudflare-radar",
-      "tree_digest": "sha256:bad20c22343458ad40d08b48d621db32955b07ab66d61ad02cc0546a4e5e94c6",
+      "tree_digest": "sha256:799168635aef3cfec3adc82ae8bbe66b59979a39cebee7e996e6c48daac26130",
       "manifest_digest": "sha256:cf94d10bad7d902f4ed171d2363854fb93409ac79a1c5e02d152be6448d66fc2",
       "components": [
         "mcp"
@@ -333,24 +333,24 @@
     },
     {
       "name": "context7",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/context7",
-      "tree_digest": "sha256:51eee528879504843a31b2ea57abb77167e33cd5b81856e0640ce3a52f3281a4",
-      "manifest_digest": "sha256:341c54728c2f50d3876b12a6e94ba06751c94d2be215037846d06f93a018434e",
+      "tree_digest": "sha256:410c3687cf332b1318ec6cc2d4c521c75b46b6c10aeb6fab845927fbaa65cdc3",
+      "manifest_digest": "sha256:6f1cca4322bc7bcca4ef0d7fbf33d3b7b0bf3b132b10b80fe5dd27e58c0ff327",
       "components": [
         "mcp"
       ],
       "compatibility": {
         "codex": {
           "package": "projected",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         },
         "cursor": {
           "package": "native",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         },
         "copilot": {
@@ -365,7 +365,7 @@
         },
         "kiro": {
           "package": "native",
-          "verification": "tested",
+          "verification": "schema_only",
           "authentication": "not_required"
         }
       }
@@ -376,7 +376,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/docker-hub",
-      "tree_digest": "sha256:7976d176756b199da384cc898ccfe24aa7c0ebd9894e703132fec6d1bac699a4",
+      "tree_digest": "sha256:3a8568b0019851bac23e59bdf7a7eb2de9181afb6c30af4c68681b750c813aa3",
       "manifest_digest": "sha256:413347fe45d0dbcbd5b4d5cf88eb7e0ec5c0cd080486ea4cb8c3f61f0bd7a95d",
       "components": [
         "mcp"
@@ -415,7 +415,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/figma",
-      "tree_digest": "sha256:aefbb22c2052bb401168b4ceea895f5d4eeb9073185c4d33a91f4b38ebad24b4",
+      "tree_digest": "sha256:b810001af5d25a92f7d9ed5b0dc31b7d0edbe67bf432dca0a0ebb0944f4b8f11",
       "manifest_digest": "sha256:67fbfd8062a7f3d965ee63cc68f392a6afb1e8861e3bcc5fe1f70e7e9fadabba",
       "components": [
         "mcp"
@@ -455,12 +455,12 @@
     },
     {
       "name": "firebase",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/firebase",
-      "tree_digest": "sha256:9ed143367d27e63b55acd864135680ac71137247d4cb17599bf94370c9cc32fc",
-      "manifest_digest": "sha256:9883d7c5b0472304f799df862f52d3cdae3120b3324633d6a58fceceb78da7b7",
+      "tree_digest": "sha256:c7c97228f57dc2950195d7740fce331045a034c4a1b16b84bcd5a992a3d64b77",
+      "manifest_digest": "sha256:ae8b10620d67a17a08e8aeb80910a66436b86f26716854b520ad3b414b2af3b2",
       "components": [
         "mcp"
       ],
@@ -494,12 +494,12 @@
     },
     {
       "name": "github",
-      "version": "0.1.0",
+      "version": "1.10.1",
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/github",
-      "tree_digest": "sha256:8977d2273c14e2cfcd0d502d490c8420e3edb2822608af2aeb7493fca7703d27",
-      "manifest_digest": "sha256:091e37c5f33c0a92f77070cfcb1b03759b2637927281c04d989e6c8fef888cae",
+      "tree_digest": "sha256:a9b9118d4771d25388851d0b81f39427683a8293a18c0a0373bfecca7e77cf13",
+      "manifest_digest": "sha256:90f940c0f656bdf83fa8cccd5515bf4df9211c5a1d9cb095b84c30ee0f4f6efe",
       "components": [
         "mcp"
       ],
@@ -542,7 +542,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/gitlab",
-      "tree_digest": "sha256:e7ef8870fe6678ab84731a0b389b57b41a439e4903ea37b4fe60b59240c08bc3",
+      "tree_digest": "sha256:cd34d4ecc1dc164881730c0e16ee13d2ca253aec79437d7e7f51c7bc8bbd0809",
       "manifest_digest": "sha256:1a181fab20d9520f5f006f4237e88d67cf58d29b9994dbc45ee4c80d2474e080",
       "components": [
         "mcp"
@@ -581,7 +581,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/greptile",
-      "tree_digest": "sha256:b6c701696326d50ca19664f2e6350451a75e37298f2ae47e107ccaf6f865d93d",
+      "tree_digest": "sha256:3474b7daebc464b0c1e2c7de9b6ac8897884ec135a45725a206765eb5fe6b6a2",
       "manifest_digest": "sha256:05b29500564aede5274a6d21c0cf5bb4727e995045b04de170913b7ef2ae07bb",
       "components": [
         "mcp"
@@ -620,7 +620,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/heroku",
-      "tree_digest": "sha256:9988a94c56676b54f5e819d4c72eefe7164a6e207503c32308122983a9662d64",
+      "tree_digest": "sha256:d6719c00f39b481b50e478eaeca3e72ac73f5a6f15a3aefb13accbe6e5e0f576",
       "manifest_digest": "sha256:5b7c088e290ed04b0eafe0275dc806e7c2153dd7cbe6b74d1c5f1d2961e9355a",
       "components": [
         "mcp"
@@ -659,7 +659,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/hubspot-crm",
-      "tree_digest": "sha256:93db3068e880bc135100853804f195434673fc5dd6bcc9a7fd82197e930dda4e",
+      "tree_digest": "sha256:be9ce3df3ba2badcb621f3e8c421f9df4b9ceb09f3be056f8426fe00dceb34b2",
       "manifest_digest": "sha256:20334e86a1b599d2759e04bfaef37dc2ddb7f6b0f3994b5d66d4eca12fbec941",
       "components": [
         "mcp"
@@ -694,12 +694,12 @@
     },
     {
       "name": "hubspot-developer",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/hubspot-developer",
-      "tree_digest": "sha256:706abd93939ee72ea62fd2da90ee27f6d55cfa5c5d57fa695d5b0bcbc4f99a75",
-      "manifest_digest": "sha256:257a75ed2e473945a26afa102152f866bd8269bb41c998f6d87fbdf43ed1a6b9",
+      "tree_digest": "sha256:0b1073826871670d16315bf04d6ed4a575ea9e442378981493dcc218e9e2e5cc",
+      "manifest_digest": "sha256:359e99c1974c94248663ad639688755409dafc0751fe31a650602b3984a03d92",
       "components": [
         "mcp"
       ],
@@ -737,7 +737,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/linear",
-      "tree_digest": "sha256:ae5a6bee33aff8bc2a045cc8f7ac4f7cf0ae453c0bb8031a587bb2a9b081a2a2",
+      "tree_digest": "sha256:15811b57a62209c149ccc27747aceaba8c5b5b615649520b531db835812a4733",
       "manifest_digest": "sha256:0b8ed223c21d206d802130ace7219b5c78af1903675640cc77f5195e4f86ef70",
       "components": [
         "mcp"
@@ -781,7 +781,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/neon",
-      "tree_digest": "sha256:d4a807220a40563e968f8efeb37a424b95ab82c6566877f1f6d688c63900ad10",
+      "tree_digest": "sha256:1760b1e3d1f194d7b66beadb70127bca6f066d1e2de11c9b40217a24ad01aa5c",
       "manifest_digest": "sha256:6787894c7d3e033db05deee5e36358caf387493a98a78716d6db4b343e9c0698",
       "components": [
         "mcp"
@@ -820,7 +820,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/notion",
-      "tree_digest": "sha256:67b355127dc3e618196b0f8a9f1af1914f6b9b8f1e31299dc75d567c010e8da9",
+      "tree_digest": "sha256:cbbd7b8c1e346cc61d0dffac2911e1ad016b7beab137abf4771af4f7e4a6ead6",
       "manifest_digest": "sha256:bbab30a4f062218d7a5fce2f6c818680d3c7adfaebdbaa3e523e15942a2f57e5",
       "components": [
         "mcp"
@@ -864,7 +864,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/sentry",
-      "tree_digest": "sha256:d67605b84b3b3d9a1791307a40b5df663e2bb719b1321a3ee2899977fb849762",
+      "tree_digest": "sha256:fed79a94b2d59b6304da4e31938b8461113d3427f4c6ff8ce64c9d6dce1f9d0d",
       "manifest_digest": "sha256:7606b1f8af700ea76590f0ae586ff8586f4dc370f536ceedbeab8d934494e42e",
       "components": [
         "mcp"
@@ -903,7 +903,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/statsig",
-      "tree_digest": "sha256:28fd20bf16a96e87f311ecac07ab89f75e23c42b303c931fa2bbc9840005db73",
+      "tree_digest": "sha256:705aa970a3c0b385f839ece4501dcccd3255def277a0216c977eee438845c7e0",
       "manifest_digest": "sha256:5100526dca8f8e53e42d1d53f8acc1879ea8a2d8b0982df3f00be5e95bf3e465",
       "components": [
         "mcp"
@@ -942,7 +942,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/stripe",
-      "tree_digest": "sha256:63cba08ab98fc8c0d91db9f580390f39551fddd3ffdff56443f928687dd920fd",
+      "tree_digest": "sha256:0dbcf8c431480d0ec52a4989140b61d4c598a8190e20394eaf02651d0d57f8f3",
       "manifest_digest": "sha256:e70885fda5a4ce50c302891229e204bbf22904ec3f227670e5916d69f9b8b80d",
       "components": [
         "mcp"
@@ -981,7 +981,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/supabase",
-      "tree_digest": "sha256:2ae36c14a87016fad5ea9a45bd0a16b6f56acf15e64604cb0de942198ef35277",
+      "tree_digest": "sha256:face52d2b16e57b4d62dc58084b60398ef7f79050ebbfaf4bac69b274652ce9d",
       "manifest_digest": "sha256:bb0672e8cd411b1c8e0872a5f7f0abc95f9c68f008802d42a2cd16a689deeb11",
       "components": [
         "mcp"
@@ -1020,7 +1020,7 @@
       "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "minimum_cli_version": "0.1.6",
       "source_path": "plugins/vercel",
-      "tree_digest": "sha256:4ed31025a6c8323a330a163190c6264f0a6cebde8f643b87d599d8b5c6745304",
+      "tree_digest": "sha256:35793fa1486e2103ebb8ce6e97eecf01524cb6e48316ae1f059cf0d0c71ff2e2",
       "manifest_digest": "sha256:23f7cd28573c4ab10943178db05a47f2af3639518a334449c23d89b19562ef74",
       "components": [
         "mcp"

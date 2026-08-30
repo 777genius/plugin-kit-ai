@@ -200,6 +200,17 @@ CONFORMANCE_KEY_ID = "launch-conformance-only"
 CONFORMANCE_SEED = hashlib.sha256(b"UAP launch evidence conformance key; never production").digest()
 RELEASED_AGENTPLUGINS_0_1_18_SIZE = 11_677_880
 RELEASED_AGENTPLUGINS_0_1_18_SHA256 = "9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779"
+RELEASED_AGENTPLUGINS_0_1_24_SIZE = 12_185_784
+RELEASED_AGENTPLUGINS_0_1_24_SHA256 = "e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"
+
+
+def released_agentplugins_identity(version: str) -> tuple[int, str]:
+    """Route current and frozen historical binary identities explicitly."""
+    if version == "0.1.24":
+        return RELEASED_AGENTPLUGINS_0_1_24_SIZE, RELEASED_AGENTPLUGINS_0_1_24_SHA256
+    if version == "0.1.18":
+        return RELEASED_AGENTPLUGINS_0_1_18_SIZE, RELEASED_AGENTPLUGINS_0_1_18_SHA256
+    raise ValueError("authenticated binary version is not an accepted release identity")
 def exact_plugin_data_lifecycle_argv(scenario_targets: tuple[str, ...]) -> tuple[tuple[str, ...], ...]:
     target = contract_target_argument(scenario_targets)
     return (
@@ -1643,7 +1654,16 @@ def verify_revoked_target_probe_result(
         argv == list(probe.target_argv)
         and process_argv == displayed_argv
     )
-    expected_digest = "sha256:" + RELEASED_AGENTPLUGINS_0_1_18_SHA256
+    expected_digest = "sha256:" + (
+        execution_session.expected_sha256
+        if type(execution_session) is AuthenticatedBinaryExecutionSession
+        else RELEASED_AGENTPLUGINS_0_1_24_SHA256
+    )
+    expected_size = (
+        execution_session.expected_size
+        if type(execution_session) is AuthenticatedBinaryExecutionSession
+        else RELEASED_AGENTPLUGINS_0_1_24_SIZE
+    )
     file_identity_fields = {"device", "inode", "mode", "uid", "gid", "links", "size", "mtime_ns", "ctime_ns"}
     parent_identity_fields = {"device", "inode", "mode", "uid", "gid"}
 
@@ -1675,7 +1695,7 @@ def verify_revoked_target_probe_result(
         and pre["descriptor_identity"] == post["descriptor_identity"]
         and pre["path_identity"] == post["path_identity"]
         and pre["parent_identity"] == post["parent_identity"]
-        and pre["descriptor_identity"]["size"] == RELEASED_AGENTPLUGINS_0_1_18_SIZE
+        and pre["descriptor_identity"]["size"] == expected_size
         and stat.S_ISREG(pre["descriptor_identity"]["mode"])
         and stat.S_ISDIR(pre["parent_identity"]["mode"])
     )
@@ -1687,8 +1707,8 @@ def verify_revoked_target_probe_result(
         and type(binding.get("parent_path")) is str
         and str(Path(binary).parent) == binding.get("parent_path")
         and pre.get("sha256") == expected_digest and post.get("sha256") == expected_digest
-        and pre.get("size") == RELEASED_AGENTPLUGINS_0_1_18_SIZE
-        and post.get("size") == RELEASED_AGENTPLUGINS_0_1_18_SIZE
+        and pre.get("size") == expected_size
+        and post.get("size") == expected_size
         and identities_bound
     )
     mechanism_bound = bool(
@@ -1733,7 +1753,7 @@ def verify_revoked_target_probe_result(
             "mechanism_bound": mechanism_bound,
             "observations_bound": observations_bound, "identities_bound": identities_bound,
             "expected_sha256": expected_digest,
-            "expected_size": RELEASED_AGENTPLUGINS_0_1_18_SIZE,
+            "expected_size": expected_size,
         },
         "argv_bound": argv_bound,
         "exit": {"expected": probe.expected_exit_code, "observed": completed.returncode, "bound": exit_bound},
@@ -3054,6 +3074,7 @@ class AuthenticatedBinaryExecutionSession:
     def __init__(
         self, binary: Path, *, cwd: Path,
         command_plan: tuple[tuple[str, ...], ...] = EXACT_PLUGIN_DATA_LIFECYCLE_ARGV,
+        expected_version: str = "0.1.18",
     ):
         self._execveat_syscall = _execveat_syscall_number()
         if getattr(_LIBC, "syscall", None) is None:
@@ -3065,6 +3086,8 @@ class AuthenticatedBinaryExecutionSession:
             raise ValueError("authenticated binary parent path must not traverse links")
         self.path = binary
         self.parent_path = binary.parent
+        self.expected_version = expected_version
+        self.expected_size, self.expected_sha256 = released_agentplugins_identity(expected_version)
         self._fd = -1
         self._parent_fd = -1
         self._inotify_fd = -1
@@ -3109,15 +3132,15 @@ class AuthenticatedBinaryExecutionSession:
             )
             self._body = self._read_authenticated_body()
             if (
-                len(self._body) != RELEASED_AGENTPLUGINS_0_1_18_SIZE
-                or hashlib.sha256(self._body).hexdigest() != RELEASED_AGENTPLUGINS_0_1_18_SHA256
+                len(self._body) != self.expected_size
+                or hashlib.sha256(self._body).hexdigest() != self.expected_sha256
             ):
-                raise ValueError("evidence binary is not the authenticated public agentplugins 0.1.18 asset")
+                raise ValueError(f"evidence binary is not the authenticated public agentplugins {expected_version} asset")
             self.pre_authentication = self._observe("pre_version_authentication")
             self.version = self._run_descriptor(["version"], cwd=cwd, write_authority=None)
             self.post_authentication = self._observe("post_version_authentication")
-            if self.version.returncode != 0 or self.version.stdout.rstrip("\n") != "agentplugins 0.1.18":
-                raise ValueError("evidence binary is not exact released agentplugins 0.1.18")
+            if self.version.returncode != 0 or self.version.stdout.rstrip("\n") != f"agentplugins {expected_version}":
+                raise ValueError(f"evidence binary is not exact released agentplugins {expected_version}")
         except BaseException:
             self._close_descriptors()
             raise
@@ -3692,7 +3715,7 @@ def conformance_directory(
     release["sequence"] = 1
     release["published_at"] = now()
     policy["release_sequence"] = 1
-    policy["minimum_installer_version"] = "0.1.18"
+    policy["minimum_installer_version"] = context["expected_version"]
     policy["targets"] = [
         {
             "client": client,
@@ -6755,6 +6778,7 @@ def revoked_boundary_scenario(
     before_probe_root = filesystem_snapshot(probe_root)
     probe_binary_session = AuthenticatedBinaryExecutionSession(
         binary, cwd=root, command_plan=(REVOKED_TARGET_PROBE_ARGV,),
+        expected_version=context["expected_version"],
     )
     try:
         new_target = execute(

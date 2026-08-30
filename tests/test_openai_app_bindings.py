@@ -29,6 +29,7 @@ from validate_openai_compat import ValidationError, validate_plugin  # noqa: E40
 
 
 APP_ID = "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4"
+ACTIVE_APP_ID = "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b"
 MCP_URL = "https://docs.mcp.cloudflare.com/mcp"
 EVIDENCE_PATH = "tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json"
 PERSONAL_APP_EVIDENCE_PATH = (
@@ -349,9 +350,52 @@ class OpenAIAppBindingTests(unittest.TestCase):
         evidence["binding"]["app_id"] = "unsafe app id"
         self.assertNotEqual(list(validator.iter_errors(evidence)), [])
 
+    def test_evidence_schema_rejects_cross_era_runtime_hybrids(self) -> None:
+        schema = json.loads(
+            (ROOT / "schemas" / "e2e" / "client-evidence.schema.json").read_text()
+        )
+        validator = Draft202012Validator(schema)
+        legacy = json.loads(
+            (
+                ROOT
+                / "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json"
+            ).read_text()
+        )
+        current_ui = json.loads(
+            (
+                ROOT
+                / "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-30.json"
+            ).read_text()
+        )
+        current_runtime = json.loads(
+            (
+                ROOT
+                / "tests/e2e/results/chatgpt-cloudflare-docs-read-only-runtime-2026-08-30.json"
+            ).read_text()
+        )
+        hybrids = {
+            "legacy type with current body": {
+                **copy.deepcopy(current_ui),
+                "evidence_type": "interactive_personal_app_runtime",
+            },
+            "current UI type with legacy runtime": {
+                **copy.deepcopy(current_ui),
+                "runtime": copy.deepcopy(legacy["runtime"]),
+            },
+            "current runtime type with legacy runtime": {
+                **copy.deepcopy(current_runtime),
+                "runtime": copy.deepcopy(legacy["runtime"]),
+            },
+        }
+        for name, document in hybrids.items():
+            with self.subTest(name=name):
+                self.assertNotEqual(list(validator.iter_errors(document)), [])
+
     def test_committed_sidecar_evidence_is_revision_and_digest_bound(self) -> None:
         document = json.loads((ROOT / "compat/openai/app-bindings.json").read_text())
         binding = document["bindings"]["cloudflare-docs"]
+        self.assertEqual(binding["id"], ACTIVE_APP_ID)
+        self.assertEqual(load_app_bindings()["cloudflare-docs"]["id"], ACTIVE_APP_ID)
         for field in ("runtime_evidence", "personal_app_evidence"):
             revision = binding[f"{field}_revision"]
             pinned = subprocess.check_output(
@@ -362,6 +406,78 @@ class OpenAIAppBindingTests(unittest.TestCase):
                 "sha256:" + hashlib.sha256(pinned).hexdigest(),
             )
             self.assertEqual(pinned, (ROOT / binding[field]).read_bytes())
+
+    def test_historical_app_evidence_remains_byte_exact(self) -> None:
+        expected = {
+            "tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json": (
+                "050a18c56cf3f6b98d12ad35ac3c4642bd18d9e862956447dc3dad8e3189bcc5"
+            ),
+            "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json": (
+                "97ddb41b887eebb7629bff1ae88937448b0c23073688122ab8939c3d96372b37"
+            ),
+        }
+        for relative, digest in expected.items():
+            with self.subTest(relative=relative):
+                self.assertEqual(
+                    hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), digest
+                )
+
+    def test_current_runtime_does_not_promote_incomplete_follow_up(self) -> None:
+        document = json.loads((ROOT / "compat/openai/app-bindings.json").read_text())
+        binding = document["bindings"]["cloudflare-docs"]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for field in ("runtime_evidence", "personal_app_evidence"):
+                relative = binding[field]
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / relative).read_bytes())
+            runtime_path = root / binding["runtime_evidence"]
+            runtime = json.loads(runtime_path.read_text())
+            next(
+                check
+                for check in runtime["checks"]
+                if check["operation"] == "durable_objects_follow_up"
+            )["status"] = "passed"
+            runtime_path.write_text(json.dumps(runtime))
+            binding["runtime_evidence_digest"] = (
+                "sha256:" + hashlib.sha256(runtime_path.read_bytes()).hexdigest()
+            )
+            sidecar = root / "app-bindings.json"
+            sidecar.write_text(json.dumps(document))
+
+            with self.assertRaisesRegex(
+                ValueError, "personal runtime checks do not match binding"
+            ):
+                load_app_bindings(sidecar, root)
+
+    def test_current_evidence_keeps_mcp_runtime_inconclusive(self) -> None:
+        schema = json.loads(
+            (ROOT / "schemas/e2e/client-evidence.schema.json").read_text()
+        )
+        validator = Draft202012Validator(schema)
+        for relative in (
+            "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-30.json",
+            "tests/e2e/results/chatgpt-cloudflare-docs-read-only-runtime-2026-08-30.json",
+        ):
+            evidence = json.loads((ROOT / relative).read_text())
+            with self.subTest(relative=relative):
+                self.assertEqual(list(validator.iter_errors(evidence)), [])
+                self.assertEqual(evidence["runtime"]["mcp_runtime_outcome"], "inconclusive")
+                self.assertNotIn("successful_read_only_lookup_count", evidence["runtime"])
+                self.assertNotIn("catalog", evidence)
+
+                promoted = copy.deepcopy(evidence)
+                promoted["runtime"]["mcp_runtime_outcome"] = "passed"
+                self.assertNotEqual(list(validator.iter_errors(promoted)), [])
+
+                attributed = copy.deepcopy(evidence)
+                attributed["catalog"] = {
+                    "revision": "0" * 40,
+                    "digest": "sha256:" + "0" * 64,
+                }
+                if attributed["evidence_type"] == "interactive_personal_app_ui_v2":
+                    self.assertNotEqual(list(validator.iter_errors(attributed)), [])
 
     def test_sidecar_rejects_duplicate_app_id(self) -> None:
         document = valid_document()
@@ -967,7 +1083,7 @@ class OpenAIAppBindingTests(unittest.TestCase):
             app = json.loads((package / ".app.json").read_text())
 
         self.assertEqual(manifest["apps"], "./.app.json")
-        self.assertEqual(app, {"apps": {"cloudflare-docs": {"id": APP_ID}}})
+        self.assertEqual(app, {"apps": {"cloudflare-docs": {"id": ACTIVE_APP_ID}}})
 
     def test_codex_only_package_without_sidecar_still_emits_normally(self) -> None:
         source = registry.load_directory_source()

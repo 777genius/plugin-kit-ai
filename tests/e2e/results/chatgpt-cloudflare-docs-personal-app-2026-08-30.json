@@ -1,0 +1,118 @@
+{
+  "client": "ChatGPT web Plugins UI",
+  "version": "rolling web release; build identifier not exposed",
+  "date": "2026-08-30",
+  "date_timezone": "Europe/Kyiv",
+  "evidence_type": "interactive_personal_app_ui_v2",
+  "binding": {
+    "plugin": "cloudflare-docs",
+    "app_id": "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b",
+    "mcp_url": "https://docs.mcp.cloudflare.com/mcp"
+  },
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "plugin": "cloudflare-docs",
+    "plugin_version": "0.1.0",
+    "delivery": "registered personal app; local .codex-plugin package ingestion not observed"
+  },
+  "ui": {
+    "directory_source": "Personal",
+    "display_name": "Cloudflare Docs E2E",
+    "installation_state": "Installed",
+    "detail_action": "Попробовать в чате",
+    "opened_mode": "Chat",
+    "plugin_chip_selected": true,
+    "activation_evidence": "directly_observed"
+  },
+  "runtime": {
+    "prompt_count": 1,
+    "read_only": true,
+    "assistant_response_observed": true,
+    "tool_invocation_visibility": "not_exposed",
+    "mcp_runtime_outcome": "inconclusive"
+  },
+  "scope": {
+    "proved": [
+      "registered_personal_app_installed_state",
+      "plugins_ui_discovery",
+      "chat_activation",
+      "exact_app_id_linkage",
+      "assistant_response_observed"
+    ],
+    "not_proved": [
+      "cloudflare_docs_mcp_runtime_lookup",
+      "individual_mcp_tool_call_visibility",
+      "local_codex_plugin_package_ingestion",
+      "repository_marketplace_install",
+      "agentplugins_manager_lifecycle"
+    ]
+  },
+  "checks": [
+    {
+      "scenario": "find Cloudflare Docs E2E under Plugins > Personal in Installed state",
+      "operation": "plugins_personal_installed",
+      "status": "passed"
+    },
+    {
+      "scenario": "open the exact personal app detail page and use Попробовать в чате",
+      "operation": "plugin_detail_try_in_chat",
+      "status": "passed"
+    },
+    {
+      "scenario": "open Chat with the exact personal app selected",
+      "operation": "new_chat_plugin_chip_selected",
+      "status": "passed"
+    },
+    {
+      "scenario": "observe an assistant response after selecting the personal app",
+      "operation": "assistant_response_observed",
+      "query": "Using only Cloudflare Docs, explain in one short sentence what Cloudflare Workers KV is. Read-only lookup only.",
+      "status": "passed"
+    },
+    {
+      "scenario": "attribute the assistant response to an MCP tool invocation",
+      "operation": "mcp_runtime_attribution",
+      "status": "skipped",
+      "reason": "the UI did not expose an MCP tool invocation or raw tool payload; the response alone is not runtime proof"
+    },
+    {
+      "scenario": "attempt later Durable Objects follow-up lookups",
+      "operation": "durable_objects_follow_up",
+      "status": "failed",
+      "detail": "The attempts returned incomplete one-word output and are not counted as runtime passes."
+    },
+    {
+      "scenario": "ingest this repository's local .codex-plugin package in ChatGPT",
+      "operation": "local_codex_plugin_package_ingestion",
+      "status": "skipped",
+      "reason": "the installed item was the registered personal app; local package ingestion was not observed"
+    },
+    {
+      "scenario": "run the agentplugins manager lifecycle for ChatGPT",
+      "operation": "agentplugins_manager_lifecycle",
+      "status": "skipped",
+      "reason": "manager lifecycle remains separate from the observed ChatGPT personal app flow"
+    }
+  ],
+  "cleanup": {
+    "connection_status": "retained with user approval"
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "chat URLs",
+      "authorization URLs",
+      "raw tool output"
+    ]
+  }
+}

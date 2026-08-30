@@ -113,7 +113,7 @@ permissions:
   contents: read
 
 env:
-  AGENTPLUGINS_VERSION: "0.1.18"
+  AGENTPLUGINS_VERSION: "0.1.24"
 
 concurrency:
   group: stable-launch-evidence-${{ github.repository }}-${{ github.sha }}-${{ github.run_attempt }}
@@ -169,12 +169,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {runner: macos-15, os: macos, architecture: arm64, asset: agentplugins_0.1.18_darwin_arm64}
-          - {runner: macos-15-intel, os: macos, architecture: amd64, asset: agentplugins_0.1.18_darwin_amd64}
-          - {runner: ubuntu-24.04-arm, os: linux, architecture: arm64, asset: agentplugins_0.1.18_linux_arm64}
-          - {runner: ubuntu-24.04, os: linux, architecture: amd64, asset: agentplugins_0.1.18_linux_amd64}
-          - {runner: windows-2025, os: windows, architecture: amd64, asset: agentplugins_0.1.18_windows_amd64.exe}
-          - {runner: windows-11-arm, os: windows, architecture: arm64, asset: agentplugins_0.1.18_windows_arm64.exe}
+          - {runner: macos-15, os: macos, architecture: arm64, asset: agentplugins_0.1.24_darwin_arm64}
+          - {runner: macos-15-intel, os: macos, architecture: amd64, asset: agentplugins_0.1.24_darwin_amd64}
+          - {runner: ubuntu-24.04-arm, os: linux, architecture: arm64, asset: agentplugins_0.1.24_linux_arm64}
+          - {runner: ubuntu-24.04, os: linux, architecture: amd64, asset: agentplugins_0.1.24_linux_amd64}
+          - {runner: windows-2025, os: windows, architecture: amd64, asset: agentplugins_0.1.24_windows_amd64.exe}
+          - {runner: windows-11-arm, os: windows, architecture: arm64, asset: agentplugins_0.1.24_windows_arm64.exe}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -225,6 +225,7 @@ jobs:
           python scripts/observe_release_facade.py --context "$run_root/context.json" \
             --executable "$run_root/release/$ASSET_NAME" --asset-name "$ASSET_NAME" \
             --kind binary --os "${{ matrix.os }}" --architecture "${{ matrix.architecture }}" \
+            --schema-version 2 \
             --output native-observation.json
           sha256sum native-observation.json > native-observation.SHA256SUMS
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -278,7 +279,7 @@ jobs:
           PUBLICATION_LEDGER_COMMIT: ${{ inputs.publication_ledger_commit }}
         run: |
           run_root="${RUNNER_TEMP}/uap-node22-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          python scripts/prepare_launch_evidence.py --asset-name agentplugins_0.1.18_linux_amd64 --npm-facade \
+          python scripts/prepare_launch_evidence.py --asset-name agentplugins_0.1.24_linux_amd64 --npm-facade \
             --publication-id "$PUBLICATION_ID" --publication-sequence "$PUBLICATION_SEQUENCE" \
             --publication-snapshot-digest "$PUBLICATION_SNAPSHOT_DIGEST" --publication-source-commit "$PUBLICATION_SOURCE_COMMIT" \
             --publication-ledger-commit "$PUBLICATION_LEDGER_COMMIT" \
@@ -289,17 +290,18 @@ jobs:
           export AGENTPLUGINS_CACHE_DIR="$run_root/npm-binary-cache"
           mkdir "$run_root/npm-audit"
           cd "$run_root/npm-audit"
-          npm install --ignore-scripts=false --save-exact universal-agent-plugins@0.1.18
+          npm install --ignore-scripts=false --save-exact universal-agent-plugins@0.1.24
           npm audit signatures
           cd "$GITHUB_WORKSPACE"
-          npm install --global "$run_root/npm/universal-agent-plugins-0.1.18.tgz" --ignore-scripts=false
+          npm install --global "$run_root/npm/universal-agent-plugins-0.1.24.tgz" --ignore-scripts=false
           npm_package_root="$(npm root --global)/universal-agent-plugins"
           test -d "$npm_package_root"
           test "$(node --version | cut -d. -f1)" = v22
           python scripts/observe_release_facade.py --context "$run_root/context.json" \
-            --executable "$npm_package_root/bin/agentplugins.js" --asset-name agentplugins_0.1.18_linux_amd64 \
+            --executable "$npm_package_root/bin/agentplugins.js" --asset-name agentplugins_0.1.24_linux_amd64 \
             --kind npm --os any --architecture any --node-major 22 --npm-project "$run_root/npm-audit" \
             --npm-package-root "$npm_package_root" --npm-binary-cache "$AGENTPLUGINS_CACHE_DIR" \
+            --schema-version 2 \
             --output npm-observation.json
           sha256sum npm-observation.json > npm-observation.SHA256SUMS
           mkdir prepared-observer-context prepared-producer-inputs prepared-policy-inputs
@@ -388,6 +390,7 @@ jobs:
           expected={('macos','arm64'),('macos','amd64'),('linux','arm64'),('linux','amd64'),('windows','amd64'),('windows','arm64')}
           assert {(x['os'],x['architecture']) for x in native} == expected
           records=[*native,npm]
+          assert {x['schema_version'] for x in records} == {2}
           assert {x['catalog_repository'] for x in records} == {config['catalog_repository']}
           assert {x['catalog_sha'] for x in records} == {'${{ github.sha }}'}
           assert {x['cli_release_repository'] for x in records} == {config['cli_release_repository']}
@@ -395,14 +398,15 @@ jobs:
           assert len({json.dumps(x['github_release_identity'],sort_keys=True) for x in records}) == 1
           release_identity=native[0]['github_release_identity']
           assert release_identity['repository'] == config['cli_release_repository']
-          assert release_identity['tag'] == config['cli_release_tag'] and release_identity['immutable'] is True
-          expected_assets={
-              'agentplugins_0.1.18_darwin_arm64','agentplugins_0.1.18_darwin_amd64',
-              'agentplugins_0.1.18_linux_arm64','agentplugins_0.1.18_linux_amd64',
-              'agentplugins_0.1.18_windows_arm64.exe','agentplugins_0.1.18_windows_amd64.exe',
+          assert release_identity == {
+              'repository': config['cli_release_repository'], 'tag': config['cli_release_tag'],
+              'tag_commit': config['cli_release_commit'], 'release_id': config['cli_release_id'],
+              'immutable': True,
           }
+          expected_assets={name: 'sha256:' + item['sha256'] for name,item in config['cli_release_assets'].items()}
           attestations=[x['github_asset_attestation'] for x in native]
-          assert {x['asset_name'] for x in attestations} == expected_assets
+          assert {x['asset_name']: x['asset_digest'] for x in native} == expected_assets
+          assert {x['asset_name'] for x in attestations} == set(expected_assets)
           expected_attestation_keys={'repository','workflow','tag','tag_commit','issuer','source_ref','source_digest','predicate_type','subject_name','subject_digest','runner_environment','asset_name','asset_digest','verified'}
           assert all(set(x) == expected_attestation_keys for x in attestations)
           assert all(x['verified'] is True and x['repository'] == config['cli_release_repository'] and x['workflow'] == config['cli_release_workflow'] and x['tag'] == config['cli_release_tag'] and x['tag_commit'] == release_identity['tag_commit'] and x['issuer'] == 'https://token.actions.githubusercontent.com' and x['source_ref'] == 'refs/heads/main' and x['source_digest'] == release_identity['tag_commit'] and x['predicate_type'] == 'https://slsa.dev/provenance/v1' and x['runner_environment'] == 'github-hosted' for x in attestations)
@@ -410,6 +414,10 @@ jobs:
           assert len({x['release_manifest_digest'] for x in records}) == 1
           assert len({x['release_checksums_digest'] for x in records}) == 1
           assert len({x['directory_digest'] for x in records}) == 1
+          assert {x['release_manifest_digest'] for x in records} == {config['cli_release_manifest_digest']}
+          assert {x['release_checksums_digest'] for x in records} == {config['cli_release_checksums_digest']}
+          assert npm['npm_package']['integrity'] == config['npm_facade_integrity']
+          assert npm['npm_package']['native_asset_digest'] == expected_assets['agentplugins_0.1.24_linux_amd64']
           PY
       - id: identity
         env:
@@ -448,7 +456,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: 777genius/plugin-kit-ai
-          ref: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
+          ref: c78c79e44efd5ad07083d63436d9170b107df6cb
           path: _plugin-kit-source
           fetch-depth: 0
           persist-credentials: false
@@ -464,16 +472,17 @@ jobs:
       - name: Run exact production-source policy tests without editing production source
         id: policy
         run: |
-          test "$(git -C _plugin-kit-source rev-parse HEAD)" = 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
-          test "$(git -C _plugin-kit-source describe --tags --exact-match HEAD)" = agentplugins-v0.1.18
+          test "$(git -C _plugin-kit-source rev-parse HEAD)" = c78c79e44efd5ad07083d63436d9170b107df6cb
+          test "$(git -C _plugin-kit-source describe --tags --exact-match HEAD)" = agentplugins-v0.1.24
           mkdir source-policy-evidence
           python scripts/run_source_policy_conformance.py \
             --source _plugin-kit-source \
             --release-manifest prepared/release-manifest.json \
             --release-checksums prepared/checksums.txt \
             --uap-sha "$GITHUB_SHA" \
+            --schema-version 2 \
             --output source-policy-evidence/source-policy-conformance.json
-          check-jsonschema --schemafile schemas/e2e/source-policy-conformance.schema.json source-policy-evidence/source-policy-conformance.json
+          check-jsonschema --schemafile schemas/e2e/source-policy-conformance-v2.schema.json source-policy-evidence/source-policy-conformance.json
           artifact_name="source-policy-conformance-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           evidence_digest="sha256:$(sha256sum source-policy-evidence/source-policy-conformance.json | cut -d' ' -f1)"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
@@ -748,7 +757,7 @@ jobs:
         run: |
           find native-observations -name native-observation.SHA256SUMS -execdir sha256sum --check native-observation.SHA256SUMS \;
           (cd native-observations/npm && sha256sum --check npm-observation.SHA256SUMS)
-          find native-observations -name '*observation.json' -print0 | xargs -0 check-jsonschema --schemafile tests/e2e/schemas/native-release-observation.schema.json
+          find native-observations -name '*observation.json' -print0 | xargs -0 check-jsonschema --schemafile tests/e2e/schemas/native-release-observation-v2.schema.json
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: prepared-producer-inputs-${{ github.run_id }}-${{ needs.node22-npm-facade.outputs.evidence_run_attempt }}
@@ -818,7 +827,7 @@ jobs:
         run: |
           python scripts/run_launch_evidence_e2e.py --prepared-context "$RUN_ROOT/context.json" \
             --uap-sha "$GITHUB_SHA" \
-            --asset-name agentplugins_0.1.18_linux_amd64 \
+            --asset-name agentplugins_0.1.24_linux_amd64 \
             --native-observations native-observations \
             --observer-bundle "$RUN_ROOT/live-inputs/observer-bundle.json" \
             --attestations "$RUN_ROOT/live-inputs/runtime-attestations.json" \
@@ -828,7 +837,7 @@ jobs:
             --copilot-executable "$RUN_ROOT/copilot/node_modules/.bin/copilot" \
             --copilot-metadata "$RUN_ROOT/copilot-metadata.json" \
             --output "$RUN_ROOT/evidence/launch-evidence.json"
-          check-jsonschema --schemafile tests/e2e/schemas/launch-evidence.schema.json "$RUN_ROOT/evidence/launch-evidence.json"
+          check-jsonschema --schemafile tests/e2e/schemas/launch-evidence-v5.schema.json "$RUN_ROOT/evidence/launch-evidence.json"
           python scripts/materialize_launch_evidence.py prepare-bundle \
             --artifact-dir "$RUN_ROOT/evidence" \
             --repository "$GITHUB_REPOSITORY" \
@@ -987,8 +996,9 @@ jobs:
             --publication-sequence "${{ inputs.publication_sequence }}" \
             --publication-snapshot-digest "${{ inputs.publication_snapshot_digest }}" \
             --publication-source-commit "${{ inputs.publication_source_commit }}" \
+            --schema-version 2 \
             --output two-lane-readiness/two-lane-readiness.json
-          check-jsonschema --schemafile schemas/e2e/two-lane-readiness.schema.json two-lane-readiness/two-lane-readiness.json
+          check-jsonschema --schemafile schemas/e2e/two-lane-readiness-v2.schema.json two-lane-readiness/two-lane-readiness.json
           artifact_name="two-lane-readiness-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           evidence_digest="sha256:$(sha256sum two-lane-readiness/two-lane-readiness.json | cut -d' ' -f1)"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"

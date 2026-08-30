@@ -1395,7 +1395,7 @@
               "delivery": "manual_activation",
               "app_binding": {
                 "app_key": "cloudflare-docs",
-                "id": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4",
+                "id": "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b",
                 "mcp_server": "cloudflare-docs"
               }
             },
@@ -1471,7 +1471,7 @@
           "minimum_installer_version": "0.1.8",
           "targets": [
             {"client": "codex", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "chatgpt", "authentication": "not_required", "scopes": ["user"], "delivery": "manual_activation", "app_binding": {"app_key": "cloudflare-docs", "id": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4", "mcp_server": "cloudflare-docs"}},
+            {"client": "chatgpt", "authentication": "not_required", "scopes": ["user"], "delivery": "manual_activation", "app_binding": {"app_key": "cloudflare-docs", "id": "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b", "mcp_server": "cloudflare-docs"}},
             {"client": "cursor", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
             {"client": "copilot", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
             {"client": "vscode", "authentication": "not_required", "scopes": ["user"], "delivery": "prepared"},

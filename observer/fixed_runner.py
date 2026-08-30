@@ -30,6 +30,7 @@ from observer.secure_files import IMMUTABLE_CLOSURE_ALIAS, read_immutable_closur
 
 MAX_MESSAGE = 8 << 20
 MAX_ADAPTER_OUTPUT = 4 << 20
+CHATGPT_MCP_ENDPOINT = "https://docs.mcp.cloudflare.com/mcp"
 RUNNER_TOTAL_SECONDS = 840
 KILL_WAIT_SECONDS = 2.0
 CGROUP_EMPTY_WAIT_SECONDS = 5.0
@@ -101,6 +102,39 @@ def strict_json_loads(encoded: bytes | str) -> Any:
 
     return json.loads(encoded, object_pairs_hook=object_from_pairs,
                       parse_constant=reject_constant, parse_float=finite_float)
+
+
+def validate_chatgpt_projection_receipt(
+    receipt: Any, binding: Any, chat: dict[str, Any],
+) -> None:
+    """Bind the protected projection receipt to exact immutable app inputs."""
+    root_fields = {"application_id", "product_id", "projection", "tuple"}
+    projection_fields = {
+        "app_json_digest", "codex_manifest_digest", "managed_digest",
+        "mcp_json_digest", "mcp_url",
+    }
+    projection = receipt.get("projection") if isinstance(receipt, dict) else None
+    digest_pattern = re.compile(r"sha256:[a-f0-9]{64}")
+    expected_binding_digest = "sha256:" + hashlib.sha256(canonical_json(binding)).hexdigest()
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != root_fields
+        or not isinstance(projection, dict)
+        or set(projection) != projection_fields
+        or any(
+            not isinstance(projection.get(field), str)
+            or digest_pattern.fullmatch(projection[field]) is None
+            for field in projection_fields - {"mcp_url"}
+        )
+        or not isinstance(projection.get("mcp_url"), str)
+        or projection["mcp_url"] != CHATGPT_MCP_ENDPOINT
+        or chat.get("mcp_endpoint") != CHATGPT_MCP_ENDPOINT
+        or projection["mcp_url"] != chat.get("mcp_endpoint")
+        or projection["app_json_digest"] != expected_binding_digest
+        or receipt.get("product_id") != "cloudflare-docs"
+        or receipt.get("application_id") != chat.get("app_id")
+    ):
+        raise ValueError("protected ChatGPT projection receipt differs from adapter config")
 
 
 def reviewed_service_identities() -> dict[str, tuple[int, int, frozenset[int]]]:
@@ -438,20 +472,22 @@ def validate_adapter_input_access(
             raise ValueError("protected input digest differs")
         if path in chat_paths:
             protected_chat_bytes[path] = encoded
-    binding = strict_json_loads(protected_chat_bytes[Path(chat["app_binding_path"])])
+    binding_body = protected_chat_bytes[Path(chat["app_binding_path"])]
+    binding = strict_json_loads(binding_body)
+    if binding_body != canonical_json(binding):
+        raise ValueError("protected ChatGPT app binding is not canonical")
     if binding != {"apps": {"cloudflare-docs": {"id": chat["app_id"]}}}:
         raise ValueError("protected ChatGPT app binding differs")
-    receipt = strict_json_loads(protected_chat_bytes[Path(chat["projection_receipt_path"])])
+    receipt_body = protected_chat_bytes[Path(chat["projection_receipt_path"])]
+    receipt = strict_json_loads(receipt_body)
+    if receipt_body != canonical_json(receipt):
+        raise ValueError("protected ChatGPT projection receipt is not canonical")
     static_tuple = lambda value: (
         {key: child for key, child in value.items() if key not in {"observed_at", "client_version"}}
         if isinstance(value, dict) else None
     )
-    if (
-        not isinstance(receipt, dict)
-        or receipt.get("product_id") != "cloudflare-docs"
-        or receipt.get("application_id") != chat["app_id"]
-        or static_tuple(receipt.get("tuple")) != static_tuple(chat["tuple"])
-    ):
+    validate_chatgpt_projection_receipt(receipt, binding, chat)
+    if static_tuple(receipt.get("tuple")) != static_tuple(chat["tuple"]):
         raise ValueError("protected ChatGPT projection receipt differs from adapter config")
     probes = tuple(
         [(path, path.parent == protected_root / "bin") for path in sorted(expected_files)]

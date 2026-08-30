@@ -284,6 +284,38 @@ def sha256(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
 
 
+def validate_chatgpt_projection_receipt(
+    receipt: Any, binding: Any, chat: dict[str, Any],
+) -> None:
+    """Bind the generated projection receipt to exact signed runtime inputs."""
+    root_fields = {"application_id", "product_id", "projection", "tuple"}
+    projection_fields = {
+        "app_json_digest", "codex_manifest_digest", "managed_digest",
+        "mcp_json_digest", "mcp_url",
+    }
+    projection = receipt.get("projection") if isinstance(receipt, dict) else None
+    digest_pattern = re.compile(r"sha256:[a-f0-9]{64}")
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != root_fields
+        or not isinstance(projection, dict)
+        or set(projection) != projection_fields
+        or any(
+            not isinstance(projection.get(field), str)
+            or digest_pattern.fullmatch(projection[field]) is None
+            for field in projection_fields - {"mcp_url"}
+        )
+        or not isinstance(projection.get("mcp_url"), str)
+        or projection["mcp_url"] != MCP_ENDPOINT
+        or chat.get("mcp_endpoint") != MCP_ENDPOINT
+        or projection["mcp_url"] != chat.get("mcp_endpoint")
+        or projection["app_json_digest"] != sha256(canonical_json(binding))
+        or receipt.get("product_id") != "cloudflare-docs"
+        or receipt.get("application_id") != chat.get("app_id")
+    ):
+        raise ValueError("ChatGPT projection receipt differs from the approved release identity")
+
+
 def exported_json(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
 
@@ -3911,15 +3943,17 @@ def chatgpt_artifact(config: dict[str, Any], request: dict[str, Any], github: di
         raise ValueError("ChatGPT app binding path is not exact")
     binding_snapshot = regular_snapshot(binding_path, chat["app_binding_sha256"], owner_uid=owner_uid, mode=0o640)
     binding = strict_json_loads(binding_snapshot["body"])
+    if binding_snapshot["body"] != canonical_json(binding):
+        raise ValueError("ChatGPT app binding is not canonical")
     if binding != {"apps": {"cloudflare-docs": {"id": chat["app_id"]}}} or chat["mcp_endpoint"] != MCP_ENDPOINT:
         raise ValueError("ChatGPT app binding differs")
     receipt_path = Path(chat["projection_receipt_path"])
     receipt_snapshot = regular_snapshot(receipt_path, chat["projection_receipt_sha256"], owner_uid=owner_uid, mode=0o640)
     receipt = strict_json_loads(receipt_snapshot["body"])
-    if (
-        receipt.get("product_id") != "cloudflare-docs" or receipt.get("application_id") != chat["app_id"]
-        or _static_tuple(receipt.get("tuple")) != _static_tuple(chat["tuple"])
-    ):
+    if receipt_snapshot["body"] != canonical_json(receipt):
+        raise ValueError("ChatGPT projection receipt is not canonical")
+    validate_chatgpt_projection_receipt(receipt, binding, chat)
+    if _static_tuple(receipt.get("tuple")) != _static_tuple(chat["tuple"]):
         raise ValueError("ChatGPT projection receipt differs from the approved release identity")
     initialized, session = mcp_call(MCP_ENDPOINT, 1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "uap-observer", "version": "1"}})
     if initialized.get("protocolVersion") != "2025-06-18":

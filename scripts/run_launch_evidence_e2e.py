@@ -65,7 +65,12 @@ from observe_launch_scenario import (  # noqa: E402
     validate_cli_envelope,
 )
 from two_lane_evidence import (  # noqa: E402
+    PLUGIN_KIT_COMMIT,
+    PLUGIN_KIT_TAG,
     POLICY_SCENARIO_SET,
+    RELEASED_LINUX_AMD64_DIGEST,
+    RELEASE_CHECKSUMS_DIGEST,
+    RELEASE_MANIFEST_DIGEST,
     classified_runtime_lists,
     reject_policy_scenario_before_effect,
 )
@@ -80,7 +85,6 @@ CAPTURE_PROVENANCE = ROOT / "tests" / "fixtures" / "agentplugins-0.1.14" / "prov
 RECOVERY_FIXTURE = ROOT / "tests" / "e2e" / "fixtures" / "recovery-cases.json"
 SCENARIO_OBSERVER = ROOT / "scripts" / "observe_launch_scenario.py"
 PRODUCTION_CONFIG = ROOT / "tests" / "e2e" / "production-launch.json"
-STABLE_LAUNCH_VERSION_FILE = ROOT / "tests" / "e2e" / "stable-launch-version.txt"
 PRODUCTION_DIRECTORY_TRUST = ROOT / "registry" / "publication" / "trusted-keys.json"
 RELEASE_MANIFEST_NAME = "release-manifest.json"
 RELEASE_CHECKSUMS_NAME = "checksums.txt"
@@ -100,11 +104,95 @@ TRUSTED_OBSERVER_SUBJECT = (
 TRUSTED_OBSERVER_WORKFLOW_REF = f"{TRUSTED_CATALOG_REPOSITORY}/.github/workflows/directory-publication.yml@{TRUSTED_OBSERVER_REF}"
 TRUSTED_OBSERVER_JOB_WORKFLOW_REF = f"{TRUSTED_CATALOG_REPOSITORY}/.github/workflows/launch-evidence-e2e.yml@{TRUSTED_OBSERVER_REF}"
 TRUSTED_CLI_RELEASE_REPOSITORY = "777genius/plugin-kit-ai"
-TRUSTED_CLI_RELEASE_TAG = "agentplugins-v" + STABLE_LAUNCH_VERSION_FILE.read_text(encoding="utf-8").strip()
+CURRENT_LAUNCH_VERSION = "0.1.24"
+TRUSTED_CLI_RELEASE_TAG = PLUGIN_KIT_TAG
 TRUSTED_CLI_RELEASE_WORKFLOW = "777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml"
-TRUSTED_CLI_RELEASE_COMMIT = "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"
+TRUSTED_CLI_RELEASE_COMMIT = PLUGIN_KIT_COMMIT
 TRUSTED_CLI_RELEASE_SOURCE_REF = "refs/heads/main"
+TRUSTED_CLI_RELEASE_ID = 379284682
+TRUSTED_CLI_RELEASE_ASSETS = {
+    "agentplugins_0.1.24_darwin_amd64": {"sha256": "93f7cc8fd9300e23719e63d08af1eb2cc1ed9743bac98de1e59c352623328bf2", "size": 12_299_152},
+    "agentplugins_0.1.24_darwin_arm64": {"sha256": "c9d3dfe4b4b06d70733841d72fd9c8b9070ce066f6fa5dd7260073cf69565972", "size": 11_474_578},
+    "agentplugins_0.1.24_linux_amd64": {"sha256": "e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca", "size": 12_185_784},
+    "agentplugins_0.1.24_linux_arm64": {"sha256": "6768db4cdc3faf41ec31194284ac8c92bc58953737a6164e0fe88cc13aae57a1", "size": 11_337_912},
+    "agentplugins_0.1.24_windows_amd64.exe": {"sha256": "0fc327e31009d5c9dc01b2b8cc091f98dd90012376fedb2b688b3e2293a0507d", "size": 12_459_520},
+    "agentplugins_0.1.24_windows_arm64.exe": {"sha256": "e178f6fc3318fd26056c8bcc073cc4426102063f80974c2b23801d50c749109c", "size": 11_418_112},
+}
+HISTORICAL_CLI_RELEASE_TAG = "agentplugins-v0.1.18"
+HISTORICAL_CLI_RELEASE_COMMIT = "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"
+HISTORICAL_CLI_RELEASE_ASSETS = {
+    "agentplugins_0.1.18_darwin_amd64": {"sha256": "94fd5875854ccbe1d5b734d3bd8fafdf0673697869ab0752a0b32c7d546a7dd9", "size": 11_783_952},
+    "agentplugins_0.1.18_darwin_arm64": {"sha256": "51d8310e4b1c85e9d33a6bf1917ba24b897c1382f95663419b9f127101a05d5b", "size": 11_008_994},
+    "agentplugins_0.1.18_linux_amd64": {"sha256": "9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779", "size": 11_677_880},
+    "agentplugins_0.1.18_linux_arm64": {"sha256": "92b3f40da0df229c99cc27a33917d0cadb8f8c3e23b9be037d8e7deb05bc8644", "size": 10_879_160},
+    "agentplugins_0.1.18_windows_amd64.exe": {"sha256": "a0902b7138dfc918d8bfc9b2e9169b64f5cb7d57bced342f21220ddd45cfecb0", "size": 11_941_888},
+    "agentplugins_0.1.18_windows_arm64.exe": {"sha256": "48f473047a7a6468246013d40b9adfe438cdb4c6e58b4edf1689f072f0bbfdb6", "size": 10_956_288},
+}
 TRUSTED_SANITIZED_CAPTURE_MANIFEST = "sha256:1e7e5ca4d72be2e188bbfa002cf19975b4e1b100913a329bbaf963b5633abb85"
+
+
+def current_github_asset_attestation(
+    *, asset_name: str, asset_digest: str, subject_name: str,
+) -> dict[str, Any]:
+    """Build the exact provenance record used by the current prepared path."""
+    if (
+        not isinstance(asset_name, str)
+        or Path(asset_name).name != asset_name
+        or not asset_name
+        or not isinstance(subject_name, str)
+        or Path(subject_name).name != subject_name
+        or not subject_name
+        or not DIGEST.fullmatch(asset_digest)
+    ):
+        raise ValueError("current GitHub asset attestation identity is invalid")
+    return {
+        "repository": TRUSTED_CLI_RELEASE_REPOSITORY,
+        "workflow": TRUSTED_CLI_RELEASE_WORKFLOW,
+        "tag": TRUSTED_CLI_RELEASE_TAG,
+        "tag_commit": TRUSTED_CLI_RELEASE_COMMIT,
+        "issuer": "https://token.actions.githubusercontent.com",
+        "source_ref": TRUSTED_CLI_RELEASE_SOURCE_REF,
+        "source_digest": TRUSTED_CLI_RELEASE_COMMIT,
+        "predicate_type": "https://slsa.dev/provenance/v1",
+        "subject_name": subject_name,
+        "subject_digest": asset_digest,
+        "runner_environment": "github-hosted",
+        "asset_name": asset_name,
+        "asset_digest": asset_digest,
+        "verified": True,
+    }
+
+
+def historical_github_asset_attestation(
+    *, asset_name: str, asset_digest: str, subject_name: str,
+) -> dict[str, Any]:
+    """Build the exact provenance record used by the retained 0.1.18 path."""
+    if (
+        not isinstance(asset_name, str)
+        or Path(asset_name).name != asset_name
+        or not asset_name
+        or not isinstance(subject_name, str)
+        or Path(subject_name).name != subject_name
+        or not subject_name
+        or not DIGEST.fullmatch(asset_digest)
+    ):
+        raise ValueError("historical GitHub asset attestation identity is invalid")
+    return {
+        "repository": TRUSTED_CLI_RELEASE_REPOSITORY,
+        "workflow": TRUSTED_CLI_RELEASE_WORKFLOW,
+        "tag": HISTORICAL_CLI_RELEASE_TAG,
+        "tag_commit": HISTORICAL_CLI_RELEASE_COMMIT,
+        "issuer": "https://token.actions.githubusercontent.com",
+        "source_ref": TRUSTED_CLI_RELEASE_SOURCE_REF,
+        "source_digest": HISTORICAL_CLI_RELEASE_COMMIT,
+        "predicate_type": "https://slsa.dev/provenance/v1",
+        "subject_name": subject_name,
+        "subject_digest": asset_digest,
+        "runner_environment": "github-hosted",
+        "asset_name": asset_name,
+        "asset_digest": asset_digest,
+        "verified": True,
+    }
 
 
 def validate_capture_provenance(path: Path = CAPTURE_PROVENANCE) -> dict[str, Any]:
@@ -222,7 +310,7 @@ def validate_capture_release_binding(
         # are deliberately unlinked from the current release binary and cannot
         # become current runtime evidence. Authenticate the enforced binary
         # against the independently frozen stable release instead.
-        and release_manifest.get("version") == STABLE_LAUNCH_VERSION_FILE.read_text(encoding="utf-8").strip()
+        and release_manifest.get("version") == CURRENT_LAUNCH_VERSION
         and isinstance(declared, dict) and declared.get("file") == asset_name
         and isinstance(declared.get("sha256"), str)
         and asset_digest == "sha256:" + declared["sha256"] and DIGEST.fullmatch(asset_digest)
@@ -551,13 +639,15 @@ def read_production_config() -> dict[str, Any]:
         or value.get("cli_release_repository") != TRUSTED_CLI_RELEASE_REPOSITORY
         or value.get("cli_release_tag") != TRUSTED_CLI_RELEASE_TAG
         or value.get("cli_release_commit") != TRUSTED_CLI_RELEASE_COMMIT
+        or value.get("cli_release_id") != TRUSTED_CLI_RELEASE_ID
+        or value.get("cli_release_assets") != TRUSTED_CLI_RELEASE_ASSETS
         or value.get("cli_release_workflow") != TRUSTED_CLI_RELEASE_WORKFLOW
-        or value.get("cli_release_manifest_digest") != "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57"
-        or value.get("cli_release_checksums_digest") != "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8"
+        or value.get("cli_release_manifest_digest") != RELEASE_MANIFEST_DIGEST
+        or value.get("cli_release_checksums_digest") != RELEASE_CHECKSUMS_DIGEST
         or value.get("npm_facade_package") != "universal-agent-plugins"
-        or value.get("npm_facade_version") != "0.1.18"
-        or value.get("npm_facade_integrity") != "sha512-48UfVVaGrvmniWQpoiXQYZvTS3QqrCN0HFLSQBVCsqQJwPdecRtuK9XEsOs4nTMQuWImjX6ZAflUeY/79biRZg=="
-        or value.get("directory_source_digest") != "sha256:e4998f9ed1aca8a76cc2efa9ae5d2945dd4c3410ecf7263df8429d863f84d05d"
+        or value.get("npm_facade_version") != CURRENT_LAUNCH_VERSION
+        or value.get("npm_facade_integrity") != "sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw=="
+        or value.get("directory_source_digest") != "sha256:7d2e82322377e8f83a94912113c28287aebaf7ddf68f1908e709adca865aa21b"
         or value.get("scenario_contract_digest") != "sha256:30a5a44dd6a1a32957dcba1a6d96ccb7c64f4fc7ed042a29bec6108f30011c32"
         or value.get("copilot_cli_package") != "@github/copilot"
         or value.get("copilot_cli_version") != "1.0.80"
@@ -726,6 +816,13 @@ def resolve_github_release(
     ``fixture_fetch`` exists solely for direct unit tests. Production callers cannot
     select URLs, checksums, or versions independently.
     """
+    if (
+        fixture_fetch is None
+        and attestation_verifier not in (
+            None, verify_github_asset_attestation, verify_historical_github_asset_attestation,
+        )
+    ):
+        raise ValueError("production release resolution requires a statically allowlisted attestation verifier")
     if not re.fullmatch(r"agentplugins-v[0-9]+\.[0-9]+\.[0-9]+", tag):
         raise ValueError("release tag must be an exact stable agentplugins-vX.Y.Z tag")
     release = github_json(repository, f"releases/tags/{tag}", token=token)
@@ -901,35 +998,34 @@ def validate_prepared_github_release(
     ):
         raise ValueError("prepared native asset bytes differ from the authenticated manifest/checksum identity")
 
-    expected_attestation = {
-        "repository": config["cli_release_repository"],
-        "workflow": config["cli_release_workflow"],
-        "tag": config["cli_release_tag"],
-        "tag_commit": config["cli_release_commit"],
-        "asset_name": asset_name,
-        "asset_digest": binary_digest,
-        "verified": True,
-    }
+    expected_attestation = current_github_asset_attestation(
+        asset_name=asset_name, asset_digest=binary_digest, subject_name=asset_name,
+    )
     if attestation != expected_attestation or attestation != prepared.get("github_asset_attestation"):
         raise ValueError("prepared native asset attestation differs from the trusted release identity")
     return paths["binary"], manifest, identity, manifest_digest, checksums_digest
 
 
-def verify_github_asset_attestation(
+def _verify_github_asset_attestation(
     asset: Path, repository: str, workflow: str, tag: str, tag_commit: str, digest: str,
-    subject_name: str | None = None,
+    subject_name: str | None, *, expected_tag: str, expected_commit: str,
+    expected_assets: dict[str, dict[str, Any]],
+    record_builder: Callable[..., dict[str, Any]],
 ) -> dict[str, Any]:
-    """Cryptographically verify one GitHub artifact attestation with fixed identities."""
+    """Cryptographically verify one statically allowlisted GitHub release asset."""
+    subject_name = asset.name if subject_name is None else subject_name
+    expected_asset = expected_assets.get(subject_name) if isinstance(subject_name, str) else None
     if (
         repository != TRUSTED_CLI_RELEASE_REPOSITORY
         or workflow != TRUSTED_CLI_RELEASE_WORKFLOW
-        or tag != TRUSTED_CLI_RELEASE_TAG
-        or tag_commit != TRUSTED_CLI_RELEASE_COMMIT
+        or tag != expected_tag
+        or tag_commit != expected_commit
+        or not isinstance(expected_asset, dict)
+        or digest != "sha256:" + str(expected_asset.get("sha256", ""))
     ):
         raise ValueError("artifact attestation repository/workflow is not the trusted release identity")
     if not FULL_SHA.fullmatch(tag_commit) or not DIGEST.fullmatch(digest):
         raise ValueError("artifact attestation commit or digest is invalid")
-    subject_name = asset.name if subject_name is None else subject_name
     if not isinstance(subject_name, str) or Path(subject_name).name != subject_name or not subject_name:
         raise ValueError("artifact attestation subject name is invalid")
     command = [
@@ -962,15 +1058,37 @@ def verify_github_asset_attestation(
             matching.append(record)
     if not matching:
         raise ValueError("GitHub artifact attestation subject name/digest does not match the native asset")
-    return {
-        "repository": repository, "workflow": workflow, "tag": tag,
-        "tag_commit": tag_commit, "issuer": "https://token.actions.githubusercontent.com",
-        "source_ref": TRUSTED_CLI_RELEASE_SOURCE_REF, "source_digest": tag_commit,
-        "predicate_type": "https://slsa.dev/provenance/v1", "subject_name": subject_name,
-        "subject_digest": digest, "runner_environment": "github-hosted",
-        "asset_name": asset.name, "asset_digest": digest,
-        "verified": True,
-    }
+    return record_builder(
+        asset_name=asset.name, asset_digest=digest, subject_name=subject_name,
+    )
+
+
+def verify_github_asset_attestation(
+    asset: Path, repository: str, workflow: str, tag: str, tag_commit: str, digest: str,
+    subject_name: str | None = None,
+) -> dict[str, Any]:
+    """Verify only the exact current 0.1.24 release identity."""
+    return _verify_github_asset_attestation(
+        asset, repository, workflow, tag, tag_commit, digest, subject_name,
+        expected_tag=TRUSTED_CLI_RELEASE_TAG,
+        expected_commit=TRUSTED_CLI_RELEASE_COMMIT,
+        expected_assets=TRUSTED_CLI_RELEASE_ASSETS,
+        record_builder=current_github_asset_attestation,
+    )
+
+
+def verify_historical_github_asset_attestation(
+    asset: Path, repository: str, workflow: str, tag: str, tag_commit: str, digest: str,
+    subject_name: str | None = None,
+) -> dict[str, Any]:
+    """Verify only the exact retained 0.1.18 release identity."""
+    return _verify_github_asset_attestation(
+        asset, repository, workflow, tag, tag_commit, digest, subject_name,
+        expected_tag=HISTORICAL_CLI_RELEASE_TAG,
+        expected_commit=HISTORICAL_CLI_RELEASE_COMMIT,
+        expected_assets=HISTORICAL_CLI_RELEASE_ASSETS,
+        record_builder=historical_github_asset_attestation,
+    )
 
 
 def resolve_npm_package(
@@ -1916,10 +2034,8 @@ class LaunchHarness:
             "id": hashlib.sha256(identity.encode()).hexdigest()[:24],
             "scenario": scenario, "plugin": plugin, "client": client,
             "level": level, "outcome": outcome,
-            "tuple": tuple_value, "reason": reason,
+            "tuple": tuple_value, "reason": reason, "details": details or {},
         }
-        if details:
-            row["details"] = details
         self.rows.append(row)
 
     def _load_attestations(self, path: Path | None, *, allow_external_pr: bool = False) -> dict[tuple[str, str, str], dict[str, Any]]:
@@ -1945,6 +2061,7 @@ class LaunchHarness:
                 raise ValueError(f"duplicate attestation tuple: {key}")
             if record.get("outcome") not in OUTCOMES:
                 raise ValueError(f"invalid attestation outcome: {key}")
+            self.validate_signed_chatgpt_app_identity(record)
             tuple_value = record.get("tuple", {})
             expected_scenario = "chatgpt_registered_binding" if record["client"] == "chatgpt" else "hero_5x3_runtime"
             privacy_fields = (
@@ -2320,6 +2437,52 @@ class LaunchHarness:
         clients = sorted({target["client"] for target in policy.get("targets", []) if "user" in target.get("scopes", [])})
         source = release.get("package_source", {})
         return {"product_id": product_id, "distribution_id": distribution["id"], "distribution_kind": distribution["kind"], "release_sequence": release["sequence"], "package_version": release.get("package_version"), "tree_digest": release["tree_digest"], "manifest_digest": release["manifest_digest"], "source_repository": source.get("repository"), "source_revision": source.get("revision"), "source_path": source.get("path"), "compatible_clients": clients, "resolved_targets": list(targets), "fallback_reason": resolved["fallback_reason"]}
+
+    def signed_chatgpt_app_id(self, product_id: str) -> str:
+        """Return the exact app id selected by the authenticated Directory policy."""
+        release = self.directory_release(product_id, ["chatgpt"])
+        distribution = next(
+            (item for item in self.snapshot.get("distributions", []) if item.get("id") == release["distribution_id"]),
+            None,
+        )
+        policies = [
+            item for item in (distribution or {}).get("release_policies", [])
+            if item.get("status") == "active" and item.get("release_sequence") == release["release_sequence"]
+        ]
+        if len(policies) != 1:
+            raise ValueError(f"signed Directory policy is ambiguous for {product_id}")
+        policy = policies[0]
+        targets = [
+            target for target in (policy or {}).get("targets", [])
+            if target.get("client") == "chatgpt" and "user" in target.get("scopes", [])
+        ]
+        if len(targets) != 1:
+            raise ValueError(f"signed Directory policy has no unique ChatGPT target for {product_id}")
+        binding = targets[0].get("app_binding")
+        if (
+            not isinstance(binding, dict)
+            or set(binding) != {"app_key", "id", "mcp_server"}
+            or type(binding.get("id")) is not str
+            or not binding["id"]
+        ):
+            raise ValueError(f"signed Directory policy has no exact ChatGPT app binding for {product_id}")
+        return binding["id"]
+
+    def validate_signed_chatgpt_app_identity(self, record: dict[str, Any]) -> None:
+        """Bind a positive protected-observer app chain to its signed target."""
+        if record.get("client") != "chatgpt" or record.get("outcome") != "passed":
+            return
+        product_id = record.get("plugin")
+        if type(product_id) is not str or not product_id:
+            raise ValueError("positive ChatGPT evidence lacks an exact product identity")
+        # The protected adapter emits application_id only after its immutable
+        # config, app-binding file, projection receipt, and human attestation
+        # agree. This final comparison binds that authenticated chain to the
+        # selected signed Directory target rather than a coherent substitute.
+        expected_app_id = self.signed_chatgpt_app_id(product_id)
+        if type(record.get("application_id")) is not str or record["application_id"] != expected_app_id:
+            key = (record.get("plugin"), record.get("client"), record.get("level"))
+            raise ValueError(f"ChatGPT application identity differs from the signed Directory target: {key}")
 
     def configured_source_release(self, scenario: str, targets: list[str] | tuple[str, ...]) -> dict[str, Any]:
         selection = self.config["source_identity_scenarios"][scenario]
@@ -2700,8 +2863,8 @@ class LaunchHarness:
         records: dict[tuple[str, str, str], dict[str, Any]] = {}
         for path in sorted(self.native_observations.rglob("*.json")):
             value = json.loads(path.read_text())
-            if value.get("schema_version") != 1:
-                continue
+            if value.get("schema_version") != 2:
+                raise ValueError("current native observation sidecars must use schema_version 2")
             kind = value.get("kind", "npm" if value.get("node_major") == 22 else "binary")
             key = (kind, value.get("os", "any"), value.get("architecture", "any"))
             if key in expected:
@@ -2947,7 +3110,7 @@ class LaunchHarness:
         runtime_lists = classified_runtime_lists(self.config)
         required_ids = list(runtime_lists["fault_adapter_advanced"] + runtime_lists["acceptance"]) + self.config["journeys"] + ["shared_copilot_vscode_backend"]
         return {
-            "schema_version": 4,
+            "schema_version": 5,
             "evidence_class": "released_binary" if self.mode == "enforced" else "fixture_contract",
             "run": {"id": hashlib.sha256(run_seed.encode()).hexdigest()[:16], "mode": self.mode, "runtime_claims": self.mode == "enforced", "observed_at": self.observed_at, "platform": self.os_name, "architecture": self.architecture, "disposable": True, "root_id": exported_root_id(self.challenge), "github_sha": self.github_sha, "github_run_id": self.github_run_id, "github_run_attempt": self.github_run_attempt, "caller_event_name": self.caller_event_name, "caller_ref": self.caller_ref, "caller_workflow_ref": self.caller_workflow_ref, "challenge": self.challenge.get("value") if self.challenge else None, "observer_bundle_digest": self.observer_bundle_digest, "cli": {"available": self.cli_available, "version": self.cli_version or self.expected_version, "binary_digest": self.binary_digest}},
             "release": {"repository": read_production_config()["cli_release_repository"] if self.mode == "enforced" else None, "tag": self.release_tag, "tag_commit": self.release_manifest.get("commit"), "release_id": self.release_identity.get("release_id"), "immutable": self.release_identity.get("immutable") if self.mode == "enforced" else None, "manifest_digest": self.release_manifest_digest, "checksums_digest": self.release_checksums_digest},
@@ -3055,6 +3218,16 @@ def assert_redacted(value: dict[str, Any]) -> None:
     if value.get("run", {}).get("mode") == "enforced" and value.get("summary", {}).get("hero_runtime_results") != 15:
         raise ValueError("enforced evidence requires exactly 15 hero runtime results")
     if value.get("run", {}).get("mode") == "enforced":
+        if (
+            value.get("schema_version") != 5
+            or value.get("run", {}).get("cli", {}).get("version") != CURRENT_LAUNCH_VERSION
+            or value.get("run", {}).get("cli", {}).get("binary_digest") != RELEASED_LINUX_AMD64_DIGEST
+            or value.get("release", {}).get("tag") != TRUSTED_CLI_RELEASE_TAG
+            or value.get("release", {}).get("tag_commit") != TRUSTED_CLI_RELEASE_COMMIT
+            or value.get("release", {}).get("manifest_digest") != RELEASE_MANIFEST_DIGEST
+            or value.get("release", {}).get("checksums_digest") != RELEASE_CHECKSUMS_DIGEST
+        ):
+            raise ValueError("enforced evidence is not the single accepted 0.1.24 release identity")
         scenarios = value.get("scenario_contract", {})
         config = json.loads(SCENARIOS.read_text())
         runtime_lists = classified_runtime_lists(config)
@@ -3082,6 +3255,25 @@ def assert_redacted(value: dict[str, Any]) -> None:
         }
         if actual_counts != EXPECTED_COUNTS:
             raise ValueError(f"enforced evidence row counts differ from immutable contract: {actual_counts}")
+        protected = [
+            row for row in rows
+            if row.get("scenario") == "hero_5x3_runtime"
+            or row.get("scenario") == "chatgpt_registered_binding"
+        ]
+        if len(protected) != 16 or any(
+            row.get("tuple", {}).get("binary_digest") != RELEASED_LINUX_AMD64_DIGEST
+            or row.get("tuple", {}).get("installer_version") != CURRENT_LAUNCH_VERSION
+            or row.get("tuple", {}).get("adapter_version") != CURRENT_LAUNCH_VERSION
+            or (
+                row.get("outcome") == "passed"
+                and (
+                    row.get("details", {}).get("release_manifest_digest") != RELEASE_MANIFEST_DIGEST
+                    or row.get("details", {}).get("release_checksums_digest") != RELEASE_CHECKSUMS_DIGEST
+                )
+            )
+            for row in protected
+        ):
+            raise ValueError("protected runtime rows do not share the exact 0.1.24 release tuple")
         validate_enforced_scenario_coverage(rows, config)
     if any(row.get("client") == "chatgpt" and row.get("plugin") != "cloudflare-docs" for row in value.get("matrix", [])):
         raise ValueError("evidence makes an unsupported broad ChatGPT inference")

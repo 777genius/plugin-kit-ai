@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Produce non-runtime policy conformance evidence from the exact 0.1.18 source."""
+"""Produce versioned non-runtime policy conformance evidence."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
 import os
 import subprocess
@@ -14,11 +15,7 @@ from typing import Any
 
 from two_lane_evidence import (
     FIXTURE_KEY_ID,
-    PLUGIN_KIT_COMMIT,
     PLUGIN_KIT_REPOSITORY,
-    PLUGIN_KIT_TAG,
-    RELEASE_CHECKSUMS_DIGEST,
-    RELEASE_MANIFEST_DIGEST,
     POLICY_SCENARIO_IDS,
     canonical_json,
     sha256,
@@ -32,6 +29,63 @@ HARNESS = ROOT / "tests" / "e2e" / "source-policy-tests.json"
 OVERLAY = ROOT / "tests" / "e2e" / "source-policy-overlay.json"
 SCENARIOS = ROOT / "tests" / "e2e" / "launch-scenarios.json"
 GIT = "/usr/bin/git"
+
+V1_PLUGIN_KIT_TAG = "agentplugins-v0.1.18"
+V1_PLUGIN_KIT_COMMIT = "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"
+V1_RELEASE_MANIFEST_DIGEST = "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57"
+V1_RELEASE_CHECKSUMS_DIGEST = "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8"
+V2_PLUGIN_KIT_TAG = "agentplugins-v0.1.24"
+V2_PLUGIN_KIT_COMMIT = "c78c79e44efd5ad07083d63436d9170b107df6cb"
+V2_PLUGIN_KIT_PRODUCTION_TREE_DIGEST = "sha256:3635457d320bc2c78a86b9b3d8e4937d14ac59848ffae70c6571167204130de8"
+V2_RELEASED_LINUX_AMD64_DIGEST = "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"
+V2_RELEASE_MANIFEST_DIGEST = "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2"
+V2_RELEASE_CHECKSUMS_DIGEST = "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3"
+
+
+def release_contract(schema_version: int) -> dict[str, str]:
+    contracts = {
+        1: {
+            "tag": V1_PLUGIN_KIT_TAG,
+            "commit": V1_PLUGIN_KIT_COMMIT,
+            "version": "0.1.18",
+            "production_tree_digest": "sha256:4a64cddbf6680d55270a8bec9b3810673995b7328d8ff62feab8421a65378607",
+            "linux_amd64_digest": "sha256:9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779",
+            "manifest_digest": V1_RELEASE_MANIFEST_DIGEST,
+            "checksums_digest": V1_RELEASE_CHECKSUMS_DIGEST,
+        },
+        2: {
+            "tag": V2_PLUGIN_KIT_TAG,
+            "commit": V2_PLUGIN_KIT_COMMIT,
+            "version": "0.1.24",
+            "production_tree_digest": V2_PLUGIN_KIT_PRODUCTION_TREE_DIGEST,
+            "linux_amd64_digest": V2_RELEASED_LINUX_AMD64_DIGEST,
+            "manifest_digest": V2_RELEASE_MANIFEST_DIGEST,
+            "checksums_digest": V2_RELEASE_CHECKSUMS_DIGEST,
+        },
+    }
+    try:
+        return contracts[schema_version]
+    except KeyError as error:
+        raise ValueError("unsupported source-policy evidence schema version") from error
+
+
+def validate_completed_policy(
+    value: dict[str, Any], *, schema_version: int, validator_args: dict[str, str],
+) -> None:
+    parameters = inspect.signature(validate_source_policy_evidence).parameters.values()
+    version_aware = any(
+        parameter.name == "expected_schema_version"
+        or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+    if version_aware:
+        validate_source_policy_evidence(
+            value, expected_schema_version=schema_version, **validator_args,
+        )
+    elif schema_version == 1:
+        validate_source_policy_evidence(value, **validator_args)
+    else:
+        raise RuntimeError("source-policy v2 requires the version-aware evidence validator")
 
 
 def git(source: Path, *args: str) -> str:
@@ -53,10 +107,11 @@ def source_tree_digest(source: Path) -> str:
     return sha256(bytes(framed))
 
 
-def validate_source_identity(source: Path) -> str:
-    if git(source, "rev-parse", "HEAD") != PLUGIN_KIT_COMMIT:
+def validate_source_identity(source: Path, *, schema_version: int = 1) -> str:
+    contract = release_contract(schema_version)
+    if git(source, "rev-parse", "HEAD") != contract["commit"]:
         raise ValueError("wrong plugin-kit commit")
-    if git(source, "describe", "--tags", "--exact-match", "HEAD") != PLUGIN_KIT_TAG:
+    if git(source, "describe", "--tags", "--exact-match", "HEAD") != contract["tag"]:
         raise ValueError("wrong plugin-kit tag")
     origins = git(source, "remote", "get-url", "origin")
     accepted = {
@@ -68,24 +123,37 @@ def validate_source_identity(source: Path) -> str:
         raise ValueError("wrong plugin-kit repository")
     if git(source, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("plugin-kit production source checkout is not clean")
-    return source_tree_digest(source)
+    digest = source_tree_digest(source)
+    if digest != contract["production_tree_digest"]:
+        raise ValueError("plugin-kit production source tree differs from the frozen release identity")
+    return digest
 
 
-def validate_release_identity(manifest_path: Path, checksums_path: Path) -> tuple[str, str]:
+def validate_release_identity(
+    manifest_path: Path, checksums_path: Path, *, schema_version: int = 1,
+) -> tuple[str, str]:
+    contract = release_contract(schema_version)
     manifest = json.loads(manifest_path.read_text())
     if (
         manifest.get("repository") not in (None, PLUGIN_KIT_REPOSITORY)
-        or manifest.get("tag") != PLUGIN_KIT_TAG
-        or manifest.get("commit") != PLUGIN_KIT_COMMIT
-        or manifest.get("version") != "0.1.18"
+        or manifest.get("tag") != contract["tag"]
+        or manifest.get("commit") != contract["commit"]
+        or manifest.get("version") != contract["version"]
     ):
         raise ValueError("release manifest identity mismatch")
     checksums = checksums_path.read_text()
-    if "agentplugins_0.1.18_linux_amd64" not in checksums:
+    expected_checksum = (
+        f'{contract["linux_amd64_digest"].removeprefix("sha256:")}  '
+        f'agentplugins_{contract["version"]}_linux_amd64'
+    )
+    if expected_checksum not in checksums.splitlines():
         raise ValueError("release checksums omit the pinned Linux asset")
     identities = (sha256_file(manifest_path), sha256_file(checksums_path))
-    if identities != (RELEASE_MANIFEST_DIGEST, RELEASE_CHECKSUMS_DIGEST):
-        raise ValueError("release manifest/checksum bytes differ from the frozen 0.1.18 identity")
+    if identities != (contract["manifest_digest"], contract["checksums_digest"]):
+        raise ValueError(
+            "release manifest/checksum bytes differ from the frozen "
+            f'{contract["version"]} identity'
+        )
     return identities
 
 
@@ -118,11 +186,14 @@ def run_test(source: Path, package: str, name: str, go: str, *, scratch: Path) -
 
 
 def produce(source: Path, manifest: Path, checksums: Path, *, go: str,
-            uap_sha: str) -> dict[str, Any]:
+            uap_sha: str, schema_version: int = 1) -> dict[str, Any]:
     if len(uap_sha) != 40 or any(character not in "0123456789abcdef" for character in uap_sha):
         raise ValueError("invalid universal-agent-plugins source SHA")
-    before = validate_source_identity(source)
-    manifest_digest, checksums_digest = validate_release_identity(manifest, checksums)
+    contract = release_contract(schema_version)
+    before = validate_source_identity(source, schema_version=schema_version)
+    manifest_digest, checksums_digest = validate_release_identity(
+        manifest, checksums, schema_version=schema_version,
+    )
     harness = json.loads(HARNESS.read_text())
     overlay = json.loads(OVERLAY.read_text())
     if (
@@ -162,12 +233,12 @@ def produce(source: Path, manifest: Path, checksums: Path, *, go: str,
                 "id": scenario_id, "outcome": "passed" if test["passed"] else "failed",
                 "test": test, "proof": proof, "proof_digest": sha256(canonical_json(proof)),
             })
-    after = validate_source_identity(source)
+    after = validate_source_identity(source, schema_version=schema_version)
     unchanged = before == after
     identities = {
         "plugin_kit_repository": PLUGIN_KIT_REPOSITORY,
-        "plugin_kit_tag": PLUGIN_KIT_TAG,
-        "plugin_kit_commit": PLUGIN_KIT_COMMIT,
+        "plugin_kit_tag": contract["tag"],
+        "plugin_kit_commit": contract["commit"],
         "release_manifest_digest": manifest_digest,
         "release_checksums_digest": checksums_digest,
         "uap_sha": uap_sha,
@@ -179,7 +250,7 @@ def produce(source: Path, manifest: Path, checksums: Path, *, go: str,
     }
     complete = unchanged and all(row["outcome"] == "passed" for row in results)
     value = {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "evidence_class": "source_policy_conformance",
         "runtime_claims": False,
         "released_binary_executed": False,
@@ -190,10 +261,14 @@ def produce(source: Path, manifest: Path, checksums: Path, *, go: str,
         "policy_conformance_gate_complete": complete,
     }
     if complete:
-        validate_source_policy_evidence(
-            value, scenario_digest=identities["scenario_digest"],
-            harness_digest=identities["harness_digest"], overlay_digest=identities["overlay_digest"],
-            uap_sha=uap_sha,
+        validator_args = {
+            "scenario_digest": identities["scenario_digest"],
+            "harness_digest": identities["harness_digest"],
+            "overlay_digest": identities["overlay_digest"],
+            "uap_sha": uap_sha,
+        }
+        validate_completed_policy(
+            value, schema_version=schema_version, validator_args=validator_args,
         )
     return value
 
@@ -205,12 +280,14 @@ def main() -> int:
     parser.add_argument("--release-checksums", type=Path, required=True)
     parser.add_argument("--go", default="go")
     parser.add_argument("--uap-sha", required=True)
+    parser.add_argument("--schema-version", type=int, choices=(1, 2), default=1)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         raise ValueError("policy evidence output must not already exist")
     value = produce(args.source.resolve(strict=True), args.release_manifest.resolve(strict=True),
-                    args.release_checksums.resolve(strict=True), go=args.go, uap_sha=args.uap_sha)
+                    args.release_checksums.resolve(strict=True), go=args.go, uap_sha=args.uap_sha,
+                    schema_version=args.schema_version)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(canonical_json(value))
     print(json.dumps({"policy_conformance_gate_complete": value["policy_conformance_gate_complete"]}))

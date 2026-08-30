@@ -52,7 +52,7 @@ REVIEW_PREVIEW = ROOT / "registry" / "review-preview.json"
 REVIEW_SEARCH = ROOT / "registry" / "review-search.json"
 LEGACY_CATALOG_DIGESTS = {
     ROOT / "catalog" / "v1" / "catalog.json": "sha256:9ed64038a8a1b1eab6956008f94b3ffa16f1b6ddf01e8b2809b202656423f183",
-    ROOT / "catalog" / "v2" / "catalog.json": "sha256:66199c87bd68c65e39d15aa2c5c6e6c7830c9b116d8ed3590123031b32357050",
+    ROOT / "catalog" / "v2" / "catalog.json": "sha256:5f2d4d0161ef92eb4424437b86a47f3143b67efb5e63883409ed7ccb8edf493c",
     ROOT / "registry" / "index.json": "sha256:c38141953857be29383813e56e58383457c8b14ac8e2bdfcbcdec31bcd4b7207",
 }
 REPOSITORY_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?$")

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Challenge-bound native release facade observation v2",
+  "type": "object",
+  "required": ["schema_version", "kind", "os", "architecture", "node_major", "executed", "version", "catalog_repository", "catalog_sha", "cli_release_repository", "cli_release_tag", "github_release_identity", "release_manifest_digest", "release_checksums_digest", "directory_digest", "asset_name", "asset_digest", "github_asset_attestation", "challenge", "challenge_context", "started_at", "observed_at", "command_trace", "runner_platform"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "kind": {"enum": ["binary", "npm"]},
+    "os": {"enum": ["macos", "linux", "windows", "any"]},
+    "architecture": {"enum": ["arm64", "amd64", "any"]},
+    "node_major": {"type": ["integer", "null"]},
+    "executed": {"const": true},
+    "version": {"const": "0.1.24"},
+    "catalog_repository": {"const": "777genius/universal-agent-plugins"},
+    "catalog_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "cli_release_repository": {"const": "777genius/plugin-kit-ai"},
+    "cli_release_tag": {"const": "agentplugins-v0.1.24"},
+    "github_release_identity": {"type": "object", "required": ["repository", "tag", "tag_commit", "release_id", "immutable"], "properties": {"repository": {"const": "777genius/plugin-kit-ai"}, "tag": {"const": "agentplugins-v0.1.24"}, "tag_commit": {"const": "c78c79e44efd5ad07083d63436d9170b107df6cb"}, "release_id": {"const": 379284682}, "immutable": {"const": true}}, "additionalProperties": false},
+    "release_manifest_digest": {"const": "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2"},
+    "release_checksums_digest": {"const": "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3"},
+    "directory_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "asset_name": {"enum": ["agentplugins_0.1.24_darwin_amd64", "agentplugins_0.1.24_darwin_arm64", "agentplugins_0.1.24_linux_amd64", "agentplugins_0.1.24_linux_arm64", "agentplugins_0.1.24_windows_amd64.exe", "agentplugins_0.1.24_windows_arm64.exe"]},
+    "asset_digest": {"enum": ["sha256:93f7cc8fd9300e23719e63d08af1eb2cc1ed9743bac98de1e59c352623328bf2", "sha256:c9d3dfe4b4b06d70733841d72fd9c8b9070ce066f6fa5dd7260073cf69565972", "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca", "sha256:6768db4cdc3faf41ec31194284ac8c92bc58953737a6164e0fe88cc13aae57a1", "sha256:0fc327e31009d5c9dc01b2b8cc091f98dd90012376fedb2b688b3e2293a0507d", "sha256:e178f6fc3318fd26056c8bcc073cc4426102063f80974c2b23801d50c749109c"]},
+    "github_asset_attestation": {"type": "object", "required": ["repository", "workflow", "tag", "tag_commit", "issuer", "source_ref", "source_digest", "predicate_type", "subject_name", "subject_digest", "runner_environment", "asset_name", "asset_digest", "verified"], "properties": {"repository": {"const": "777genius/plugin-kit-ai"}, "workflow": {"const": "777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml"}, "tag": {"const": "agentplugins-v0.1.24"}, "tag_commit": {"const": "c78c79e44efd5ad07083d63436d9170b107df6cb"}, "issuer": {"const": "https://token.actions.githubusercontent.com"}, "source_ref": {"const": "refs/heads/main"}, "source_digest": {"const": "c78c79e44efd5ad07083d63436d9170b107df6cb"}, "predicate_type": {"const": "https://slsa.dev/provenance/v1"}, "subject_name": {"type": "string", "minLength": 1}, "subject_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "runner_environment": {"const": "github-hosted"}, "asset_name": {"type": "string", "minLength": 1}, "asset_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "verified": {"const": true}}, "additionalProperties": false},
+    "challenge": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "challenge_context": {"type": "object"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "command_trace": {"type": "object"},
+    "runner_platform": {"type": "string", "minLength": 1},
+    "npm_package": {
+      "type": "object",
+      "required": ["name", "version", "integrity", "tarball", "metadata_digest", "provenance_url", "provenance_predicate_type", "installed_executable_digest", "native_asset_name", "native_asset_digest", "provenance_verified", "provenance_output_digest"],
+      "properties": {
+        "name": {"const": "universal-agent-plugins"},
+        "version": {"const": "0.1.24"},
+        "integrity": {"const": "sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw=="},
+        "tarball": {"const": "https://registry.npmjs.org/universal-agent-plugins/-/universal-agent-plugins-0.1.24.tgz"},
+        "metadata_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "provenance_url": {"const": "https://registry.npmjs.org/-/npm/v1/attestations/universal-agent-plugins@0.1.24"},
+        "provenance_predicate_type": {"const": "https://slsa.dev/provenance/v1"},
+        "installed_executable_digest": {"const": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"},
+        "native_asset_name": {"const": "agentplugins_0.1.24_linux_amd64"},
+        "native_asset_digest": {"const": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"},
+        "provenance_verified": {"const": true},
+        "provenance_output_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "npm"}}, "required": ["kind"]},
+      "then": {"required": ["npm_package"], "properties": {"asset_name": {"const": "agentplugins_0.1.24_linux_amd64"}, "asset_digest": {"const": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"}}}
+    },
+    {
+      "oneOf": [
+        {"properties": {"asset_name": {"const": "agentplugins_0.1.24_darwin_amd64"}, "asset_digest": {"const": "sha256:93f7cc8fd9300e23719e63d08af1eb2cc1ed9743bac98de1e59c352623328bf2"}}},
+        {"properties": {"asset_name": {"const": "agentplugins_0.1.24_darwin_arm64"}, "asset_digest": {"const": "sha256:c9d3dfe4b4b06d70733841d72fd9c8b9070ce066f6fa5dd7260073cf69565972"}}},
+        {"properties": {"asset_name": {"const": "agentplugins_0.1.24_linux_amd64"}, "asset_digest": {"const": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca"}}},
+        {"properties": {"asset_name": {"const": "agentplugins_0.1.24_linux_arm64"}, "asset_digest": {"const": "sha256:6768db4cdc3faf41ec31194284ac8c92bc58953737a6164e0fe88cc13aae57a1"}}},
+        {"properties": {"asset_name": {"const": "agentplugins_0.1.24_windows_amd64.exe"}, "asset_digest": {"const": "sha256:0fc327e31009d5c9dc01b2b8cc091f98dd90012376fedb2b688b3e2293a0507d"}}},
+        {"properties": {"asset_name": {"const": "agentplugins_0.1.24_windows_arm64.exe"}, "asset_digest": {"const": "sha256:e178f6fc3318fd26056c8bcc073cc4426102063f80974c2b23801d50c749109c"}}}
+      ]
+    }
+  ],
+  "additionalProperties": false
+}

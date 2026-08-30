@@ -17,6 +17,12 @@ from pathlib import Path
 PROOF_MODE = "local-frozen-release-asset-v1"
 PROOF_MODE_ENV = "AGENTPLUGINS_INTERNAL_PROOF_MODE"
 PROOF_BINARY_ENV = "AGENTPLUGINS_INTERNAL_PROOF_BINARY"
+V2_VERSION = "0.1.24"
+V2_TAG = "agentplugins-v0.1.24"
+V2_COMMIT = "c78c79e44efd5ad07083d63436d9170b107df6cb"
+V2_RELEASE_ID = 379284682
+V2_MANIFEST_DIGEST = "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2"
+V2_CHECKSUMS_DIGEST = "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3"
 
 
 def now() -> str:
@@ -37,6 +43,28 @@ def verify_installed_npm_payload(binary_cache_root: Path, native: dict[str, obje
     return matches[0], expected_digest
 
 
+def validate_v2_context(context: dict[str, object]) -> None:
+    manifest = context.get("release_manifest")
+    github_identity = context.get("github_release_identity")
+    if not isinstance(manifest, dict) or not isinstance(github_identity, dict):
+        raise RuntimeError("native observation v2 requires exact release identities")
+    if not (
+        manifest.get("tag") == V2_TAG
+        and manifest.get("version") == V2_VERSION
+        and manifest.get("commit") == V2_COMMIT
+        and context.get("cli_release_repository") == "777genius/plugin-kit-ai"
+        and context.get("cli_release_tag") == V2_TAG
+        and context.get("release_manifest_digest") == V2_MANIFEST_DIGEST
+        and context.get("release_checksums_digest") == V2_CHECKSUMS_DIGEST
+        and github_identity.get("repository") == "777genius/plugin-kit-ai"
+        and github_identity.get("tag") == V2_TAG
+        and github_identity.get("tag_commit") == V2_COMMIT
+        and github_identity.get("release_id") == V2_RELEASE_ID
+        and github_identity.get("immutable") is True
+    ):
+        raise RuntimeError("native observation v2 release identity mismatch")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context", type=Path, required=True)
@@ -49,9 +77,12 @@ def main() -> int:
     parser.add_argument("--npm-project", type=Path)
     parser.add_argument("--npm-package-root", type=Path)
     parser.add_argument("--npm-binary-cache", type=Path)
+    parser.add_argument("--schema-version", type=int, choices=(1, 2), default=1)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     context = json.loads(args.context.read_text())
+    if args.schema_version == 2:
+        validate_v2_context(context)
     if args.kind == "npm" and (
         args.node_major != 22
         or args.npm_project is None
@@ -124,7 +155,7 @@ def main() -> int:
     if len(asset_body) != declared["size"] or hashlib.sha256(asset_body).hexdigest() != declared_digest:
         raise RuntimeError("executed facade asset differs from its authenticated distribution identity")
     value = {
-        "schema_version": 1, "kind": args.kind, "os": args.os, "architecture": args.architecture,
+        "schema_version": args.schema_version, "kind": args.kind, "os": args.os, "architecture": args.architecture,
         "node_major": args.node_major, "executed": True, "version": version,
         "catalog_repository": context["catalog_repository"], "catalog_sha": context["github"]["sha"],
         "cli_release_repository": context["cli_release_repository"], "cli_release_tag": context["cli_release_tag"],

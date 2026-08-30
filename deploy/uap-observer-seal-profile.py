@@ -566,10 +566,12 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
 
 
 def matching_doctor(value: dict[str, Any], client: str, approved: dict[str, dict[str, Any]]) -> None:
-    """Validate one complete post-add 0.1.18 doctor inventory."""
+    """Validate one complete post-add 0.1.24 doctor inventory."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "doctor" or value.get("result") != "success":
-        raise ValueError("post-add doctor is not the exact successful 0.1.18 envelope")
+        raise ValueError("post-add doctor is not the exact successful 0.1.24 envelope")
     data = value.get("data")
+    if not isinstance(data, dict) or data.get("tool_version") != "0.1.24":
+        raise ValueError("post-add doctor tool_version is not exactly 0.1.24")
     if isinstance(data, dict) and set(data) == {
         "clients", "findings", "installation_count", "open_operation_count", "read_only",
         "supported_clients", "tool_version",

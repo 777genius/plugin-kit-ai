@@ -73,8 +73,9 @@ class WorkflowContractTests(unittest.TestCase):
         for job in (policy, readiness):
             self.assertEqual(job["steps"][0]["name"], "Validate the unmodified canonical publication sequence")
         policy_body = commands(policy)
-        self.assertIn("74a3790ee15d92afda8e8e3dd8f903c04811cfc7", yaml.safe_dump(policy))
-        self.assertIn("agentplugins-v0.1.18", policy_body)
+        self.assertIn("c78c79e44efd5ad07083d63436d9170b107df6cb", yaml.safe_dump(policy))
+        self.assertIn("agentplugins-v0.1.24", policy_body)
+        self.assertIn("--schema-version 2", policy_body)
         self.assertIn("run_source_policy_conformance.py", policy_body)
         self.assertNotIn("DIRECTORY_SIGNING", yaml.safe_dump(policy))
         readiness_body = commands(readiness)
@@ -85,7 +86,8 @@ class WorkflowContractTests(unittest.TestCase):
             "--publication-source-commit",
         ):
             self.assertIn(argument, readiness_body)
-        self.assertIn("two-lane-readiness.schema.json", readiness_body)
+        self.assertIn("--schema-version 2", readiness_body)
+        self.assertIn("two-lane-readiness-v2.schema.json", readiness_body)
 
     def test_directory_completed_readiness_replay_uses_exact_authenticated_identity(self) -> None:
         publication = load(DIRECTORY_PUBLICATION)
@@ -104,6 +106,7 @@ class WorkflowContractTests(unittest.TestCase):
   --publication-sequence "${EXPECTED_PUBLICATION_SEQUENCE}" \\
   --publication-snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}" \\
   --publication-source-commit "${EXPECTED_SOURCE_COMMIT}" \\
+  --schema-version 2 \\
   --completed two-lane-readiness/two-lane-readiness.json""")
 
     def test_source_policy_transport_contains_no_released_executable(self) -> None:
@@ -282,9 +285,10 @@ class WorkflowContractTests(unittest.TestCase):
                 "release_sequence": 1, "package_version": "1.0.0",
                 "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
                 "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
-                "snapshot_digest": digest, "binary_digest": digest,
-                "dependency_identity": "locked", "installer_version": "0.1.18",
-                "adapter_version": "r14d", "client_version": None,
+                "snapshot_digest": digest,
+                "binary_digest": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca",
+                "dependency_identity": "locked", "installer_version": "0.1.24",
+                "adapter_version": "0.1.24", "client_version": None,
                 "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
             }
         entry = {
@@ -461,8 +465,10 @@ class WorkflowContractTests(unittest.TestCase):
                 "from observer.fixed_runner import reviewed_service_identities",
                 "owner_uid,owner_gid=os.geteuid(),os.getegid()\n"
                 "def reviewed_service_identities():\n"
-                "    return {name:(owner_uid,owner_gid,'fixture') for name in "
-                "('codex','cursor','kiro','control','observer','caddy','egress')}",
+                "    identities={name:(owner_uid,owner_gid,'fixture') for name in "
+                "('codex','cursor','kiro','control','observer','caddy')}\n"
+                "    identities['egress']=(1,1,'fixture')\n"
+                "    return identities",
             )
             source = source.replace(
                 "from observer.fixed_adapters import verify_kiro_runtime",
@@ -541,9 +547,10 @@ class WorkflowContractTests(unittest.TestCase):
                         "release_sequence": 1, "package_version": "1.0.0",
                         "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
                         "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
-                        "snapshot_digest": digest_value, "binary_digest": digest_value,
-                        "dependency_identity": "locked", "installer_version": "0.1.18",
-                        "adapter_version": "r14d", "client_version": None, "os": "linux",
+                        "snapshot_digest": digest_value,
+                        "binary_digest": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca",
+                        "dependency_identity": "locked", "installer_version": "0.1.24",
+                        "adapter_version": "0.1.24", "client_version": None, "os": "linux",
                         "architecture": "x86_64", "observed_at": "2026-08-30T00:00:00Z",
                     }
                     evidence = {
@@ -601,9 +608,10 @@ class WorkflowContractTests(unittest.TestCase):
                 "release_sequence": 1, "package_version": "1.0.0",
                 "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
                 "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
-                "snapshot_digest": digest, "binary_digest": digest,
-                "dependency_identity": "locked", "installer_version": "0.1.18",
-                "adapter_version": "r14d", "client_version": None,
+                "snapshot_digest": digest,
+                "binary_digest": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca",
+                "dependency_identity": "locked", "installer_version": "0.1.24",
+                "adapter_version": "0.1.24", "client_version": None,
                 "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
             }
 
@@ -794,7 +802,12 @@ class WorkflowContractTests(unittest.TestCase):
         manifest_path = ROOT / "deploy/uap-observer-runtime.sha256"
         entries = [line.split(maxsplit=1) for line in manifest_path.read_text().splitlines() if line.strip()]
         self.assertTrue(entries)
-        self.assertEqual(len(entries), len({relative for _, relative in entries}))
+        relatives = [relative for _, relative in entries]
+        self.assertEqual(len(entries), 47)
+        self.assertEqual(len(entries), len(set(relatives)))
+        self.assertEqual(relatives, sorted(relatives))
+        self.assertIn("tests/e2e/schemas/launch-evidence-v5.schema.json", relatives)
+        self.assertIn("tests/e2e/schemas/native-release-observation-v2.schema.json", relatives)
         manifest = {relative: digest for digest, relative in entries}
         def file_digest(relative: str) -> str:
             return hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
@@ -861,11 +874,11 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_stable_launch_versions_equal_trusted_contract(self) -> None:
         version = (ROOT / "tests/e2e/stable-launch-version.txt").read_text().strip()
-        self.assertEqual(version, "0.1.18")
+        self.assertEqual(version, "0.1.24")
         tag = f"agentplugins-v{version}"
         asset_prefix = f"agentplugins_{version}_"
         production = json.loads((ROOT / "tests/e2e/production-launch.json").read_text())
-        schema = json.loads((ROOT / "tests/e2e/schemas/native-release-observation.schema.json").read_text())
+        schema = json.loads((ROOT / "tests/e2e/schemas/native-release-observation-v2.schema.json").read_text())
         adapter_schema = json.loads((ROOT / "deploy/uap-observer-adapter-config.schema.json").read_text())
         observer = json.loads((ROOT / "deploy/uap-observer.json").read_text())
         workflow = load(LAUNCH)
@@ -873,29 +886,44 @@ class WorkflowContractTests(unittest.TestCase):
         npm = schema["properties"]["npm_package"]["properties"]
         self.assertEqual(workflow["env"]["AGENTPLUGINS_VERSION"], version)
         self.assertEqual(production["cli_release_tag"], tag)
+        self.assertEqual(production["cli_release_id"], 379284682)
+        self.assertEqual(production["cli_release_assets"], {
+            "agentplugins_0.1.24_darwin_amd64": {"sha256": "93f7cc8fd9300e23719e63d08af1eb2cc1ed9743bac98de1e59c352623328bf2", "size": 12299152},
+            "agentplugins_0.1.24_darwin_arm64": {"sha256": "c9d3dfe4b4b06d70733841d72fd9c8b9070ce066f6fa5dd7260073cf69565972", "size": 11474578},
+            "agentplugins_0.1.24_linux_amd64": {"sha256": "e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca", "size": 12185784},
+            "agentplugins_0.1.24_linux_arm64": {"sha256": "6768db4cdc3faf41ec31194284ac8c92bc58953737a6164e0fe88cc13aae57a1", "size": 11337912},
+            "agentplugins_0.1.24_windows_amd64.exe": {"sha256": "0fc327e31009d5c9dc01b2b8cc091f98dd90012376fedb2b688b3e2293a0507d", "size": 12459520},
+            "agentplugins_0.1.24_windows_arm64.exe": {"sha256": "e178f6fc3318fd26056c8bcc073cc4426102063f80974c2b23801d50c749109c", "size": 11418112},
+        })
         self.assertEqual(observer["cli_release_tag"], tag)
         self.assertEqual(adapter_schema["properties"]["request_policy"]["properties"]["cli_release_tag"]["const"], tag)
         # Bind the version and both independently authenticated public release
         # assets in one regression contract.  Updating only the version cannot
         # leave a stale observer trust pin behind.
         request_policy = adapter_schema["properties"]["request_policy"]["properties"]
+        release_tuple = adapter_schema["$defs"]["tuple"]["properties"]
         self.assertEqual((version, request_policy["release_manifest_digest"]["const"], request_policy["release_checksums_digest"]["const"]), (
-            "0.1.18",
-            "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57",
-            "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8",
+            "0.1.24",
+            "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2",
+            "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3",
         ))
         self.assertEqual(schema["properties"]["cli_release_tag"]["const"], tag)
         self.assertEqual(schema["properties"]["github_release_identity"]["properties"]["tag"]["const"], tag)
+        self.assertEqual(schema["properties"]["github_release_identity"]["properties"]["release_id"]["const"], 379284682)
         self.assertEqual(schema["properties"]["github_asset_attestation"]["properties"]["tag"]["const"], tag)
+        self.assertEqual(release_tuple["binary_digest"]["const"], "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca")
+        self.assertEqual(release_tuple["installer_version"]["const"], version)
+        self.assertEqual(release_tuple["adapter_version"]["const"], version)
         self.assertTrue(assets)
         self.assertTrue(all(asset.startswith(asset_prefix) for asset in assets))
         self.assertEqual(npm["version"]["const"], version)
+        self.assertEqual(npm["integrity"]["const"], production["npm_facade_integrity"])
         self.assertEqual(npm["tarball"]["const"], f"https://registry.npmjs.org/universal-agent-plugins/-/universal-agent-plugins-{version}.tgz")
         self.assertEqual(npm["provenance_url"]["const"], f"https://registry.npmjs.org/-/npm/v1/attestations/universal-agent-plugins@{version}")
         self.assertEqual(npm["native_asset_name"]["const"], f"{asset_prefix}linux_amd64")
         stable_files = (
             LAUNCH, ROOT / "scripts/run_launch_evidence_e2e.py", ROOT / "tests/e2e/production-launch.json",
-            ROOT / "tests/e2e/schemas/native-release-observation.schema.json", ROOT / "deploy/uap-observer.json",
+            ROOT / "tests/e2e/schemas/native-release-observation-v2.schema.json", ROOT / "deploy/uap-observer.json",
             ROOT / "deploy/uap-observer-adapter-config.schema.json", ROOT / "observer/config.py",
         )
         for path in stable_files:
@@ -1125,6 +1153,32 @@ class WorkflowContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, runbook)
         self.assertIn("Do not bypass OIDC", runbook)
+
+    def test_runbook_uses_exact_current_and_historical_release_verifiers(self) -> None:
+        runbook = OBSERVER_RUNBOOK.read_text()
+        current = runbook.split(
+            'root = Path("/root/approved-inputs/agentplugins-0.1.24")', 1,
+        )[1].split("```", 1)[0]
+        historical = runbook.split(
+            'root = Path("/root/approved-inputs/agentplugins-0.1.18")', 1,
+        )[1].split("```", 1)[0]
+        self.assertIn('"agentplugins-v0.1.24"', current)
+        self.assertNotIn("attestation_verifier=", current)
+        self.assertIn('"agentplugins-v0.1.18"', historical)
+        self.assertIn(
+            "attestation_verifier=verify_historical_github_asset_attestation",
+            historical,
+        )
+        self.assertEqual(
+            runbook.count("attestation_verifier=verify_historical_github_asset_attestation"), 1,
+        )
+        self.assertIn(
+            "from scripts.run_launch_evidence_e2e import (\n"
+            "    resolve_github_release,\n"
+            "    verify_historical_github_asset_attestation,\n"
+            ")",
+            runbook,
+        )
         self.assertIn("five minutes before", runbook)
         self.assertIn("genuinely\nexternal unmerged PR", runbook)
         self.assertNotIn("uap-observer-egress-fqdns.txt", runbook)
@@ -1213,11 +1267,14 @@ class WorkflowContractTests(unittest.TestCase):
             ("linux", "amd64"), ("windows", "amd64"), ("windows", "arm64"),
         })
         self.assertEqual({slot["asset"] for slot in slots}, {
-            "agentplugins_0.1.18_darwin_arm64", "agentplugins_0.1.18_darwin_amd64",
-            "agentplugins_0.1.18_linux_arm64", "agentplugins_0.1.18_linux_amd64",
-            "agentplugins_0.1.18_windows_amd64.exe", "agentplugins_0.1.18_windows_arm64.exe",
+            "agentplugins_0.1.24_darwin_arm64", "agentplugins_0.1.24_darwin_amd64",
+            "agentplugins_0.1.24_linux_arm64", "agentplugins_0.1.24_linux_amd64",
+            "agentplugins_0.1.24_windows_amd64.exe", "agentplugins_0.1.24_windows_arm64.exe",
         })
         aggregate_commands = commands(aggregate)
+        self.assertIn("config['cli_release_assets']", aggregate_commands)
+        self.assertIn("config['cli_release_id']", aggregate_commands)
+        self.assertIn("config['npm_facade_integrity']", aggregate_commands)
         self.assertIn("['subject_name'] == x['asset_name']", aggregate_commands)
         self.assertIn("['subject_digest'] == x['asset_digest']", aggregate_commands)
         self.assertIn("set(x) == expected_attestation_keys", aggregate_commands)
@@ -1228,8 +1285,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--npm-facade", commands(npm))
         self.assertIn("--npm-binary-cache", commands(npm))
         self.assertIn('AGENTPLUGINS_CACHE_DIR="$run_root/npm-binary-cache"', commands(npm))
-        self.assertIn("universal-agent-plugins-0.1.18.tgz", commands(npm))
-        self.assertIn("--asset-name agentplugins_0.1.18_linux_amd64", commands(npm))
+        self.assertIn("universal-agent-plugins-0.1.24.tgz", commands(npm))
+        self.assertIn("--asset-name agentplugins_0.1.24_linux_amd64", commands(npm))
+        self.assertEqual(commands(native).count("--schema-version 2"), 1)
+        self.assertEqual(commands(npm).count("--schema-version 2"), 1)
         self.assertNotIn("universal-agent-plugins.tgz", commands(npm))
         self.assertEqual(yaml.safe_dump(native).count("tzdata==2026.3"), 1)
         self.assertEqual(yaml.safe_dump(npm).count("tzdata==2026.3"), 1)
@@ -1242,6 +1301,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("environment", enforced)
         self.assertIn("--prepared-context", commands(enforced))
         self.assertIn("--native-observations", commands(enforced))
+        self.assertIn("native-release-observation-v2.schema.json", commands(enforced))
+        self.assertIn("launch-evidence-v5.schema.json", commands(enforced))
         self.assertIn("request_observer_bundle", commands(observer))
         self.assertIn('"scenario_contract_digest": scenario_digest', commands(observer))
         observer_commands = " ".join(commands(observer).split())
@@ -1305,14 +1366,15 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--release-tag", body)
         production = (ROOT / "tests/e2e/production-launch.json").read_text()
         self.assertIn('"cli_release_repository": "777genius/plugin-kit-ai"', production)
-        self.assertIn('"cli_release_tag": "agentplugins-v0.1.18"', production)
-        self.assertIn('"cli_release_commit": "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"', production)
+        self.assertIn('"cli_release_tag": "agentplugins-v0.1.24"', production)
+        self.assertIn('"cli_release_commit": "c78c79e44efd5ad07083d63436d9170b107df6cb"', production)
+        self.assertIn('"cli_release_id": 379284682', production)
         prepare = (ROOT / "scripts/prepare_launch_evidence.py").read_text()
         self.assertNotIn('os.environ.get("GITHUB_TOKEN")', prepare)
         self.assertIn('token=os.environ.get("GH_TOKEN")', prepare)
         self.assertNotIn("fetch_production_directory", prepare)
         self.assertIn("fetch_staged_directory", prepare)
-        self.assertNotIn('config["cli_release_id"]', prepare)
+        self.assertIn('config["cli_release_id"]', prepare)
         self.assertEqual(LAUNCH.read_text().count("python scripts/prepare_launch_evidence.py --asset-name"), 2)
         self.assertIn("--publication-ledger-commit", commands(native))
         for job, next_command in (
@@ -1343,7 +1405,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn("SHA256SUMS", text)
                 self.assertIn("overwrite: false", text)
                 if path == LAUNCH:
-                    self.assertIn("agentplugins_0.1.18_linux_amd64", text)
+                    self.assertIn("agentplugins_0.1.24_linux_amd64", text)
                 self.assertNotIn("AGENTPLUGINS_VERSION: \"0.1.6\"", text)
 
     def test_live_workflow_is_read_only_and_does_not_publish(self) -> None:
@@ -1369,7 +1431,8 @@ class WorkflowContractTests(unittest.TestCase):
         body = (ROOT / ".github/workflows/upstream-package-e2e.yml").read_text()
         workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
         self.assertEqual(workflow["permissions"], {"attestations": "read", "contents": "read"})
-        self.assertIn("AGENTPLUGINS_COMMIT: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7", body)
+        self.assertIn("AGENTPLUGINS_COMMIT: c78c79e44efd5ad07083d63436d9170b107df6cb", body)
+        self.assertIn("e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca", body)
         self.assertIn("--pattern release-manifest.json", body)
         self.assertIn('manifest["commit"] == os.environ["AGENTPLUGINS_COMMIT"]', body)
         self.assertEqual(body.count("gh attestation verify"), 1)
@@ -1791,6 +1854,49 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('--main-old "${EXPECTED_MAIN_PARENT}"', persist_body)
         self.assertIn('--approval-target "${EXPECTED_PUBLICATION_COMMIT}"', persist_body)
         self.assertIn('--expected-publication-source-commit "${EXPECTED_SOURCE_COMMIT}"', persist_body)
+
+    def test_staged_publication_supersession_authenticates_then_appends_higher_sequence(self) -> None:
+        workflow = load(DIRECTORY_PUBLICATION)
+        dispatch = workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(dispatch["supersede_publication_id"]["type"], "string")
+        self.assertEqual(dispatch["supersede_sequence"]["type"], "string")
+
+        prepare = workflow["jobs"]["prepare"]
+        ledger = next(step for step in prepare["steps"] if step.get("id") == "ledger")
+        staged = next(step for step in prepare["steps"] if step.get("id") == "resume")
+        guard = next(
+            step for step in prepare["steps"]
+            if step.get("name") == "Reject a new append while a signed sequence is still staged"
+        )
+        candidate = next(step for step in prepare["steps"] if step.get("id") == "candidate")
+        self.assertIn("supersession are mutually exclusive", ledger["run"])
+        self.assertIn("supersede_publication_id and supersede_sequence must be supplied together", ledger["run"])
+        self.assertIn("supersede_publication_id != ''", staged["if"])
+        self.assertIn("supersede_publication_id == ''", guard["if"])
+        for exact_authentication in (
+            "refs/tags/${tag_name}^{commit}",
+            "directory_publication_cas.py staged-lineage-verify",
+            'test "$(python3 -c \'import json,sys; print(json.load(open(sys.argv[1]))["publication_id"])\' "${feed}/${snapshot_path}")" = "${REQUESTED_PUBLICATION_ID}"',
+            'test "${production_sequence}" -lt "${sequence}"',
+        ):
+            self.assertIn(exact_authentication, staged["run"])
+        self.assertIn("directory_staged_supersession.py", candidate["run"])
+        self.assertLess(
+            prepare["steps"].index(staged), prepare["steps"].index(candidate),
+            "stale or mismatched staged inputs must fail before candidate preparation",
+        )
+        self.assertLess(
+            prepare["steps"].index(candidate),
+            next(index for index, step in enumerate(prepare["steps"])
+                 if str(step.get("uses", "")).startswith("actions/upload-artifact")),
+            "unchanged supersession must fail before candidate upload or signing",
+        )
+
+        signer = workflow["jobs"]["sign"]
+        signing_step = next(step for step in signer["steps"] if step.get("id") == "signed")
+        publisher_step = next(step for step in signer["steps"] if step.get("id") == "publisher")
+        self.assertEqual(signing_step["if"], "inputs.resume_publication_id == ''")
+        self.assertEqual(publisher_step["if"], "inputs.resume_publication_id == ''")
 
     def test_protected_observer_preflights_oidc_claim_names_without_logging_token(self) -> None:
         workflow = load(LAUNCH)

@@ -1,0 +1,73 @@
+{
+  "client": "ChatGPT web Plugins UI",
+  "version": "rolling web release; build identifier not exposed",
+  "date": "2026-08-30",
+  "date_timezone": "Europe/Kyiv",
+  "evidence_type": "interactive_personal_app_read_only_runtime_v2",
+  "connection": "installed no-auth personal app backed by the public Cloudflare Docs MCP endpoint",
+  "binding": {
+    "plugin": "cloudflare-docs",
+    "app_id": "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b",
+    "mcp_url": "https://docs.mcp.cloudflare.com/mcp"
+  },
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "plugin": "cloudflare-docs",
+    "plugin_version": "0.1.0",
+    "delivery": "registered personal app; repository package origin not observed"
+  },
+  "runtime": {
+    "prompt_count": 1,
+    "read_only": true,
+    "assistant_response_observed": true,
+    "tool_invocation_visibility": "not_exposed",
+    "mcp_runtime_outcome": "inconclusive"
+  },
+  "checks": [
+    {
+      "scenario": "observe an assistant response after selecting the Cloudflare Docs E2E personal app",
+      "operation": "assistant_response_observed",
+      "status": "passed",
+      "detail": "An answer about Workers KV was displayed, but no MCP tool invocation or raw tool payload was exposed."
+    },
+    {
+      "scenario": "attribute the displayed response to the Cloudflare Docs MCP runtime",
+      "operation": "mcp_runtime_attribution",
+      "status": "skipped",
+      "reason": "the selected app and response are not sufficient to prove an MCP tool invocation"
+    },
+    {
+      "scenario": "attempt later Durable Objects follow-up lookups",
+      "operation": "durable_objects_follow_up",
+      "status": "failed",
+      "detail": "The attempts returned incomplete one-word output and are not counted as runtime passes."
+    },
+    {
+      "scenario": "attribute the installed personal app to local repository package ingestion",
+      "operation": "local_codex_plugin_package_ingestion",
+      "status": "skipped",
+      "reason": "the installed item was a registered personal app; local package ingestion was not observed"
+    }
+  ],
+  "cleanup": {
+    "connection_status": "retained with user approval"
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "chat URLs",
+      "authorization URLs",
+      "raw tool output"
+    ]
+  }
+}

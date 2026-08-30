@@ -122,7 +122,7 @@ class Config:
         }
         if any(actual != expected for actual, expected in fixed_paths.items()):
             raise ValueError("observer protected path differs")
-        if self.cli_release_repository != "777genius/plugin-kit-ai" or self.cli_release_tag != "agentplugins-v0.1.18":
+        if self.cli_release_repository != "777genius/plugin-kit-ai" or self.cli_release_tag != "agentplugins-v0.1.24":
             raise ValueError("unexpected CLI release identity")
         for target in (self.state_root, self.signer_socket, self.runner_socket, self.runner_source_path):
             if not target.is_absolute():

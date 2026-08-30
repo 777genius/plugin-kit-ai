@@ -39,6 +39,12 @@ DIRECT_RUNTIME_CHECKS = {
     "search_cloudflare_documentation": "passed",
     "package_ui_install": "skipped",
 }
+PERSONAL_RUNTIME_V2_CHECKS = {
+    "assistant_response_observed": "passed",
+    "mcp_runtime_attribution": "skipped",
+    "durable_objects_follow_up": "failed",
+    "local_codex_plugin_package_ingestion": "skipped",
+}
 PERSONAL_APP_CHECKS = {
     "plugins_personal_installed": "passed",
     "plugin_detail_try_in_chat": "passed",
@@ -48,6 +54,23 @@ PERSONAL_APP_CHECKS = {
     "assistant_response_marker": "passed",
     "local_codex_plugin_package_ingestion": "skipped",
     "agentplugins_manager_lifecycle": "skipped",
+}
+PERSONAL_APP_V2_CHECKS = {
+    "plugins_personal_installed": "passed",
+    "plugin_detail_try_in_chat": "passed",
+    "new_chat_plugin_chip_selected": "passed",
+    "assistant_response_observed": "passed",
+    "mcp_runtime_attribution": "skipped",
+    "durable_objects_follow_up": "failed",
+    "local_codex_plugin_package_ingestion": "skipped",
+    "agentplugins_manager_lifecycle": "skipped",
+}
+PERSONAL_RUNTIME_V2 = {
+    "prompt_count": 1,
+    "read_only": True,
+    "assistant_response_observed": True,
+    "tool_invocation_visibility": "not_exposed",
+    "mcp_runtime_outcome": "inconclusive",
 }
 
 
@@ -165,21 +188,58 @@ def _validate_runtime_evidence(
     }
     if evidence.get("binding") != expected_binding:
         raise ValueError(f"{evidence_path}: binding identity does not match sidecar")
-    if evidence.get("client") != "ChatGPT Developer Mode" or evidence.get(
-        "evidence_type"
-    ) != "interactive_direct_mcp_runtime":
-        raise ValueError(f"{evidence_path}: expected direct ChatGPT Developer Mode evidence")
+    evidence_type = evidence.get("evidence_type")
     source = evidence.get("source")
     if not isinstance(source, dict) or source.get("plugin") != plugin_name:
         raise ValueError(f"{evidence_path}: evidence plugin does not match sidecar")
-    if source.get("delivery") != (
-        "direct registered connection; repository package not installed"
-    ):
-        raise ValueError(f"{evidence_path}: evidence must keep package installation pending")
     checks = _operation_checks(evidence, evidence_path)
     actual_checks = {operation: check.get("status") for operation, check in checks.items()}
-    if actual_checks != DIRECT_RUNTIME_CHECKS:
-        raise ValueError(f"{evidence_path}: direct runtime checks do not match binding")
+    if evidence_type == "interactive_direct_mcp_runtime":
+        if evidence.get("client") != "ChatGPT Developer Mode":
+            raise ValueError(
+                f"{evidence_path}: expected direct ChatGPT Developer Mode evidence"
+            )
+        if source.get("delivery") != (
+            "direct registered connection; repository package not installed"
+        ):
+            raise ValueError(
+                f"{evidence_path}: evidence must keep package installation pending"
+            )
+        if actual_checks != DIRECT_RUNTIME_CHECKS:
+            raise ValueError(
+                f"{evidence_path}: direct runtime checks do not match binding"
+            )
+        return
+    if evidence_type != "interactive_personal_app_read_only_runtime_v2":
+        raise ValueError(f"{evidence_path}: unsupported ChatGPT runtime evidence type")
+    if evidence.get("client") != "ChatGPT web Plugins UI" or source.get(
+        "delivery"
+    ) != "registered personal app; repository package origin not observed":
+        raise ValueError(
+            f"{evidence_path}: expected observed ChatGPT personal app runtime evidence"
+        )
+    if evidence.get("runtime") != PERSONAL_RUNTIME_V2:
+        raise ValueError(f"{evidence_path}: observed runtime boundary does not match")
+    if actual_checks != PERSONAL_RUNTIME_V2_CHECKS:
+        raise ValueError(f"{evidence_path}: personal runtime checks do not match binding")
+    response = checks["assistant_response_observed"]
+    if response.get("detail") != (
+        "An answer about Workers KV was displayed, but no MCP tool invocation or "
+        "raw tool payload was exposed."
+    ):
+        raise ValueError(f"{evidence_path}: assistant response evidence does not match")
+    attribution = checks["mcp_runtime_attribution"]
+    if attribution.get("reason") != (
+        "the selected app and response are not sufficient to prove an MCP tool "
+        "invocation"
+    ):
+        raise ValueError(f"{evidence_path}: inconclusive MCP boundary is required")
+    durable = checks["durable_objects_follow_up"]
+    if durable.get("detail") != (
+        "The attempts returned incomplete one-word output and are not counted as "
+        "runtime passes."
+    ):
+        raise ValueError(f"{evidence_path}: incomplete follow-up boundary is required")
 
 
 def _validate_personal_app_evidence(
@@ -196,17 +256,11 @@ def _validate_personal_app_evidence(
     }
     if evidence.get("binding") != expected_binding:
         raise ValueError(f"{evidence_path}: binding identity does not match sidecar")
-    catalog = evidence.get("catalog")
-    if (
-        not isinstance(catalog, dict)
-        or set(catalog) != {"revision", "digest"}
-        or not re.fullmatch(r"[0-9a-f]{40}", str(catalog.get("revision", "")))
-        or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(catalog.get("digest", "")))
-    ):
-        raise ValueError(f"{evidence_path}: pinned catalog identity is required")
-    if evidence.get("client") != "ChatGPT web Plugins UI" or evidence.get(
-        "evidence_type"
-    ) != "interactive_personal_app_runtime":
+    evidence_type = evidence.get("evidence_type")
+    if evidence.get("client") != "ChatGPT web Plugins UI" or evidence_type not in {
+        "interactive_personal_app_runtime",
+        "interactive_personal_app_ui_v2",
+    }:
         raise ValueError(f"{evidence_path}: expected ChatGPT personal app UI evidence")
     source = evidence.get("source")
     if not isinstance(source, dict) or source.get("plugin") != plugin_name:
@@ -215,50 +269,104 @@ def _validate_personal_app_evidence(
         "registered personal app; local .codex-plugin package ingestion not observed"
     ):
         raise ValueError(f"{evidence_path}: local package ingestion must remain unproved")
-    if evidence.get("ui") != {
+    legacy = evidence_type == "interactive_personal_app_runtime"
+    catalog = evidence.get("catalog")
+    if legacy:
+        if (
+            not isinstance(catalog, dict)
+            or set(catalog) != {"revision", "digest"}
+            or not re.fullmatch(r"[0-9a-f]{40}", str(catalog.get("revision", "")))
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(catalog.get("digest", "")))
+        ):
+            raise ValueError(f"{evidence_path}: pinned catalog identity is required")
+    elif catalog is not None:
+        raise ValueError(
+            f"{evidence_path}: current UI evidence must not claim repository catalog origin"
+        )
+    expected_ui = {
         "directory_source": "Personal",
-        "display_name": "Universal Agent Plugins Cloudflare Docs E2E",
+        "display_name": (
+            "Universal Agent Plugins Cloudflare Docs E2E"
+            if legacy
+            else "Cloudflare Docs E2E"
+        ),
         "installation_state": "Installed",
         "detail_action": "Попробовать в чате",
         "opened_mode": "Chat",
         "plugin_chip_selected": True,
-        "activation_evidence": "user_attested_manual",
-    }:
+        "activation_evidence": (
+            "user_attested_manual" if legacy else "directly_observed"
+        ),
+    }
+    if evidence.get("ui") != expected_ui:
         raise ValueError(f"{evidence_path}: Plugins UI observations do not match")
-    if evidence.get("runtime") != {
-        "prompt_count": 1,
-        "tool_call_count": 2,
-        "read_only": True,
-    }:
+    expected_runtime = (
+        {"prompt_count": 1, "tool_call_count": 2, "read_only": True}
+        if legacy
+        else PERSONAL_RUNTIME_V2
+    )
+    if evidence.get("runtime") != expected_runtime:
         raise ValueError(f"{evidence_path}: runtime call counts do not match")
-    if evidence.get("scope") != {
+    expected_scope = {
         "proved": [
             "registered_personal_app_installed_state",
             "plugins_ui_discovery",
             "chat_activation",
             "exact_app_id_linkage",
-            "read_only_runtime",
+            "read_only_runtime" if legacy else "assistant_response_observed",
         ],
         "not_proved": [
+            *(
+                []
+                if legacy
+                else [
+                    "cloudflare_docs_mcp_runtime_lookup",
+                    "individual_mcp_tool_call_visibility",
+                ]
+            ),
             "local_codex_plugin_package_ingestion",
             "repository_marketplace_install",
             "agentplugins_manager_lifecycle",
         ],
-    }:
+    }
+    if evidence.get("scope") != expected_scope:
         raise ValueError(f"{evidence_path}: proof boundary does not match")
     checks = _operation_checks(evidence, evidence_path)
     actual_checks = {operation: check.get("status") for operation, check in checks.items()}
-    if actual_checks != PERSONAL_APP_CHECKS:
+    expected_checks = PERSONAL_APP_CHECKS if legacy else PERSONAL_APP_V2_CHECKS
+    if actual_checks != expected_checks:
         raise ValueError(f"{evidence_path}: personal app checks do not match binding")
-    if checks["list_resources"].get("call_count") != 1:
-        raise ValueError(f"{evidence_path}: list_resources must be called exactly once")
-    search = checks["search_cloudflare_documentation"]
-    if search.get("call_count") != 1 or search.get("query") != (
-        "Durable Objects SQLite storage API"
+    if legacy:
+        if checks["list_resources"].get("call_count") != 1:
+            raise ValueError(f"{evidence_path}: list_resources must be called exactly once")
+        search = checks["search_cloudflare_documentation"]
+        if search.get("call_count") != 1 or search.get("query") != (
+            "Durable Objects SQLite storage API"
+        ):
+            raise ValueError(
+                f"{evidence_path}: documentation search evidence does not match"
+            )
+        if checks["assistant_response_marker"].get("marker") != "E2E_OK Rules Of_":
+            raise ValueError(f"{evidence_path}: sanitized response marker does not match")
+        return
+    response = checks["assistant_response_observed"]
+    if response.get("query") != (
+        "Using only Cloudflare Docs, explain in one short sentence what Cloudflare "
+        "Workers KV is. Read-only lookup only."
     ):
-        raise ValueError(f"{evidence_path}: documentation search evidence does not match")
-    if checks["assistant_response_marker"].get("marker") != "E2E_OK Rules Of_":
-        raise ValueError(f"{evidence_path}: sanitized response marker does not match")
+        raise ValueError(f"{evidence_path}: assistant response prompt does not match")
+    attribution = checks["mcp_runtime_attribution"]
+    if attribution.get("reason") != (
+        "the UI did not expose an MCP tool invocation or raw tool payload; the "
+        "response alone is not runtime proof"
+    ):
+        raise ValueError(f"{evidence_path}: inconclusive MCP boundary is required")
+    durable = checks["durable_objects_follow_up"]
+    if durable.get("detail") != (
+        "The attempts returned incomplete one-word output and are not counted as "
+        "runtime passes."
+    ):
+        raise ValueError(f"{evidence_path}: incomplete follow-up boundary is required")
 
 
 def load_app_bindings(

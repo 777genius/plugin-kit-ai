@@ -13,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from directory_publication import (  # noqa: E402
@@ -172,14 +172,22 @@ def selected_rows(launch: dict[str, Any]) -> list[dict[str, Any]]:
         ):
             fail(f"launch row is not authoritative protected observer evidence: {row.get('id')}")
         rows.append(row)
-    if len(rows) != 16:
-        fail(f"expected 16 authoritative hero runtime/OAuth rows, found {len(rows)}")
+    version = launch.get("schema_version")
+    if version not in {3, 4, 5}:
+        fail("unsupported launch evidence schema version")
     expected_runtime = {(plugin, client) for plugin in HEROES for client in HERO_CLIENTS}
-    actual_runtime = {(row["plugin"], row["client"]) for row in rows if row["client"] in HERO_CLIENTS}
-    if actual_runtime != expected_runtime:
+    runtime_rows = [row for row in rows if row["client"] in HERO_CLIENTS]
+    actual_runtime = {(row["plugin"], row["client"]) for row in runtime_rows}
+    if len(runtime_rows) != 15 or actual_runtime != expected_runtime:
         fail("hero runtime applicability matrix is incomplete or duplicated")
-    if sum(row["client"] == "chatgpt" and row["level"] == "runtime" for row in rows) != 1:
+    chatgpt_rows = [
+        row for row in rows
+        if row["client"] == "chatgpt" and row["level"] == "runtime"
+    ]
+    if version == 5 and (len(rows) != 16 or len(chatgpt_rows) != 1):
         fail("exactly one Cloudflare ChatGPT public-MCP runtime record is required")
+    if version in {3, 4} and (len(rows) not in {15, 16} or len(chatgpt_rows) > 1):
+        fail("historical evidence requires 15 hero rows and at most one compatible ChatGPT row")
     keys = [canonical_json(applicability(row)) for row in rows]
     if len(keys) != len(set(keys)):
         fail("duplicate current-evidence applicability tuple")
@@ -190,12 +198,15 @@ def verify_authoritative_observer_rows(
     launch: dict[str, Any], observer: dict[str, Any], *, repository: str,
     public_key: str, key_id: str, enforce_freshness: bool = True,
 ) -> None:
+    rows = selected_rows(launch)
+    require_chatgpt = any(row["client"] == "chatgpt" for row in rows)
     artifacts = verify_observer_bundle(
         observer, challenge=launch["run"]["challenge"],
         public_key_base64=public_key, expected_key_id=key_id,
         enforce_freshness=enforce_freshness,
+        require_chatgpt=require_chatgpt,
     )
-    validate_observer_artifact_schemas(artifacts)
+    validate_observer_artifact_schemas(artifacts, require_chatgpt=require_chatgpt)
     source: dict[tuple[str, str, str], dict[str, Any]] = {}
     expected_file_pairs = {
         "runtime-attestations.json": {
@@ -204,10 +215,10 @@ def verify_authoritative_observer_rows(
         "notion-oauth-attestations.json": {("notion", client) for client in HERO_CLIENTS},
         "chatgpt-cloudflare-attestation.json": {("cloudflare-docs", "chatgpt")},
     }
-    for name in (
-        "runtime-attestations.json", "notion-oauth-attestations.json",
-        "chatgpt-cloudflare-attestation.json",
-    ):
+    artifact_names = ["runtime-attestations.json", "notion-oauth-attestations.json"]
+    if require_chatgpt:
+        artifact_names.append("chatgpt-cloudflare-attestation.json")
+    for name in artifact_names:
         artifact = artifacts.get(name)
         if not isinstance(artifact, dict) or artifact.get("schema_version") != 1:
             fail(f"signed observer artifact is invalid: {name}")
@@ -242,7 +253,6 @@ def verify_authoritative_observer_rows(
             ):
                 fail(f"signed observer row is not bound to the protected OIDC job: {key}")
             source[key] = record
-    rows = selected_rows(launch)
     expected = {(row["plugin"], row["client"], row["level"]): row for row in rows}
     if set(source) != set(expected):
         fail("signed observer and canonical launch rows differ")
@@ -272,7 +282,9 @@ def verify_authoritative_observer_rows(
             fail(f"canonical launch row differs from signed observer row ({', '.join(mismatches)}): {key}")
 
 
-def validate_observer_artifact_schemas(artifacts: dict[str, Any]) -> None:
+def validate_observer_artifact_schemas(
+    artifacts: dict[str, Any], *, require_chatgpt: bool = True,
+) -> None:
     """Apply the reviewed observer schemas inside the minimal attester."""
     try:
         import jsonschema
@@ -292,12 +304,16 @@ def validate_observer_artifact_schemas(artifacts: dict[str, Any]) -> None:
     consent_schema["allOf"][0]["then"]["properties"]["no_real_project_proof"] = {"required": ["enforcement"]}
     schemas["consent.schema.json"] = consent_schema
     store = {base + name: value for name, value in schemas.items()}
-    for name, schema_name in (
+    artifact_schemas = [
         ("runtime-attestations.json", "runtime-attestations.schema.json"),
         ("notion-oauth-attestations.json", "runtime-attestations.schema.json"),
-        ("chatgpt-cloudflare-attestation.json", "runtime-attestations.schema.json"),
         ("consent.json", "consent.schema.json"),
-    ):
+    ]
+    if require_chatgpt:
+        artifact_schemas.insert(
+            2, ("chatgpt-cloudflare-attestation.json", "runtime-attestations.schema.json"),
+        )
+    for name, schema_name in artifact_schemas:
         schema = schemas[schema_name]
         resolver = jsonschema.RefResolver(base + schema_name, schema, store=store)
         validator = jsonschema.Draft202012Validator(
@@ -355,6 +371,7 @@ def build_bundle(artifact_dir: Path, *, repository: str, workflow: str,
                  expected_snapshot_digest: str, expected_source_commit: str,
                  verify_observer: bool = False, observer_public_key: str = "",
                  observer_key_id: str = "", enforce_observer_freshness: bool = True,
+                 purpose: Literal["current", "historical"] = "current",
                  ) -> tuple[str, dict[str, bytes]]:
     if REPOSITORY_RE.fullmatch(repository) is None or WORKFLOW_RE.fullmatch(workflow) is None:
         fail("repository or workflow identity is invalid")
@@ -380,13 +397,13 @@ def build_bundle(artifact_dir: Path, *, repository: str, workflow: str,
     observer_bytes = read_bytes_bounded(bundle_path, MAX_FILE_BYTES)
     observer = parse_json_bytes(observer_bytes, "signed observer bundle", max_bytes=MAX_FILE_BYTES)
     try:
-        validate_launch_schema(launch, historical=launch.get("schema_version") == 3)
+        validate_launch_schema(launch, purpose=purpose)
     except ValueError as error:
         fail(str(error))
     validate_evidence_redaction(launch, context="canonical launch evidence")
-    if (launch.get("schema_version") == 4 and launch.get("evidence_class") != "released_binary") or launch["run"].get("mode") != "enforced" or launch["run"].get("runtime_claims") is not True:
+    if (launch.get("schema_version") != 3 and launch.get("evidence_class") != "released_binary") or launch["run"].get("mode") != "enforced" or launch["run"].get("runtime_claims") is not True:
         fail("only enforced runtime launch evidence is publishable")
-    gate = "released_binary_gate_complete" if launch.get("schema_version") == 4 else "required_gates_complete"
+    gate = "required_gates_complete" if launch.get("schema_version") == 3 else "released_binary_gate_complete"
     if launch["summary"].get(gate) is not True or launch["summary"].get("hero_runtime_results") != 15:
         fail("launch evidence does not prove the complete stable gate")
     if launch["run"].get("github_sha") != source_digest:
@@ -541,7 +558,8 @@ def attach_two_lane_evidence(files: Mapping[str, bytes], policy_body: bytes,
                              readiness_body: bytes, *, uap_sha: str,
                              directory_ledger_sha: str, publication_id: str,
                              publication_sequence: int, publication_snapshot_digest: str,
-                             publication_source_commit: str) -> dict[str, bytes]:
+                             publication_source_commit: str,
+                             purpose: Literal["current", "historical"] = "current") -> dict[str, bytes]:
     """Validate and add gate-only sidecars without projecting policy rows."""
     result = dict(files)
     result.pop("SHA256SUMS", None)
@@ -552,6 +570,7 @@ def attach_two_lane_evidence(files: Mapping[str, bytes], policy_body: bytes,
         fail("two-lane evidence sidecars must be objects")
     if policy_body != canonical_json(policy) or readiness_body != canonical_json(readiness):
         fail("two-lane evidence sidecars must be the canonical bytes bound by readiness")
+    sidecar_version = 2 if purpose == "current" or runtime.get("schema_version") == 5 else 1
     uap_sha = require_uap_sha(uap_sha)
     validate_completed_readiness(
         readiness, runtime, policy,
@@ -564,6 +583,8 @@ def attach_two_lane_evidence(files: Mapping[str, bytes], policy_body: bytes,
         publication_sequence=publication_sequence,
         publication_snapshot_digest=publication_snapshot_digest,
         publication_source_commit=publication_source_commit,
+        schema_version=sidecar_version,
+        purpose=purpose,
     )
     result[POLICY_EVIDENCE_NAME] = policy_body
     result[READINESS_EVIDENCE_NAME] = readiness_body
@@ -913,11 +934,12 @@ def verify_completed_state(
             expected_source_commit=expected_publication_source_commit,
             verify_observer=True, observer_public_key=observer_public_key,
             observer_key_id=observer_key_id, enforce_observer_freshness=False,
+            purpose="historical",
         )
         derived = attach_attestation_bundle(derived, files[ATTESTATION_BUNDLE_NAME])
-        if launch.get("schema_version") == 4:
+        if launch.get("schema_version") in {4, 5}:
             if POLICY_EVIDENCE_NAME not in files or READINESS_EVIDENCE_NAME not in files:
-                fail("completed v4 evidence root lacks the canonical two-lane sidecars")
+                fail("completed launch evidence root lacks the canonical two-lane sidecars")
             derived = attach_two_lane_evidence(
                 derived, files[POLICY_EVIDENCE_NAME], files[READINESS_EVIDENCE_NAME],
                 uap_sha=source_digest,
@@ -926,6 +948,7 @@ def verify_completed_state(
                 publication_sequence=index["publication_sequence"],
                 publication_snapshot_digest=index["publication_snapshot_digest"],
                 publication_source_commit=expected_publication_source_commit,
+                purpose="historical",
             )
         write_bundle(bundle, derived)
     if files != derived:

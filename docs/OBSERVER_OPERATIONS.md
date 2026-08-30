@@ -66,6 +66,109 @@ The external PR record must validate against
 external unmerged PR, and bind its successful head checks to the exact release
 and Directory identity. A local fork simulation is not sufficient.
 
+Never hand-write the ChatGPT app binding or projection receipt. After
+authenticating the immutable agentplugins 0.1.24 release below, run one
+isolated ChatGPT add against the exact signed Directory feed and retain its add
+JSON, State v4 file, and official projection directory. Generate both observer
+inputs in one create-once directory. The requested app ID must already be the
+ID in the signed ChatGPT policy target; a different personal or development app
+fails closed even when it is visible in the UI. The generator also requires the
+actual projection tree digest to match the released State v4 managed object and
+committed mutation receipt, executes only the authenticated CLI image, and
+publishes the pair with an atomic no-replace operation.
+
+Acquire the projection generator's manager binary from the exact public,
+immutable 0.1.24 release before generation. This is a separate deployment
+input from the historical 0.1.18 manager retained later for the protected hero
+matrix. The resolver verifies the GitHub artifact attestation, tag commit,
+release manifest, checksums, selected asset, and complete asset set. The
+explicit API checks additionally bind the public immutable release identity:
+
+```sh
+install -d -o root -g root -m 0700 /root/approved-inputs/agentplugins-0.1.24
+release_json="$(gh api repos/777genius/plugin-kit-ai/releases/379284682)"
+printf '%s' "$release_json" | jq -e '
+  .id == 379284682 and .immutable == true and .draft == false and
+  .prerelease == false and .tag_name == "agentplugins-v0.1.24" and
+  .target_commitish == "c78c79e44efd5ad07083d63436d9170b107df6cb"
+' >/dev/null
+PYTHONPATH="$SOURCE_ROOT" python3 - <<'PY'
+import hashlib
+import subprocess
+from pathlib import Path
+from scripts.run_launch_evidence_e2e import resolve_github_release
+
+root = Path("/root/approved-inputs/agentplugins-0.1.24")
+binary, manifest, manifest_digest = resolve_github_release(
+    "777genius/plugin-kit-ai", "agentplugins-v0.1.24",
+    root / "agentplugins", asset_name="agentplugins_0.1.24_linux_amd64",
+)
+if manifest["commit"] != "c78c79e44efd5ad07083d63436d9170b107df6cb":
+    raise SystemExit("release manifest commit differs from the deployment pin")
+if manifest_digest != "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2":
+    raise SystemExit("release-manifest.json differs from the deployment pin")
+checksums = "sha256:" + hashlib.sha256((root / "checksums.txt").read_bytes()).hexdigest()
+if checksums != "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3":
+    raise SystemExit("checksums.txt differs from the deployment pin")
+binary_digest = "sha256:" + hashlib.sha256(Path(binary).read_bytes()).hexdigest()
+if binary_digest != "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca":
+    raise SystemExit("selected linux-amd64 asset differs from the deployment pin")
+observed = subprocess.run([binary, "version"], check=True, text=True,
+                          stdout=subprocess.PIPE).stdout.strip()
+if manifest["version"] != "0.1.24" or observed != "agentplugins 0.1.24":
+    raise SystemExit("selected manager binary is not exact agentplugins 0.1.24")
+PY
+```
+
+```sh
+CHATGPT_APP_ID=<exact-signed-plugin_asdk_app-id>
+OBSERVED_AT=<canonical-UTC-seconds-from-the-change-ticket>
+CHATGPT_STATE=/root/chatgpt-evidence/state-v2.json
+CHATGPT_PACKAGE=/root/approved-inputs/cloudflare-docs-package
+CHATGPT_PROJECTION="$(jq -er '
+  [.installations[] | select(.declared_name == "cloudflare-docs") |
+   .clients[] | select(.client_id == "chatgpt") | .target_locator] |
+  if length == 1 then .[0] else error("expected one ChatGPT projection") end
+' "$CHATGPT_STATE")"
+PYTHONPATH="$SOURCE_ROOT/scripts" python3 -B \
+  "$SOURCE_ROOT/scripts/build_chatgpt_observer_projection.py" \
+  --feed /root/approved-directory/registry/schemas/1 \
+  --trusted-keys /root/approved-directory/trusted-keys.json \
+  --now "$OBSERVED_AT" --minimum-sequence 19 \
+  --add-evidence /root/chatgpt-evidence/add.json \
+  --state "$CHATGPT_STATE" --package-root "$CHATGPT_PACKAGE" \
+  --projection-root "$CHATGPT_PROJECTION" \
+  --cli-binary /root/approved-inputs/agentplugins-0.1.24/agentplugins \
+  --installer-version 0.1.24 --product-id cloudflare-docs \
+  --distribution-id 777genius/cloudflare-docs-bridge --release-sequence 1 \
+  --app-key cloudflare-docs --app-id "$CHATGPT_APP_ID" \
+  --observed-at "$OBSERVED_AT" --output /root/generated-chatgpt-inputs
+sha256sum /root/generated-chatgpt-inputs/{app-binding,projection-receipt}.json
+```
+
+Generation is create-once. If validation or atomic publication fails after a
+private stage is created, the tool preserves its exact owned inode under a
+hidden `.rejected-stage-*` or `.rejected-<output>.*` audit name instead of
+deleting by pathname. Treat those directories as failure evidence: inspect and
+remove them only after the incident is resolved; never promote them manually.
+The approved output never remains after rejection. The exact owned stage is
+quarantined whenever it remains discoverable; adversarial same-UID movement may
+leave hidden audit residue, but recovery never deletes a foreign inode.
+
+`CHATGPT_PACKAGE` must be the immutable approved source-package directory for
+the signed release, not another copy derived from State. The generator
+descriptor-snapshots it, verifies its tree and manifest digests against the
+signed Directory release, and derives the exact app/MCP projection from those
+authenticated bytes before publishing either output. The full Codex manifest,
+README, NOTICE, and managed `.agents/plugins/marketplace.json` are reproduced
+and checked against the exact agentplugins 0.1.24 ChatGPT projection contract;
+that contract emits no assets for this package. The clean, reviewed
+`SOURCE_ROOT` and independently authenticated CLI release remain out-of-band
+provenance prerequisites, not optional conveniences. The output must be a
+separate absolute path: it may not equal, contain, or sit below either the
+approved package or retained projection, and every existing output ancestor
+must be a real directory rather than a symlink.
+
 Build that exact tree from the approved, digest-recorded input directory. The
 group creation is safe before the idempotent installer creates the remaining
 service identities.
@@ -105,7 +208,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SOURCE_ROOT" python3 -B \
   /opt/uap-observer-inputs/chrome-for-testing-bundle.json
 for name in app-binding.json projection-receipt.json; do
   install -o root -g uap-observer-adapter-config -m 0640 \
-    "/root/approved-inputs/$name" "/opt/uap-observer-inputs/chatgpt/$name"
+    "/root/generated-chatgpt-inputs/$name" "/opt/uap-observer-inputs/chatgpt/$name"
 done
 install -o root -g uap-observer-adapter-config -m 0640 \
   /root/approved-inputs/external-pr-evidence.json \
@@ -192,18 +295,27 @@ PYTHONPATH="$SOURCE_ROOT" python3 - <<'PY'
 import hashlib
 import subprocess
 from pathlib import Path
-from scripts.run_launch_evidence_e2e import resolve_github_release
+from scripts.run_launch_evidence_e2e import (
+    resolve_github_release,
+    verify_historical_github_asset_attestation,
+)
 
 root = Path("/root/approved-inputs/agentplugins-0.1.18")
 binary, manifest, manifest_digest = resolve_github_release(
     "777genius/plugin-kit-ai", "agentplugins-v0.1.18",
     root / "agentplugins", asset_name="agentplugins_0.1.18_linux_amd64",
+    attestation_verifier=verify_historical_github_asset_attestation,
 )
+if manifest["commit"] != "74a3790ee15d92afda8e8e3dd8f903c04811cfc7":
+    raise SystemExit("release manifest commit differs from the historical deployment pin")
 if manifest_digest != "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57":
     raise SystemExit("release-manifest.json differs from the deployment pin")
 checksums = "sha256:" + hashlib.sha256((root / "checksums.txt").read_bytes()).hexdigest()
 if checksums != "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8":
     raise SystemExit("checksums.txt differs from the deployment pin")
+binary_digest = "sha256:" + hashlib.sha256(Path(binary).read_bytes()).hexdigest()
+if binary_digest != "sha256:9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779":
+    raise SystemExit("selected historical linux-amd64 asset differs from the deployment pin")
 observed = subprocess.run([binary, "version"], check=True, text=True,
                           stdout=subprocess.PIPE).stdout.strip()
 if manifest["version"] != "0.1.18" or observed != "agentplugins 0.1.18":

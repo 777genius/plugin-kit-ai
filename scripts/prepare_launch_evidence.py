@@ -49,16 +49,22 @@ def main() -> int:
         asset_name=args.asset_name, token=os.environ.get("GH_TOKEN"),
     )
     checksums_digest = sha256_file(args.run_root / "release" / "checksums.txt")
+    manifest_assets = {
+        item["file"]: {"sha256": item["sha256"], "size": item["size"]}
+        for item in manifest.get("assets", {}).values()
+    }
     if (
         release_digest != config["cli_release_manifest_digest"]
         or checksums_digest != config["cli_release_checksums_digest"]
+        or manifest_assets != config["cli_release_assets"]
         or sha256_file(Path(__file__).parents[1] / "registry/directory.json") != config["directory_source_digest"]
         or sha256_file(Path(__file__).parents[1] / "tests/e2e/launch-scenarios.json") != config["scenario_contract_digest"]
     ):
-        raise ValueError("resolved launch inputs differ from the frozen 0.1.18 tuple")
+        raise ValueError("resolved launch inputs differ from the current frozen 0.1.24 tuple")
     release_identity = json.loads((args.run_root / "release" / "github-release-identity.json").read_text())
     if (
         release_identity.get("tag_commit") != config["cli_release_commit"]
+        or release_identity.get("release_id") != config["cli_release_id"]
         or release_identity.get("immutable") is not True
     ):
         raise ValueError("resolved CLI release differs from the immutable reviewed identity")
@@ -77,7 +83,7 @@ def main() -> int:
             args.run_root / "npm" / f"universal-agent-plugins-{config['npm_facade_version']}.tgz",
         )
         if npm_package["integrity"] != config["npm_facade_integrity"]:
-            raise ValueError("npm facade integrity differs from the frozen 0.1.18 tuple")
+            raise ValueError("npm facade integrity differs from the current frozen 0.1.24 tuple")
     challenge = make_challenge(
         os.environ["GITHUB_SHA"], os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"],
         args.caller_event_name, args.caller_ref, args.caller_workflow_ref,

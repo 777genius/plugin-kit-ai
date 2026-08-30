@@ -17,6 +17,7 @@ on:
       - "tests/e2e/source-policy-*.json"
       - "schemas/e2e/*policy*.schema.json"
       - "schemas/e2e/two-lane-readiness.schema.json"
+      - "schemas/e2e/two-lane-readiness-v2.schema.json"
       - "scripts/prepare_directory_publication.py"
       - "scripts/publication_trust_policy.py"
       - "scripts/sign_directory_publication.py"
@@ -39,6 +40,14 @@ on:
         type: string
       resume_sequence:
         description: Existing staged sequence to resume without signing a new sequence
+        required: false
+        type: string
+      supersede_publication_id:
+        description: Current staged publication ID to supersede with a materially changed higher sequence
+        required: false
+        type: string
+      supersede_sequence:
+        description: Current staged sequence to supersede with a materially changed higher sequence
         required: false
         type: string
 
@@ -187,14 +196,26 @@ jobs:
           REQUESTED_SEED_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.ledger_seed_commit || '' }}
           RESUME_PUBLICATION_ID: ${{ inputs.resume_publication_id }}
           RESUME_SEQUENCE: ${{ inputs.resume_sequence }}
+          SUPERSEDE_PUBLICATION_ID: ${{ inputs.supersede_publication_id }}
+          SUPERSEDE_SEQUENCE: ${{ inputs.supersede_sequence }}
         run: |
           if { test -n "${RESUME_PUBLICATION_ID}" && test -z "${RESUME_SEQUENCE}"; } || \
              { test -z "${RESUME_PUBLICATION_ID}" && test -n "${RESUME_SEQUENCE}"; }; then
             echo "resume_publication_id and resume_sequence must be supplied together" >&2
             exit 1
           fi
-          if test -n "${RESUME_PUBLICATION_ID}" && test "${INITIALIZE_LEDGER}" = "true"; then
-            echo "staged resume cannot initialize the ledger" >&2
+          if { test -n "${SUPERSEDE_PUBLICATION_ID}" && test -z "${SUPERSEDE_SEQUENCE}"; } || \
+             { test -z "${SUPERSEDE_PUBLICATION_ID}" && test -n "${SUPERSEDE_SEQUENCE}"; }; then
+            echo "supersede_publication_id and supersede_sequence must be supplied together" >&2
+            exit 1
+          fi
+          if test -n "${RESUME_PUBLICATION_ID}" && test -n "${SUPERSEDE_PUBLICATION_ID}"; then
+            echo "staged resume and supersession are mutually exclusive" >&2
+            exit 1
+          fi
+          if { test -n "${RESUME_PUBLICATION_ID}" || test -n "${SUPERSEDE_PUBLICATION_ID}"; } && \
+             test "${INITIALIZE_LEDGER}" = "true"; then
+            echo "staged resume or supersession cannot initialize the ledger" >&2
             exit 1
           fi
           tag_prefix=directory-publication-schema-1-sequence-
@@ -246,7 +267,7 @@ jobs:
           fi
           echo "ledger_head=$(git -C _publication-ledger rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Reject a new append while a signed sequence is still staged
-        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id == '' && steps.ledger.outputs.initialize != 'true'
+        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id == '' && inputs.supersede_publication_id == '' && steps.ledger.outputs.initialize != 'true'
         env:
           LEDGER_SEQUENCE_FLOOR: ${{ steps.ledger.outputs.sequence_floor }}
         run: |
@@ -269,15 +290,24 @@ jobs:
           fi
       - name: Authenticate an exact staged signed publication
         id: resume
-        if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id != ''
+        if: needs.authenticate-completed-state.outputs.completed != 'true' && (inputs.resume_publication_id != '' || inputs.supersede_publication_id != '')
         env:
-          REQUESTED_PUBLICATION_ID: ${{ inputs.resume_publication_id }}
-          REQUESTED_SEQUENCE: ${{ inputs.resume_sequence }}
+          RESUME_PUBLICATION_ID: ${{ inputs.resume_publication_id }}
+          RESUME_SEQUENCE: ${{ inputs.resume_sequence }}
+          SUPERSEDE_PUBLICATION_ID: ${{ inputs.supersede_publication_id }}
+          SUPERSEDE_SEQUENCE: ${{ inputs.supersede_sequence }}
           SOURCE_HEAD: ${{ github.sha }}
         run: |
+          mode=resume
+          REQUESTED_PUBLICATION_ID="${RESUME_PUBLICATION_ID}"
+          REQUESTED_SEQUENCE="${RESUME_SEQUENCE}"
+          if test -n "${SUPERSEDE_PUBLICATION_ID}"; then
+            mode=supersede
+            REQUESTED_PUBLICATION_ID="${SUPERSEDE_PUBLICATION_ID}"
+            REQUESTED_SEQUENCE="${SUPERSEDE_SEQUENCE}"
+          fi
           [[ "${REQUESTED_PUBLICATION_ID}" =~ ^[1-9][0-9]*$ ]]
-          [[ "${REQUESTED_SEQUENCE}" =~ ^[1-9][0-9]*$ ]]
-          sequence="$((10#${REQUESTED_SEQUENCE}))"
+          sequence="$(python3 scripts/sequence_boundaries.py validate "${REQUESTED_SEQUENCE}")"
           tag_name="directory-publication-schema-1-sequence-$(printf '%020d' "${sequence}")"
           signed_ledger_commit="$(git -C _publication-ledger rev-parse "refs/tags/${tag_name}^{commit}")"
           ledger_head="$(git -C _publication-ledger rev-parse HEAD)"
@@ -313,14 +343,16 @@ jobs:
           fi
           test "${production_sequence}" -lt "${sequence}"
 
-          echo "signed_ledger_commit=${signed_ledger_commit}" >> "$GITHUB_OUTPUT"
-          echo "materialized_ledger_commit=${materialized_ledger_commit}" >> "$GITHUB_OUTPUT"
-          echo "ledger_head=${ledger_head}" >> "$GITHUB_OUTPUT"
-          echo "marker_commit=${marker_commit}" >> "$GITHUB_OUTPUT"
-          echo "publication_id=${REQUESTED_PUBLICATION_ID}" >> "$GITHUB_OUTPUT"
-          echo "sequence=${sequence}" >> "$GITHUB_OUTPUT"
-          echo "snapshot_digest=${snapshot_digest}" >> "$GITHUB_OUTPUT"
-          echo "main_parent=${SOURCE_HEAD}" >> "$GITHUB_OUTPUT"
+          if test "${mode}" = resume; then
+            echo "signed_ledger_commit=${signed_ledger_commit}" >> "$GITHUB_OUTPUT"
+            echo "materialized_ledger_commit=${materialized_ledger_commit}" >> "$GITHUB_OUTPUT"
+            echo "ledger_head=${ledger_head}" >> "$GITHUB_OUTPUT"
+            echo "marker_commit=${marker_commit}" >> "$GITHUB_OUTPUT"
+            echo "publication_id=${REQUESTED_PUBLICATION_ID}" >> "$GITHUB_OUTPUT"
+            echo "sequence=${sequence}" >> "$GITHUB_OUTPUT"
+            echo "snapshot_digest=${snapshot_digest}" >> "$GITHUB_OUTPUT"
+            echo "main_parent=${SOURCE_HEAD}" >> "$GITHUB_OUTPUT"
+          fi
       - name: Observe immutable launch approval marker
         id: launch
         if: needs.authenticate-completed-state.outputs.completed != 'true'
@@ -343,6 +375,7 @@ jobs:
           INITIALIZE_LEDGER: ${{ steps.ledger.outputs.initialize }}
           LEDGER_SEED_COMMIT: ${{ steps.ledger.outputs.seed_commit }}
           LEDGER_SEQUENCE_FLOOR: ${{ steps.ledger.outputs.sequence_floor }}
+          SUPERSEDE_SEQUENCE: ${{ inputs.supersede_sequence }}
         run: |
           test -x /usr/bin/git
           test -x /usr/bin/gh
@@ -369,6 +402,12 @@ jobs:
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
           test "$(wc -c < candidate.json)" -le 4194304
           check-jsonschema --schemafile schemas/directory-publication-candidate.schema.json candidate.json
+          if test -n "${SUPERSEDE_SEQUENCE}"; then
+            supersede_sequence="$(python3 scripts/sequence_boundaries.py validate "${SUPERSEDE_SEQUENCE}")"
+            superseded_snapshot="_publication-ledger/registry/schemas/1/snapshots/$(printf '%020d' "${supersede_sequence}").json"
+            python3 scripts/directory_staged_supersession.py \
+              --candidate candidate.json --staged-snapshot "${superseded_snapshot}"
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: needs.authenticate-completed-state.outputs.completed != 'true' && inputs.resume_publication_id == ''
         with:
@@ -974,8 +1013,8 @@ jobs:
           done
       - name: Prove compatibility with the exact released CLI
         env:
-          AGENTPLUGINS_COMMIT: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
-          AGENTPLUGINS_VERSION: 0.1.18
+          AGENTPLUGINS_COMMIT: c78c79e44efd5ad07083d63436d9170b107df6cb
+          AGENTPLUGINS_VERSION: 0.1.24
           EXPECTED_SEQUENCE: ${{ needs.sign.outputs.sequence }}
           EXPECTED_SNAPSHOT_DIGEST: ${{ needs.sign.outputs.snapshot_digest }}
           EXPECTED_LEDGER_HEAD: ${{ needs.materialize_site.outputs.ledger_commit }}
@@ -990,9 +1029,9 @@ jobs:
           binary="${release_dir}/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
           chmod +x "${binary}"
           cd "${release_dir}"
-          test "$(sha256sum "$(basename "${binary}")" | cut -d ' ' -f 1)" = 9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779
-          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8
-          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = 0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57
+          test "$(sha256sum "$(basename "${binary}")" | cut -d ' ' -f 1)" = e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca
+          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = 623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3
+          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2
           sha256sum --check checksums.txt --ignore-missing
           python3 - <<'PY'
           import hashlib
@@ -1146,6 +1185,7 @@ jobs:
             --publication-sequence "${EXPECTED_PUBLICATION_SEQUENCE}" \
             --publication-snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}" \
             --publication-source-commit "${EXPECTED_SOURCE_COMMIT}" \
+            --schema-version 2 \
             --completed two-lane-readiness/two-lane-readiness.json
           python3 trusted-source/registry/publication/launch_approval.py \
             --repo approved-ledger \

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source-policy conformance evidence v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evidence_class", "runtime_claims", "released_binary_executed", "fixture_key_id", "identities", "results", "production_source_unchanged", "policy_conformance_gate_complete"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "evidence_class": {"const": "source_policy_conformance"},
+    "runtime_claims": {"const": false},
+    "released_binary_executed": {"const": false},
+    "fixture_key_id": {"const": "launch-conformance-only"},
+    "identities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plugin_kit_repository", "plugin_kit_tag", "plugin_kit_commit", "release_manifest_digest", "release_checksums_digest", "uap_sha", "scenario_digest", "harness_digest", "overlay_digest", "production_source_tree_before", "production_source_tree_after"],
+      "properties": {
+        "plugin_kit_repository": {"const": "777genius/plugin-kit-ai"},
+        "plugin_kit_tag": {"const": "agentplugins-v0.1.24"},
+        "plugin_kit_commit": {"const": "c78c79e44efd5ad07083d63436d9170b107df6cb"},
+        "release_manifest_digest": {"const": "sha256:eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2"},
+        "release_checksums_digest": {"const": "sha256:623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3"},
+        "uap_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "scenario_digest": {"$ref": "#/$defs/digest"},
+        "harness_digest": {"$ref": "#/$defs/digest"},
+        "overlay_digest": {"$ref": "#/$defs/digest"},
+        "production_source_tree_before": {"const": "sha256:3635457d320bc2c78a86b9b3d8e4937d14ac59848ffae70c6571167204130de8"},
+        "production_source_tree_after": {"const": "sha256:3635457d320bc2c78a86b9b3d8e4937d14ac59848ffae70c6571167204130de8"}
+      }
+    },
+    "results": {
+      "type": "array", "minItems": 11, "maxItems": 11,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "outcome", "test", "proof", "proof_digest"],
+        "properties": {
+          "id": {"enum": ["retained_data_readd_before_changed_default", "revoked_operations_boundary", "signed_sequence_not_semver", "directory_offline", "directory_expired", "directory_tampered", "directory_sequence_rollback", "upstream_owned_short_name", "community_bridge_short_name", "distribution_sticky_update", "external_activation_failure"]},
+          "outcome": {"const": "passed"},
+          "test": {"type": "object", "additionalProperties": false, "required": ["package", "name", "passed", "transcript_digest"], "properties": {"package": {"type": "string"}, "name": {"type": "string"}, "passed": {"const": true}, "transcript_digest": {"$ref": "#/$defs/digest"}}},
+          "proof": {"type": "object", "additionalProperties": false, "required": ["id", "source_test", "fixture_key_id", "overlay_digest", "runtime_evidence_eligible"], "properties": {"id": {"type": "string"}, "source_test": {"type": "object"}, "fixture_key_id": {"const": "launch-conformance-only"}, "overlay_digest": {"$ref": "#/$defs/digest"}, "runtime_evidence_eligible": {"const": false}, "unit_oracle": {"type": "object"}}},
+          "proof_digest": {"$ref": "#/$defs/digest"}
+        },
+        "allOf": [
+            {"if": {"properties": {"id": {"const": "retained_data_readd_before_changed_default"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryRecordedReAddRetainsExactRelease"}}}}}},
+            {"if": {"properties": {"id": {"const": "revoked_operations_boundary"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/usecase"}, "name": {"const": "TestDirectorySuspensionAndRevocationOperationBoundaries"}}}}}},
+            {"if": {"properties": {"id": {"const": "signed_sequence_not_semver"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryDeclaredDefaultFallbackQualifiedAndSequence"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_offline"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_expired"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_tampered"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "directory_sequence_rollback"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/adapters/discoveryv1"}, "name": {"const": "TestClientColdCachedOfflineTamperedExpiredAndRollback"}}}}}},
+            {"if": {"properties": {"id": {"const": "upstream_owned_short_name"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryUpstreamMaterializationAndExactFailedTuple"}}}}}},
+            {"if": {"properties": {"id": {"const": "community_bridge_short_name"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./install/integrationctl/agentplugins/domain"}, "name": {"const": "TestResolveDirectoryDeclaredDefaultPrecedesKindAndFallbackUsesKindOrder"}}}}}},
+            {"if": {"properties": {"id": {"const": "distribution_sticky_update"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./cli/plugin-kit-ai/internal/agentpluginscli"}, "name": {"const": "TestDirectoryUpdateAllowsHigherReleaseOwnImmutableSourceIdentity"}}}}}},
+            {"if": {"properties": {"id": {"const": "external_activation_failure"}}, "required": ["id"]}, "then": {"properties": {"test": {"properties": {"package": {"const": "./cli/plugin-kit-ai/internal/agentpluginscli"}, "name": {"const": "TestSwitchSynthesizesRemoteChatGPTAndRecoversAfterActivationFailure"}}}}}}
+        ]
+      },
+      "allOf": [
+        {"contains": {"type": "object", "properties": {"id": {"const": "retained_data_readd_before_changed_default"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "revoked_operations_boundary"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "signed_sequence_not_semver"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "directory_offline"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "directory_expired"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "directory_tampered"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "directory_sequence_rollback"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "upstream_owned_short_name"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "community_bridge_short_name"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "distribution_sticky_update"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "external_activation_failure"}}, "required": ["id"]}, "minContains": 1, "maxContains": 1}
+      ]
+    },
+    "production_source_unchanged": {"const": true},
+    "policy_conformance_gate_complete": {"const": true}
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}
+}

@@ -3,6 +3,7 @@
   "title": "Versioned stable-launch E2E evidence",
   "oneOf": [
     {"$ref": "launch-evidence-v3.schema.json"},
-    {"$ref": "launch-evidence-v4.schema.json"}
+    {"$ref": "launch-evidence-v4.schema.json"},
+    {"$ref": "launch-evidence-v5.schema.json"}
   ]
 }

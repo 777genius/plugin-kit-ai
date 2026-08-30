@@ -122,10 +122,181 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
     def test_selects_only_exact_authoritative_runtime_and_oauth_matrix(self) -> None:
         rows = authoritative_rows()
         rows.append({"scenario": "hero_5x3_lifecycle", "level": "materialization"})
-        selected = evidence.selected_rows({"evidence_class": "released_binary", "matrix": rows})
+        selected = evidence.selected_rows({
+            "schema_version": 5, "evidence_class": "released_binary", "matrix": rows,
+        })
         self.assertEqual(len(selected), 16)
         self.assertEqual(sum(row["level"] == "runtime" for row in selected), 16)
         self.assertEqual(sum(row["client"] == "chatgpt" and row["level"] == "runtime" for row in selected), 1)
+
+    def test_historical_v3_v4_preserve_fifteen_rows_and_optional_chatgpt(self) -> None:
+        for version in (3, 4):
+            for include_chatgpt in (False, True):
+                rows = authoritative_rows() if include_chatgpt else authoritative_rows()[:-1]
+                with self.subTest(version=version, include_chatgpt=include_chatgpt):
+                    selected = evidence.selected_rows({
+                        "schema_version": version,
+                        "evidence_class": "released_binary",
+                        "matrix": rows,
+                    })
+                    self.assertEqual(len(selected), 16 if include_chatgpt else 15)
+                    self.assertEqual(
+                        any(row["client"] == "chatgpt" for row in selected),
+                        include_chatgpt,
+                    )
+
+    def test_current_v5_rejects_missing_chatgpt_row(self) -> None:
+        rows = authoritative_rows()[:-1]
+        with self.assertRaisesRegex(evidence.EvidenceError, "exactly one Cloudflare ChatGPT"):
+            evidence.selected_rows({
+                "schema_version": 5, "evidence_class": "released_binary", "matrix": rows,
+            })
+
+    def test_fresh_sequence_20_cannot_select_historical_v4_from_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observer = evidence.canonical_json({"schema_version": 1, "signed": True})
+            launch = self.launch(observer)
+            launch["directory"]["sequence"] = 20
+            (root / "launch-evidence.json").write_text(json.dumps(launch))
+            (root / "signed-observer-bundle.json").write_bytes(observer)
+            with self.assertRaisesRegex(evidence.EvidenceError, "current"):
+                evidence.build_bundle(
+                    root, repository="owner/repository",
+                    workflow="owner/repository/.github/workflows/launch-evidence-e2e.yml",
+                    source_ref="refs/heads/main", source_digest="a" * 40,
+                    expected_run_id="123", expected_run_attempt="2",
+                    expected_caller_event_name="push", expected_caller_ref="refs/heads/main",
+                    expected_caller_workflow_ref="owner/repository/.github/workflows/directory-publication.yml@refs/heads/main",
+                    expected_publication_id="456", expected_sequence=20,
+                    expected_snapshot_digest="sha256:" + "b" * 64,
+                    expected_source_commit="c" * 40,
+                )
+
+    def test_current_v5_bundle_validates_unmocked_with_v2_release_semantics(self) -> None:
+        from tests.test_launch_evidence_schema_router import launch_v5
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            observer = evidence.canonical_json({"schema_version": 1, "signed": True})
+            launch = launch_v5()
+            launch["run"].update({
+                "github_sha": "b" * 40, "github_run_id": "1", "github_run_attempt": "1",
+                "caller_event_name": "push", "caller_ref": "refs/heads/main",
+                "caller_workflow_ref": "fixture/repository/.github/workflows/directory-publication.yml@refs/heads/main",
+                "observer_bundle_digest": evidence.sha256(observer),
+            })
+            launch["directory"].update({
+                "publication_id": "456", "source_commit": "c" * 40,
+                "sequence": 20, "snapshot_digest": "sha256:" + "a" * 64,
+            })
+            for row in launch["matrix"]:
+                row["tuple"].update(snapshot_sequence=20, snapshot_digest="sha256:" + "a" * 64)
+                row["details"]["directory_digest"] = "sha256:" + "a" * 64
+            (root / "launch-evidence.json").write_bytes(evidence.canonical_json(launch))
+            (root / "signed-observer-bundle.json").write_bytes(observer)
+            digest, files = evidence.build_bundle(
+                root, repository="fixture/repository",
+                workflow="fixture/repository/.github/workflows/launch-evidence-e2e.yml",
+                source_ref="refs/heads/main", source_digest="b" * 40,
+                expected_run_id="1", expected_run_attempt="1",
+                expected_caller_event_name="push", expected_caller_ref="refs/heads/main",
+                expected_caller_workflow_ref="fixture/repository/.github/workflows/directory-publication.yml@refs/heads/main",
+                expected_publication_id="456", expected_sequence=20,
+                expected_snapshot_digest="sha256:" + "a" * 64,
+                expected_source_commit="c" * 40,
+            )
+        self.assertEqual(digest, evidence.sha256(files["launch-evidence.json"]))
+        self.assertEqual(len(json.loads(files["directory-evidence/index.json"])["records"]), 16)
+
+    def test_sidecar_schema_is_selected_by_caller_purpose(self) -> None:
+        files = {"launch-evidence.json": evidence.canonical_json({"schema_version": 5}), "SHA256SUMS": b""}
+        policy = evidence.canonical_json({"schema_version": 2})
+        readiness = evidence.canonical_json({"schema_version": 2})
+        with mock.patch.object(evidence, "validate_completed_readiness") as validate:
+            evidence.attach_two_lane_evidence(
+                files, policy, readiness, uap_sha="a" * 40,
+                directory_ledger_sha="b" * 40, publication_id="456",
+                publication_sequence=20, publication_snapshot_digest="sha256:" + "c" * 64,
+                publication_source_commit="d" * 40, purpose="current",
+            )
+        self.assertEqual(validate.call_args.kwargs["schema_version"], 2)
+        self.assertEqual(validate.call_args.kwargs["purpose"], "current")
+
+    def test_current_v5_attaches_unmocked_canonical_v2_sidecars(self) -> None:
+        from tests.test_launch_evidence_schema_router import launch_v5
+        from tests.test_two_lane_evidence import (
+            FIXTURE_LEDGER_SHA, FIXTURE_PUBLICATION_ID, FIXTURE_SOURCE_COMMIT,
+            FIXTURE_UAP_SHA, digest, policy_evidence,
+        )
+        import two_lane_evidence as lanes
+
+        runtime = launch_v5()
+        policy = policy_evidence(schema_version=2)
+        scenario_digest = evidence.policy_sha256_file(ROOT / "tests/e2e/launch-scenarios.json")
+        harness_digest = evidence.policy_sha256_file(ROOT / "tests/e2e/source-policy-tests.json")
+        overlay_digest = evidence.policy_sha256_file(ROOT / "tests/e2e/source-policy-overlay.json")
+        policy["identities"].update({
+            "scenario_digest": scenario_digest, "harness_digest": harness_digest,
+            "overlay_digest": overlay_digest,
+        })
+        for row in policy["results"]:
+            row["proof"]["overlay_digest"] = overlay_digest
+            row["proof_digest"] = lanes.sha256(lanes.canonical_json(row["proof"]))
+        identity = {
+            "scenario_digest": scenario_digest, "harness_digest": harness_digest,
+            "overlay_digest": overlay_digest, "uap_sha": FIXTURE_UAP_SHA,
+            "directory_ledger_sha": FIXTURE_LEDGER_SHA,
+            "publication_id": FIXTURE_PUBLICATION_ID, "publication_sequence": 1,
+            "publication_snapshot_digest": digest("a"),
+            "publication_source_commit": FIXTURE_SOURCE_COMMIT,
+        }
+        readiness = lanes.build_readiness_envelope(runtime, policy, **identity)
+        files = {"launch-evidence.json": evidence.canonical_json(runtime), "SHA256SUMS": b""}
+        attached = evidence.attach_two_lane_evidence(
+            files, evidence.canonical_json(policy), evidence.canonical_json(readiness),
+            **{key: identity[key] for key in (
+                "uap_sha", "directory_ledger_sha", "publication_id",
+                "publication_sequence", "publication_snapshot_digest",
+                "publication_source_commit",
+            )},
+        )
+        self.assertEqual(json.loads(attached[evidence.POLICY_EVIDENCE_NAME])["schema_version"], 2)
+        self.assertEqual(json.loads(attached[evidence.READINESS_EVIDENCE_NAME])["runtime_results"], 16)
+
+    def test_materializer_rejects_non_schema_v2_policy_shapes(self) -> None:
+        from tests.test_launch_evidence_schema_router import launch_v5
+        from tests.test_two_lane_evidence import (
+            FIXTURE_LEDGER_SHA, FIXTURE_PUBLICATION_ID, FIXTURE_SOURCE_COMMIT,
+            FIXTURE_UAP_SHA, digest, policy_evidence,
+        )
+
+        runtime = launch_v5()
+        files = {"launch-evidence.json": evidence.canonical_json(runtime), "SHA256SUMS": b""}
+        mutations = []
+        root_extra = policy_evidence(schema_version=2)
+        root_extra["unexpected"] = True
+        mutations.append(root_extra)
+        nested_extra = policy_evidence(schema_version=2)
+        nested_extra["identities"]["unexpected"] = True
+        mutations.append(nested_extra)
+        malformed_details = policy_evidence(schema_version=2)
+        malformed_details["results"][0]["details"] = {"claimed": True}
+        mutations.append(malformed_details)
+        for policy in mutations:
+            with self.subTest(policy=mutations.index(policy)), self.assertRaisesRegex(
+                ValueError, "v2 schema mismatch",
+            ):
+                evidence.attach_two_lane_evidence(
+                    files, evidence.canonical_json(policy),
+                    evidence.canonical_json({"schema_version": 2}),
+                    uap_sha=FIXTURE_UAP_SHA,
+                    directory_ledger_sha=FIXTURE_LEDGER_SHA,
+                    publication_id=FIXTURE_PUBLICATION_ID,
+                    publication_sequence=1,
+                    publication_snapshot_digest=digest("a"),
+                    publication_source_commit=FIXTURE_SOURCE_COMMIT,
+                )
 
     def test_attester_verifies_signature_and_exact_signed_authoritative_rows(self) -> None:
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -184,6 +355,30 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
             launch, bundle, repository="owner/repository",
             public_key=public_key, key_id="observer-v1",
         )
+        historical_without_chatgpt = json.loads(json.dumps(launch))
+        historical_without_chatgpt["matrix"] = [
+            row for row in historical_without_chatgpt["matrix"]
+            if row["client"] != "chatgpt"
+        ]
+        historical_bundle = json.loads(json.dumps(bundle))
+        del historical_bundle["artifacts"]["chatgpt-cloudflare-attestation.json"]
+        historical_bundle["signature"] = base64.b64encode(
+            private_key.sign(signatures.signed_payload(historical_bundle))
+        ).decode()
+        evidence.verify_authoritative_observer_rows(
+            historical_without_chatgpt, historical_bundle,
+            repository="owner/repository", public_key=public_key,
+            key_id="observer-v1",
+        )
+
+        current_missing_chatgpt_observer = json.loads(json.dumps(launch))
+        current_missing_chatgpt_observer["schema_version"] = 5
+        with self.assertRaisesRegex(ValueError, "artifact set"):
+            evidence.verify_authoritative_observer_rows(
+                current_missing_chatgpt_observer, historical_bundle,
+                repository="owner/repository", public_key=public_key,
+                key_id="observer-v1",
+            )
         delayed = {**bundle, "signed_at": (datetime.now(timezone.utc) - timedelta(hours=2)).replace(microsecond=0).isoformat()}
         delayed["signature"] = base64.b64encode(private_key.sign(signatures.signed_payload(delayed))).decode()
         with self.assertRaisesRegex(ValueError, "stale"):
@@ -228,8 +423,10 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
         rows = authoritative_rows()
         rows[-1] = dict(rows[-1], id="different")
         rows.append(dict(rows[-1]))
-        with self.assertRaisesRegex(evidence.EvidenceError, "expected 16|duplicate"):
-            evidence.selected_rows({"evidence_class": "released_binary", "matrix": rows})
+        with self.assertRaisesRegex(evidence.EvidenceError, "exactly one Cloudflare ChatGPT|duplicate"):
+            evidence.selected_rows({
+                "schema_version": 5, "evidence_class": "released_binary", "matrix": rows,
+            })
 
     def test_wrong_attempt_event_or_caller_is_rejected(self) -> None:
         observer = evidence.canonical_json({"schema_version": 1, "signed": True})
@@ -245,7 +442,8 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
                 launch["run"][field] = value
                 (root / "launch-evidence.json").write_bytes(evidence.canonical_json(launch))
                 (root / "signed-observer-bundle.json").write_bytes(observer)
-                with mock.patch.object(evidence, "validate_with_schema"), self.assertRaisesRegex(
+                with mock.patch.object(evidence, "validate_with_schema"), \
+                     mock.patch.object(evidence, "validate_launch_schema"), self.assertRaisesRegex(
                     evidence.EvidenceError, "mismatch",
                 ):
                     evidence.build_bundle(

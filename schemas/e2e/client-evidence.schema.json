@@ -83,24 +83,41 @@
       "required": ["directory_source", "display_name", "installation_state", "detail_action", "opened_mode", "plugin_chip_selected", "activation_evidence"],
       "properties": {
         "directory_source": { "const": "Personal" },
-        "display_name": { "const": "Universal Agent Plugins Cloudflare Docs E2E" },
+        "display_name": { "enum": ["Universal Agent Plugins Cloudflare Docs E2E", "Cloudflare Docs E2E"] },
         "installation_state": { "const": "Installed" },
         "detail_action": { "const": "Попробовать в чате" },
         "opened_mode": { "const": "Chat" },
         "plugin_chip_selected": { "const": true },
-        "activation_evidence": { "const": "user_attested_manual" }
+        "activation_evidence": { "enum": ["user_attested_manual", "directly_observed"] }
       },
       "additionalProperties": false
     },
     "runtime": {
       "type": "object",
-      "required": ["prompt_count", "tool_call_count", "read_only"],
-      "properties": {
-        "prompt_count": { "const": 1 },
-        "tool_call_count": { "const": 2 },
-        "read_only": { "const": true }
-      },
-      "additionalProperties": false
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["prompt_count", "tool_call_count", "read_only"],
+          "properties": {
+            "prompt_count": { "const": 1 },
+            "tool_call_count": { "const": 2 },
+            "read_only": { "const": true }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["prompt_count", "read_only", "assistant_response_observed", "tool_invocation_visibility", "mcp_runtime_outcome"],
+          "properties": {
+            "prompt_count": { "const": 1 },
+            "read_only": { "const": true },
+            "assistant_response_observed": { "const": true },
+            "tool_invocation_visibility": { "const": "not_exposed" },
+            "mcp_runtime_outcome": { "const": "inconclusive" }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "scope": {
       "type": "object",
@@ -152,6 +169,71 @@
     {
       "if": {
         "properties": {
+          "evidence_type": { "const": "interactive_personal_app_ui_v2" }
+        },
+        "required": ["evidence_type"]
+      },
+      "then": {
+        "required": ["version", "date_timezone", "binding", "source", "ui", "runtime", "scope", "cleanup"],
+        "not": { "required": ["catalog"] },
+        "properties": {
+          "client": { "const": "ChatGPT web Plugins UI" },
+          "ui": {
+            "properties": {
+              "display_name": { "const": "Cloudflare Docs E2E" },
+              "activation_evidence": { "const": "directly_observed" }
+            }
+          },
+          "runtime": {
+            "required": ["prompt_count", "read_only", "assistant_response_observed", "tool_invocation_visibility", "mcp_runtime_outcome"],
+            "properties": {
+              "prompt_count": { "const": 1 },
+              "read_only": { "const": true },
+              "assistant_response_observed": { "const": true },
+              "tool_invocation_visibility": { "const": "not_exposed" },
+              "mcp_runtime_outcome": { "const": "inconclusive" }
+            }
+          },
+          "checks": {
+            "minItems": 8,
+            "maxItems": 8,
+            "items": { "required": ["scenario", "operation", "status"] }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": { "const": "interactive_personal_app_read_only_runtime_v2" }
+        },
+        "required": ["evidence_type"]
+      },
+      "then": {
+        "required": ["version", "date_timezone", "binding", "source", "runtime", "cleanup"],
+        "properties": {
+          "client": { "const": "ChatGPT web Plugins UI" },
+          "runtime": {
+            "required": ["prompt_count", "read_only", "assistant_response_observed", "tool_invocation_visibility", "mcp_runtime_outcome"],
+            "properties": {
+              "prompt_count": { "const": 1 },
+              "read_only": { "const": true },
+              "assistant_response_observed": { "const": true },
+              "tool_invocation_visibility": { "const": "not_exposed" },
+              "mcp_runtime_outcome": { "const": "inconclusive" }
+            }
+          },
+          "checks": {
+            "minItems": 4,
+            "maxItems": 4,
+            "items": { "required": ["scenario", "operation", "status"] }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "evidence_type": { "const": "interactive_personal_app_runtime" }
         },
         "required": ["evidence_type"]
@@ -160,6 +242,20 @@
         "required": ["version", "date_timezone", "binding", "catalog", "source", "ui", "runtime", "scope", "cleanup"],
         "properties": {
           "client": { "const": "ChatGPT web Plugins UI" },
+          "ui": {
+            "properties": {
+              "display_name": { "const": "Universal Agent Plugins Cloudflare Docs E2E" },
+              "activation_evidence": { "const": "user_attested_manual" }
+            }
+          },
+          "runtime": {
+            "required": ["prompt_count", "tool_call_count", "read_only"],
+            "properties": {
+              "prompt_count": { "const": 1 },
+              "tool_call_count": { "const": 2 },
+              "read_only": { "const": true }
+            }
+          },
           "checks": {
             "items": { "required": ["scenario", "operation", "status"] }
           }
