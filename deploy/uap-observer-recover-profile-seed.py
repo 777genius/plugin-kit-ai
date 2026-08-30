@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import hashlib
+from importlib.machinery import SourceFileLoader
 import importlib.util
 import os
 import re
@@ -14,13 +15,67 @@ import stat
 from pathlib import Path
 
 
+PROVISIONER_BASENAMES = (
+    "uap-observer-provision-profile.py",
+    "uap-observer-provision-profile",
+)
+
+
+def _dependency_identity(info: os.stat_result) -> tuple[int, ...]:
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink, info.st_uid,
+            info.st_gid, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
 def _load_provisioner():
-    path = Path(__file__).with_name("uap-observer-provision-profile.py")
-    spec = importlib.util.spec_from_file_location("uap_observer_provision_profile_recovery_dependency", path)
+    helper_path = Path(__file__)
+    helper_info = os.lstat(helper_path)
+    candidates: list[tuple[Path, os.stat_result]] = []
+    for basename in PROVISIONER_BASENAMES:
+        path = helper_path.with_name(basename)
+        try:
+            candidates.append((path, os.lstat(path)))
+        except FileNotFoundError:
+            continue
+    if len(candidates) != 1:
+        raise RuntimeError("profile recovery requires exactly one provisioner dependency")
+    path, before = candidates[0]
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_nlink != 1
+        or before.st_uid != helper_info.st_uid
+        or before.st_mode & 0o022
+    ):
+        raise RuntimeError("profile recovery provisioner dependency is not a protected regular file")
+    module_name = "uap_observer_provision_profile_recovery_dependency"
+    loader = SourceFileLoader(module_name, str(path))
+    spec = importlib.util.spec_from_loader(module_name, loader, origin=str(path))
     if spec is None or spec.loader is None:
         raise RuntimeError("installed profile provisioner could not be loaded")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        opened = os.fstat(descriptor)
+        if _dependency_identity(opened) != _dependency_identity(before) or opened.st_size > 1 << 20:
+            raise RuntimeError("profile recovery provisioner dependency was substituted")
+        source = bytearray()
+        while chunk := os.read(descriptor, 1 << 16):
+            source.extend(chunk)
+            if len(source) > 1 << 20:
+                raise RuntimeError("profile recovery provisioner dependency exceeds size bound")
+        try:
+            after = os.lstat(path)
+        except FileNotFoundError as error:
+            raise RuntimeError("profile recovery provisioner dependency was substituted") from error
+        if (
+            len(source) != opened.st_size
+            or _dependency_identity(os.fstat(descriptor)) != _dependency_identity(opened)
+            or _dependency_identity(after) != _dependency_identity(before)
+        ):
+            raise RuntimeError("profile recovery provisioner dependency was substituted")
+    finally:
+        os.close(descriptor)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    code = loader.source_to_code(bytes(source), str(path))
+    exec(code, module.__dict__)
     return module
 
 

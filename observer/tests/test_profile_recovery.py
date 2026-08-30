@@ -4,7 +4,10 @@ import importlib.util
 import hashlib
 import json
 import os
+import shutil
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,6 +39,42 @@ def release_tuple(plugin: str) -> dict:
 
 
 class ProfileRecoveryTests(unittest.TestCase):
+    def test_source_and_installed_provisioner_layouts_load_deterministically(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            installed = Path(temporary)
+            installed_helper = installed / "uap-observer-recover-profile-seed"
+            installed_provisioner = installed / "uap-observer-provision-profile"
+            shutil.copy2(HELPER_PATH, installed_helper)
+            shutil.copy2(ROOT / "deploy/uap-observer-provision-profile.py", installed_provisioner)
+
+            loaded = subprocess.run(
+                [sys.executable, "-B", str(installed_helper), "--help"],
+                text=True, capture_output=True,
+            )
+            self.assertEqual(loaded.returncode, 0, loaded.stdout + loaded.stderr)
+            self.assertIn("--archived-profile", loaded.stdout)
+
+            shutil.copy2(
+                ROOT / "deploy/uap-observer-provision-profile.py",
+                installed / "uap-observer-provision-profile.py",
+            )
+            ambiguous = subprocess.run(
+                [sys.executable, "-B", str(installed_helper), "--help"],
+                text=True, capture_output=True,
+            )
+            self.assertNotEqual(ambiguous.returncode, 0)
+            self.assertIn("requires exactly one provisioner dependency", ambiguous.stderr)
+
+            (installed / "uap-observer-provision-profile.py").unlink()
+            installed_provisioner.unlink()
+            installed_provisioner.symlink_to(ROOT / "deploy/uap-observer-provision-profile.py")
+            linked = subprocess.run(
+                [sys.executable, "-B", str(installed_helper), "--help"],
+                text=True, capture_output=True,
+            )
+            self.assertNotEqual(linked.returncode, 0)
+            self.assertIn("is not a protected regular file", linked.stderr)
+
     def fixture(self, root: Path) -> tuple[Path, Path, Path, bytes]:
         profile, proof, output = root / "profile", root / "proof", root / "output"
         profile.mkdir(mode=0o700); proof.mkdir(mode=0o700); output.mkdir(mode=0o700)
