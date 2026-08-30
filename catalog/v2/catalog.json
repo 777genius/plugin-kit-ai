@@ -248,7 +248,7 @@
             "mcp_server": "cloudflare-docs",
             "mcp_url": "https://docs.mcp.cloudflare.com/mcp",
             "runtime_evidence": "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-30.json",
-            "runtime_evidence_revision": "b89b8ffc3ccd2d8e0987ec9f105f4001cc08b834"
+            "runtime_evidence_revision": "09d87af1fb327b813e0f1405fd9c4c8fd272d1d4"
           }
         }
       }

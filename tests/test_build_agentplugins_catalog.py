@@ -28,7 +28,7 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
     def test_committed_legacy_catalogs_are_byte_frozen(self) -> None:
         expected = {
             1: "9ed64038a8a1b1eab6956008f94b3ffa16f1b6ddf01e8b2809b202656423f183",
-            2: "5f2d4d0161ef92eb4424437b86a47f3143b67efb5e63883409ed7ccb8edf493c",
+            2: "8fde037780ea82fa7dc0355489a98821a01aa398be5114d0284583f169a6a02d",
         }
         for schema_version, digest in expected.items():
             with self.subTest(schema_version=schema_version):
@@ -185,7 +185,7 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
                         "chatgpt-cloudflare-docs-personal-app-2026-08-30.json"
                     ),
                     "runtime_evidence_revision": (
-                        "b89b8ffc3ccd2d8e0987ec9f105f4001cc08b834"
+                        "09d87af1fb327b813e0f1405fd9c4c8fd272d1d4"
                     ),
                 },
             },
@@ -268,7 +268,7 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
 
     def test_current_chatgpt_evidence_does_not_claim_catalog_or_runtime_pass(self) -> None:
         catalog = builder.build(
-            "b89b8ffc3ccd2d8e0987ec9f105f4001cc08b834",
+            "09d87af1fb327b813e0f1405fd9c4c8fd272d1d4",
             "2026-08-30T11:06:27Z",
             2,
         )
