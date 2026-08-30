@@ -11,19 +11,56 @@ export interface CatalogFilters {
   owner?: string
 }
 
+function normalized(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function sourceOwner(plugin: RegistryPlugin): string {
+  return plugin.source.repository.split('/', 1)[0] ?? plugin.source.repository
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
+function matchQuality(value: string, query: string): number | undefined {
+  const candidate = normalized(value)
+  if (candidate === query) return 0
+  if (candidate.startsWith(query)) return 1
+  if (candidate.split(/[^\p{L}\p{N}]+/u).some(part => part.startsWith(query))) return 2
+  if (candidate.includes(query)) return 3
+  return undefined
+}
+
+function textRelevance(plugin: RegistryPlugin, query: string): number {
+  if (!query) return 0
+  const fields: Array<[number, string[]]> = [
+    [0, [plugin.name, plugin.display_name]],
+    [4, [...plugin.keywords, ...plugin.categories, ...plugin.components]],
+    [8, [sourceOwner(plugin), plugin.source.repository]],
+    [12, [plugin.author.name]],
+    [16, [plugin.description]],
+  ]
+  return Math.min(...fields.flatMap(([weight, values]) => values
+    .map(value => matchQuality(value, query))
+    .filter((quality): quality is number => quality !== undefined)
+    .map(quality => weight + quality)), Number.MAX_SAFE_INTEGER)
+}
+
 export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters): RegistryPlugin[] {
-  const query = filters.query?.trim().toLocaleLowerCase() ?? ''
+  const query = normalized(filters.query ?? '')
   const matches = plugins.filter((plugin) => {
     const searchable = [
       plugin.name,
       plugin.display_name,
       plugin.description,
       plugin.author.name,
+      plugin.source.repository,
       ...plugin.categories,
       ...plugin.keywords,
       ...plugin.components,
-    ].join(' ').toLocaleLowerCase()
-    return (!query || searchable.includes(query))
+    ]
+    return (!query || searchable.some(value => normalized(value).includes(query)))
       && (!filters.category || plugin.categories.includes(filters.category))
       && (!filters.component || plugin.components.includes(filters.component))
       && (!filters.source || filters.source === 'all'
@@ -32,25 +69,27 @@ export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters
       && (!filters.client || filters.client === 'all' || plugin.client_support.clients.includes(filters.client))
       && (!filters.authentication || filters.authentication === 'all'
         || (filters.authentication === 'none' ? plugin.authentication === 'none' : plugin.authentication !== 'none'))
-      && (!filters.owner || plugin.author.name.toLocaleLowerCase() === filters.owner.toLocaleLowerCase())
+      && (!filters.owner || normalized(sourceOwner(plugin)) === normalized(filters.owner))
   })
   return matches.sort((left, right) => {
     const score = (plugin: RegistryPlugin) => {
       const reviewed = (plugin.trust_state ?? 'reviewed') === 'reviewed'
-      const name = plugin.name.toLocaleLowerCase()
-      if (query && name === query) return reviewed ? 0 : 2
-      if (query && name.startsWith(query)) return reviewed ? 1 : 3
-      return reviewed ? 4 : 5
+      const name = normalized(plugin.name)
+      if (query && reviewed && name === query) return 0
+      if (query && reviewed && name.startsWith(query)) return 1
+      if (query && !reviewed && name === query) return 2
+      return 3
     }
     return score(left) - score(right)
+      || textRelevance(left, query) - textRelevance(right, query)
       || ((right.discovery?.stars ?? 0) - (left.discovery?.stars ?? 0))
-      || left.install_source.localeCompare(right.install_source)
+      || compareText(left.install_source, right.install_source)
   })
 }
 
 export function availableFilters(plugins: RegistryPlugin[]) {
   const categories = [...new Set(plugins.flatMap(plugin => plugin.categories))].sort()
   const components = [...new Set(plugins.flatMap(plugin => plugin.components))].sort()
-  const owners = [...new Set(plugins.map(plugin => plugin.author.name))].sort((left, right) => left.localeCompare(right))
+  const owners = [...new Set(plugins.map(sourceOwner))].sort(compareText)
   return { categories, components, owners }
 }

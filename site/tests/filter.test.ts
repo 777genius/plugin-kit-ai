@@ -19,6 +19,37 @@ describe('catalog filtering', () => {
       display_name: 'Readable Plugin Name',
     }
     assert.deepEqual(filterPlugins([displayOnly], { query: 'readable plugin' }).map(plugin => plugin.name), ['internal-slug'])
+    assert.deepEqual(filterPlugins(plugins, { query: 'example/plugins' }).map(plugin => plugin.name), ['example-external'])
+  })
+
+  it('filters and lists canonical source owners instead of author display names', () => {
+    assert.deepEqual(filterPlugins(plugins, { owner: '777GENIUS' }).map(plugin => plugin.name), ['context7'])
+    assert.deepEqual(filterPlugins(plugins, { owner: 'Community package for Upstash' }), [])
+  })
+
+  it('ranks remaining text matches by relevance before stars', () => {
+    const descriptionMatch = {
+      ...plugins[0]!,
+      name: 'popular-package',
+      display_name: 'Popular package',
+      description: 'Includes interactive chart rendering',
+      keywords: [],
+      discovery: { ...plugins[0]!.discovery!, stars: 10_000 },
+      trust_state: 'conformant_unreviewed' as const,
+    }
+    const displayNameMatch = {
+      ...plugins[1]!,
+      name: 'visualization-tools',
+      display_name: 'Interactive chart builder',
+      description: 'Build visualizations',
+      keywords: [],
+      discovery: { ...plugins[1]!.discovery!, stars: 1 },
+      trust_state: 'conformant_unreviewed' as const,
+    }
+    assert.deepEqual(
+      filterPlugins([descriptionMatch, displayNameMatch], { query: 'chart' }).map(plugin => plugin.name),
+      ['visualization-tools', 'popular-package'],
+    )
   })
 
   it('combines category, component, and source filters', () => {
@@ -41,7 +72,7 @@ describe('catalog filtering', () => {
     assert.deepEqual(availableFilters(plugins), {
       categories: ['development', 'documentation'],
       components: ['mcp', 'skills'],
-      owners: ['Community package for Upstash', 'Example contributor'],
+      owners: ['777genius', 'example'],
     })
   })
 })
