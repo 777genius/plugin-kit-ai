@@ -256,6 +256,14 @@ func executablePathsFromTree(tree []byte, subpath string) ([]string, error) {
 		}
 		mode, objectType := string(fields[0]), string(fields[1])
 		if mode == "160000" || objectType == "commit" {
+			// A repository-root Agent Plugin may live beside unrelated Git
+			// submodules. The isolated checkout never fetches their content, so
+			// they cannot contribute files or executable bits to the snapshot.
+			// Keep rejecting a gitlink inside an explicitly selected package
+			// subpath, where omitting it could silently produce a partial package.
+			if subpath == "" {
+				continue
+			}
 			return nil, fmt.Errorf("Git submodule content is unsupported in plugin subpath")
 		}
 		if mode != "100755" {
