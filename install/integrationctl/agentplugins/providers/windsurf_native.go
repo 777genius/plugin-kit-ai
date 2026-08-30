@@ -136,7 +136,11 @@ func applyWindsurfNativeMutationWithKernel(configRoot, activePath string, previo
 		return fmt.Errorf("prepared Windsurf MCP projection does not match desired ownership")
 	}
 
-	names := make([]string, 0, len(previousMap)+len(desiredMap))
+	namesCapacity, capacityErr := checkedCombinedCapacity(len(previousMap), len(desiredMap))
+	if capacityErr != nil {
+		return fmt.Errorf("prepare managed Windsurf MCP server set: %w", capacityErr)
+	}
+	names := make([]string, 0, namesCapacity)
 	seen := map[string]bool{}
 	for name := range previousMap {
 		seen[name] = true

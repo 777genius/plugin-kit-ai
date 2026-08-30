@@ -329,7 +329,11 @@ func applyGeminiNativeMutationWithKernelAndRename(configRoot, activePath string,
 	}
 
 	requests := make([]nativeconfig.Request, 0)
-	ids := make([]string, 0, len(previousByID)+len(desiredByID))
+	idsCapacity, capacityErr := checkedCombinedCapacity(len(previousByID), len(desiredByID))
+	if capacityErr != nil {
+		return fmt.Errorf("prepare managed Gemini object set: %w", capacityErr)
+	}
+	ids := make([]string, 0, idsCapacity)
 	seen := map[string]bool{}
 	for id := range previousByID {
 		ids, seen[id] = append(ids, id), true

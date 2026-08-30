@@ -381,7 +381,11 @@ func mutateClineMCPWithKernel(configRoot, activePath string, previous, desired m
 			return err
 		}
 	}
-	ids := make([]string, 0, len(previous)+len(desired))
+	idsCapacity, capacityErr := checkedCombinedCapacity(len(previous), len(desired))
+	if capacityErr != nil {
+		return fmt.Errorf("prepare managed Cline MCP server set: %w", capacityErr)
+	}
+	ids := make([]string, 0, idsCapacity)
 	seen := map[string]bool{}
 	for id, object := range previous {
 		if object.Kind == clineMCPObjectKind {

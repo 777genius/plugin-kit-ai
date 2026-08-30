@@ -705,7 +705,11 @@ func (service Service) updateLifecycleAndNativeObjects(installationID, clientBin
 			return false, fmt.Errorf("client binding disappeared during activation")
 		}
 		if nativeObjects != nil && preserveCommittedPackage {
-			reconciled := make([]domain.NativeObjectOwnership, 0, len(client.NativeObjects)+len(*nativeObjects))
+			reconciledCapacity, capacityErr := checkedCombinedCapacity(len(client.NativeObjects), len(*nativeObjects))
+			if capacityErr != nil {
+				return false, fmt.Errorf("reconcile committed native objects: %w", capacityErr)
+			}
+			reconciled := make([]domain.NativeObjectOwnership, 0, reconciledCapacity)
 			for _, object := range client.NativeObjects {
 				if object.Kind == "managed_package_directory" {
 					reconciled = append(reconciled, object)
