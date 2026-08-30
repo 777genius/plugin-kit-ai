@@ -247,7 +247,7 @@ func ValidateAppBindingReference(binding domain.CatalogAppBinding) error {
 		return err
 	}
 	parsed, err := url.Parse(binding.MCPURL)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != binding.MCPURL {
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.Hostname() == "" || strings.HasSuffix(parsed.Host, ":") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != binding.MCPURL {
 		return fmt.Errorf("mcp_url must be a normalized absolute HTTPS URL without userinfo, query, or fragment")
 	}
 	if port := parsed.Port(); port != "" {

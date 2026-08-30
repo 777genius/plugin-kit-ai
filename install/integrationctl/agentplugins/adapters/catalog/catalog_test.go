@@ -165,6 +165,8 @@ func TestValidateAppBindingReferenceRejectsInvalidHTTPSAuthority(t *testing.T) {
 	}
 	for _, mcpURL := range []string{
 		"https://:443/mcp",
+		"https://example.test:/mcp",
+		"https://[::1]:/mcp",
 		"https://example.test:0/mcp",
 		"https://example.test:65536/mcp",
 		"https://example.test:not-a-port/mcp",
