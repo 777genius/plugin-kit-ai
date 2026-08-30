@@ -65,6 +65,8 @@ runtime behavior.
 
 The following matrix describes the current release source. New client support
 is available through `npx` once a release containing this source is published.
+The exact package, source revisions, commands, and limitations are recorded in
+the [isolated client E2E evidence](https://github.com/777genius/plugin-kit-ai/blob/main/docs/AGENTPLUGINS_CLIENT_E2E.md).
 
 | Client | Evidence |
 | --- | --- |
