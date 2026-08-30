@@ -205,8 +205,15 @@ func applyClineNativeMutationWithKernel(configRoot, activePath string, previous,
 }
 
 func applyClineNativeMutationWithKernelAndRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel, rename clineRenameFunc) (resultErr error) {
+	return applyClineNativeMutationWithKernelRenameAndCapacity(configRoot, activePath, previous, desired, kernel, rename, checkedCombinedCapacity)
+}
+
+func applyClineNativeMutationWithKernelRenameAndCapacity(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel, rename clineRenameFunc, capacity combinedCapacityFunc) (resultErr error) {
 	if rename == nil {
 		return fmt.Errorf("Cline rename operation is unavailable")
+	}
+	if capacity == nil {
+		return fmt.Errorf("Cline capacity checker is unavailable")
 	}
 	configRoot = strings.TrimSpace(configRoot)
 	if configRoot == "" || !filepath.IsAbs(configRoot) {
@@ -217,6 +224,10 @@ func applyClineNativeMutationWithKernelAndRename(configRoot, activePath string, 
 		return err
 	}
 	previousByID, desiredByID := objectMap(previous), objectMap(desired)
+	idsCapacity, capacityErr := capacity(len(previousByID), len(desiredByID))
+	if capacityErr != nil {
+		return fmt.Errorf("prepare managed Cline MCP server set: %w", capacityErr)
+	}
 	for id, object := range desiredByID {
 		if prior, replacing := previousByID[id]; replacing {
 			if prior.Kind != object.Kind || prior.LogicalName != object.LogicalName || !sameCleanPath(prior.Path, object.Path) {
@@ -355,7 +366,7 @@ func applyClineNativeMutationWithKernelAndRename(configRoot, activePath string, 
 	if err := verifyClineNativeObjects(configRoot, clineSkillObjects(desired), false); err != nil {
 		return err
 	}
-	if err := mutateClineMCPWithKernel(configRoot, activePath, previousByID, desiredByID, kernel); err != nil {
+	if err := mutateClineMCPWithKernelAndCapacity(configRoot, activePath, previousByID, desiredByID, kernel, idsCapacity); err != nil {
 		return err
 	}
 	return nil
@@ -366,6 +377,14 @@ func mutateClineMCP(configRoot, activePath string, previous, desired map[string]
 }
 
 func mutateClineMCPWithKernel(configRoot, activePath string, previous, desired map[string]domain.NativeObjectOwnership, kernel nativeconfig.Kernel) error {
+	idsCapacity, capacityErr := checkedCombinedCapacity(len(previous), len(desired))
+	if capacityErr != nil {
+		return fmt.Errorf("prepare managed Cline MCP server set: %w", capacityErr)
+	}
+	return mutateClineMCPWithKernelAndCapacity(configRoot, activePath, previous, desired, kernel, idsCapacity)
+}
+
+func mutateClineMCPWithKernelAndCapacity(configRoot, activePath string, previous, desired map[string]domain.NativeObjectOwnership, kernel nativeconfig.Kernel, idsCapacity int) error {
 	if !hasClineMCP(previous) && !hasClineMCP(desired) {
 		return nil
 	}
@@ -380,10 +399,6 @@ func mutateClineMCPWithKernel(configRoot, activePath string, previous, desired m
 		if err != nil {
 			return err
 		}
-	}
-	idsCapacity, capacityErr := checkedCombinedCapacity(len(previous), len(desired))
-	if capacityErr != nil {
-		return fmt.Errorf("prepare managed Cline MCP server set: %w", capacityErr)
 	}
 	ids := make([]string, 0, idsCapacity)
 	seen := map[string]bool{}

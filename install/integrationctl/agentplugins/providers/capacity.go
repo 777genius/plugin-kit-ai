@@ -7,6 +7,8 @@ import (
 
 var errCombinedCapacityOverflow = errors.New("combined capacity exceeds platform limits")
 
+type combinedCapacityFunc func(left, right int) (int, error)
+
 func checkedCombinedCapacity(left, right int) (int, error) {
 	if left < 0 || right < 0 {
 		return 0, errCombinedCapacityOverflow

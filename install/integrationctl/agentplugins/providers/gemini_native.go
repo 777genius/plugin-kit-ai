@@ -176,8 +176,15 @@ func applyGeminiNativeMutationWithKernel(configRoot, activePath string, previous
 }
 
 func applyGeminiNativeMutationWithKernelAndRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel, rename geminiRenameFunc) (resultErr error) {
+	return applyGeminiNativeMutationWithKernelRenameAndCapacity(configRoot, activePath, previous, desired, kernel, rename, checkedCombinedCapacity)
+}
+
+func applyGeminiNativeMutationWithKernelRenameAndCapacity(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel, rename geminiRenameFunc, capacity combinedCapacityFunc) (resultErr error) {
 	if rename == nil {
 		return fmt.Errorf("Gemini rename operation is unavailable")
+	}
+	if capacity == nil {
+		return fmt.Errorf("Gemini capacity checker is unavailable")
 	}
 	configRoot = strings.TrimSpace(configRoot)
 	if configRoot == "" || !filepath.IsAbs(configRoot) {
@@ -188,6 +195,10 @@ func applyGeminiNativeMutationWithKernelAndRename(configRoot, activePath string,
 		return err
 	}
 	previousByID, desiredByID := objectMap(previous), objectMap(desired)
+	idsCapacity, capacityErr := capacity(len(previousByID), len(desiredByID))
+	if capacityErr != nil {
+		return fmt.Errorf("prepare managed Gemini object set: %w", capacityErr)
+	}
 	for id, object := range desiredByID {
 		if prior, replacing := previousByID[id]; replacing {
 			if prior.Kind != object.Kind || prior.LogicalName != object.LogicalName || !sameCleanPath(prior.Path, object.Path) {
@@ -329,10 +340,6 @@ func applyGeminiNativeMutationWithKernelAndRename(configRoot, activePath string,
 	}
 
 	requests := make([]nativeconfig.Request, 0)
-	idsCapacity, capacityErr := checkedCombinedCapacity(len(previousByID), len(desiredByID))
-	if capacityErr != nil {
-		return fmt.Errorf("prepare managed Gemini object set: %w", capacityErr)
-	}
 	ids := make([]string, 0, idsCapacity)
 	seen := map[string]bool{}
 	for id := range previousByID {
