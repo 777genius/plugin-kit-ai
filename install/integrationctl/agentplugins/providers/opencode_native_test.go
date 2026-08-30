@@ -143,6 +143,95 @@ func TestOpenCodeCollisionRollsBackStagedSkill(t *testing.T) {
 	}
 }
 
+func TestOpenCodeLateSkillCollisionDoesNotReplaceForeignDirectory(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, "xdg", "opencode")
+	active := filepath.Join(root, "managed", "demo")
+	envelope, plan := openCodeTestPackage(t, active, configRoot, "owned")
+	objects, err := buildOpenCodeNativeObjects(active, envelope, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	liveSkill := filepath.Join(configRoot, "skills", "docs")
+	rename := func(oldPath, newPath string) error {
+		if strings.HasPrefix(filepath.Base(oldPath), "new-") && sameCleanPath(newPath, liveSkill) {
+			writeOpenCodeTestFile(t, filepath.Join(newPath, "SKILL.md"), "late foreign\n")
+		}
+		return renameDirectoryExclusive(oldPath, newPath)
+	}
+
+	err = applyOpenCodeNativeWithRename(configRoot, active, nil, objects, rename)
+	if err == nil || !strings.Contains(err.Error(), "destination") && !strings.Contains(err.Error(), "file exists") {
+		t.Fatalf("late OpenCode skill collision = %v", err)
+	}
+	if got := readOpenCodeTestFile(t, filepath.Join(liveSkill, "SKILL.md")); got != "late foreign\n" {
+		t.Fatalf("late foreign OpenCode skill was overwritten: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(configRoot, "opencode.json")); !os.IsNotExist(err) {
+		t.Fatalf("failed skill activation committed an MCP receipt: %v", err)
+	}
+	transactions, err := filepath.Glob(filepath.Join(configRoot, "skills", ".agentplugins-native-*"))
+	if err != nil || len(transactions) != 0 {
+		t.Fatalf("failed fresh install left transaction data: %v, %v", transactions, err)
+	}
+}
+
+func TestOpenCodeRollbackDoesNotReplaceConcurrentForeignDirectory(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, "xdg", "opencode")
+	activeV1 := filepath.Join(root, "managed", "v1")
+	firstEnvelope, firstPlan := openCodeTestPackage(t, activeV1, configRoot, "old")
+	first, err := buildOpenCodeNativeObjects(activeV1, firstEnvelope, firstPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyOpenCodeNative(configRoot, activeV1, nil, first); err != nil {
+		t.Fatal(err)
+	}
+
+	activeV2 := filepath.Join(root, "managed", "v2")
+	secondEnvelope, secondPlan := openCodeTestPackage(t, activeV2, configRoot, "new")
+	second, err := buildOpenCodeNativeObjects(activeV2, secondEnvelope, secondPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	liveSkill := filepath.Join(configRoot, "skills", "docs")
+	configPath := filepath.Join(configRoot, "opencode.json")
+	rename := func(oldPath, newPath string) error {
+		switch {
+		case strings.HasPrefix(filepath.Base(oldPath), "new-") && sameCleanPath(newPath, liveSkill):
+			if err := renameDirectoryExclusive(oldPath, newPath); err != nil {
+				return err
+			}
+			// Force the later ownership-aware MCP batch to fail after the new
+			// skill is live, so rollback has to restore the isolated backup.
+			writeOpenCodeTestFile(t, configPath, `{"mcp":{"docs":{"type":"local","command":["foreign"]}}}`)
+			return nil
+		case strings.HasPrefix(filepath.Base(oldPath), "old-") && sameCleanPath(newPath, liveSkill):
+			writeOpenCodeTestFile(t, filepath.Join(newPath, "SKILL.md"), "concurrent foreign\n")
+		}
+		return renameDirectoryExclusive(oldPath, newPath)
+	}
+
+	err = applyOpenCodeNativeWithRename(configRoot, activeV2, first, second, rename)
+	if err == nil || !strings.Contains(err.Error(), "rollback OpenCode skills") {
+		t.Fatalf("rollback collision error = %v", err)
+	}
+	if got := readOpenCodeTestFile(t, filepath.Join(liveSkill, "SKILL.md")); got != "concurrent foreign\n" {
+		t.Fatalf("concurrent foreign OpenCode skill was overwritten: %q", got)
+	}
+	if body := readOpenCodeTestFile(t, configPath); !strings.Contains(body, "foreign") || strings.Contains(body, "new") {
+		t.Fatalf("failed update committed a desired MCP receipt: %s", body)
+	}
+	transactions, globErr := filepath.Glob(filepath.Join(configRoot, "skills", ".agentplugins-native-*"))
+	if globErr != nil || len(transactions) != 1 {
+		t.Fatalf("recoverable OpenCode backup transaction = %v, %v", transactions, globErr)
+	}
+	if got := readOpenCodeTestFile(t, filepath.Join(transactions[0], "old-docs", "SKILL.md")); !strings.Contains(got, "old") {
+		t.Fatalf("recoverable OpenCode backup changed: %q", got)
+	}
+}
+
 func TestOpenCodeFailedUpdateRestoresPreviousManagedSkill(t *testing.T) {
 	root := t.TempDir()
 	configRoot := filepath.Join(root, "xdg", "opencode")

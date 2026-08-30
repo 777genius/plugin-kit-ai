@@ -365,7 +365,14 @@ func verifyOpenCodeNativeObjects(configRoot, activePath string, objects []domain
 	return nil
 }
 
-func applyOpenCodeNative(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) (resultErr error) {
+func applyOpenCodeNative(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
+	return applyOpenCodeNativeWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
+}
+
+func applyOpenCodeNativeWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc) (resultErr error) {
+	if rename == nil {
+		return fmt.Errorf("OpenCode rename operation is unavailable")
+	}
 	if strings.TrimSpace(configRoot) == "" || !filepath.IsAbs(configRoot) {
 		return fmt.Errorf("OpenCode config root is unavailable")
 	}
@@ -414,7 +421,7 @@ func applyOpenCodeNative(configRoot, activePath string, previous, desired []doma
 	if err != nil {
 		return err
 	}
-	skills, err := installOpenCodeSkills(configRoot, activePath, previous, desired)
+	skills, err := installOpenCodeSkillsWithRename(configRoot, activePath, previous, desired, rename)
 	if err != nil {
 		return err
 	}
@@ -613,14 +620,32 @@ func preflightOpenCodeObjects(configRoot, activePath string, projection openCode
 }
 
 type openCodeBackup struct{ backup, target string }
+type openCodeRenameFunc func(string, string) error
 type openCodeSkillTxn struct {
 	root      string
 	backups   map[string]openCodeBackup
 	installed map[string]domain.NativeObjectOwnership
+	rename    openCodeRenameFunc
 }
 
 func installOpenCodeSkills(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) (*openCodeSkillTxn, error) {
-	txn := &openCodeSkillTxn{backups: map[string]openCodeBackup{}, installed: map[string]domain.NativeObjectOwnership{}}
+	return installOpenCodeSkillsWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
+}
+
+func renameOpenCodeDirectoryNoReplace(oldPath, newPath string, rename openCodeRenameFunc) error {
+	if _, err := os.Lstat(newPath); err == nil {
+		return fmt.Errorf("destination already exists: %s", newPath)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return rename(oldPath, newPath)
+}
+
+func installOpenCodeSkillsWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc) (*openCodeSkillTxn, error) {
+	if rename == nil {
+		return nil, fmt.Errorf("OpenCode rename operation is unavailable")
+	}
+	txn := &openCodeSkillTxn{backups: map[string]openCodeBackup{}, installed: map[string]domain.NativeObjectOwnership{}, rename: rename}
 	previousByID, desiredByID := objectMap(previous), objectMap(desired)
 	if !containsOpenCodeSkill(previous) && !containsOpenCodeSkill(desired) {
 		return txn, nil
@@ -634,7 +659,12 @@ func installOpenCodeSkills(configRoot, activePath string, previous, desired []do
 		return nil, err
 	}
 	txn.root = root
-	fail := func(err error) (*openCodeSkillTxn, error) { _ = txn.rollback(); return nil, err }
+	fail := func(err error) (*openCodeSkillTxn, error) {
+		if rollbackErr := txn.rollback(); rollbackErr != nil {
+			return nil, fmt.Errorf("%v; OpenCode skill rollback failed: %w; recovery retained at %q", err, rollbackErr, txn.root)
+		}
+		return nil, err
+	}
 	staged := map[string]string{}
 	for id, object := range desiredByID {
 		if object.Kind != openCodeSkillKind {
@@ -677,7 +707,7 @@ func installOpenCodeSkills(configRoot, activePath string, previous, desired []do
 		if object.Kind != openCodeSkillKind {
 			continue
 		}
-		if err := os.Rename(staged[id], object.Path); err != nil {
+		if err := renameOpenCodeDirectoryNoReplace(staged[id], object.Path, rename); err != nil {
 			return fail(err)
 		}
 		txn.installed[id] = object
@@ -705,7 +735,7 @@ func (txn *openCodeSkillTxn) rollback() error {
 			result = err
 		}
 		if backup, ok := txn.backups[id]; ok {
-			if err := os.Rename(backup.backup, backup.target); err != nil {
+			if err := renameOpenCodeDirectoryNoReplace(backup.backup, backup.target, txn.rename); err != nil {
 				if result == nil {
 					result = err
 				}
@@ -716,7 +746,7 @@ func (txn *openCodeSkillTxn) rollback() error {
 	}
 	for id, backup := range txn.backups {
 		if _, err := os.Lstat(backup.target); os.IsNotExist(err) {
-			if err := os.Rename(backup.backup, backup.target); err != nil {
+			if err := renameOpenCodeDirectoryNoReplace(backup.backup, backup.target, txn.rename); err != nil {
 				if result == nil {
 					result = err
 				}
