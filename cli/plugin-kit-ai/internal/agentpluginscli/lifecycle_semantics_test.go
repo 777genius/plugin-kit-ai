@@ -108,7 +108,9 @@ func TestSharedCopilotVSCodeSurfacesSurviveUpdateRepairAndVscodeRemoval(t *testi
 		t.Fatal(err)
 	}
 	binding := onlyCLIClient(updated.Installations[0])
-	if binding.PackageRevision.Version != "2.0.0" || !reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) || len(binding.Receipts) != 2 {
+	if binding.PackageRevision.Version != "2.0.0" || binding.ClientID != string(domain.ClientVSCode) ||
+		sharedManagedObjectID(t, binding) != "package:vscode:"+binding.PhysicalArtifact ||
+		!reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) || len(binding.Receipts) != 2 {
 		t.Fatalf("shared update binding = %+v", binding)
 	}
 	if err := os.RemoveAll(binding.TargetLocator); err != nil {
@@ -122,7 +124,8 @@ func TestSharedCopilotVSCodeSurfacesSurviveUpdateRepairAndVscodeRemoval(t *testi
 		t.Fatal(err)
 	}
 	binding = onlyCLIClient(repaired.Installations[0])
-	if !reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) || len(binding.Receipts) != 3 {
+	if binding.ClientID != string(domain.ClientVSCode) || sharedManagedObjectID(t, binding) != "package:vscode:"+binding.PhysicalArtifact ||
+		!reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) || len(binding.Receipts) != 3 {
 		t.Fatalf("shared repair dropped a logical surface: %+v", binding)
 	}
 	stdout, _, err := fixture.execute(false, "remove", "demo", "--target", "vscode", "--external-uninstalled", "--format", "json")
@@ -226,7 +229,8 @@ func TestImplicitSharedLifecycleResolvesInstalledPhysicalBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			binding := onlyCLIClient(updated.Installations[0])
-			if binding.PackageRevision.Version != "2.0.0" || len(binding.Receipts) != 2 {
+			if binding.PackageRevision.Version != "2.0.0" || binding.ClientID != string(domain.ClientVSCode) ||
+				sharedManagedObjectID(t, binding) != "package:vscode:"+binding.PhysicalArtifact || len(binding.Receipts) != 2 {
 				t.Fatalf("implicit update binding = %+v", binding)
 			}
 			if err := os.RemoveAll(binding.TargetLocator); err != nil {
@@ -240,7 +244,7 @@ func TestImplicitSharedLifecycleResolvesInstalledPhysicalBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			binding = onlyCLIClient(repaired.Installations[0])
-			if len(binding.Receipts) != 3 {
+			if binding.ClientID != string(domain.ClientVSCode) || sharedManagedObjectID(t, binding) != "package:vscode:"+binding.PhysicalArtifact || len(binding.Receipts) != 3 {
 				t.Fatalf("implicit repair binding = %+v", binding)
 			}
 			if _, err := os.Stat(binding.TargetLocator); err != nil {
@@ -248,4 +252,22 @@ func TestImplicitSharedLifecycleResolvesInstalledPhysicalBinding(t *testing.T) {
 			}
 		})
 	}
+}
+
+func sharedManagedObjectID(t *testing.T, binding domain.ClientBinding) string {
+	t.Helper()
+	value := ""
+	for _, object := range binding.NativeObjects {
+		if object.Kind != "managed_package_directory" {
+			continue
+		}
+		if value != "" {
+			t.Fatalf("multiple managed package objects: %+v", binding.NativeObjects)
+		}
+		value = object.ObjectID
+	}
+	if value == "" {
+		t.Fatalf("managed package object missing: %+v", binding.NativeObjects)
+	}
+	return value
 }

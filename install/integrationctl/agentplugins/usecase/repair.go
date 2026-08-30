@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
@@ -55,10 +56,23 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	result := AddResult{InstallationID: installation.InstallationID, Plan: plan}
 	clientKey := domain.ComputeClientBindingID(installation.InstallationID, string(input.Client.ClientID), string(input.Scope), plan.ActivePath)
 	client, ok := installation.Clients[clientKey]
+	if !ok && sameNativeBackend(input.Client.ClientID, domain.ClientCopilot) {
+		for key, binding := range installation.Clients {
+			if binding.Scope != string(input.Scope) || binding.Materialization == domain.MaterializationAbsent ||
+				binding.PhysicalArtifact != plan.PhysicalArtifactID || !sameNativeBackend(domain.ClientID(binding.ClientID), input.Client.ClientID) {
+				continue
+			}
+			clientKey, client, ok = key, binding, true
+			plan.ActivePath = binding.TargetLocator
+			plan.TargetRoot = filepath.Dir(binding.TargetLocator)
+			result.Plan = plan
+			break
+		}
+	}
 	if !ok || (client.Materialization != domain.MaterializationMaterialized && client.Materialization != domain.MaterializationDegraded) {
 		return result, fmt.Errorf("plugin is not materialized for %s", input.Client.ClientID)
 	}
-	if client.ClientBindingID != clientKey || client.ClientID != string(input.Client.ClientID) ||
+	if client.ClientBindingID != clientKey || !sameNativeBackend(domain.ClientID(client.ClientID), input.Client.ClientID) ||
 		client.Scope != string(input.Scope) || client.PhysicalArtifact != physicalID {
 		return result, fmt.Errorf("managed repair target identity does not match the selected binding")
 	}
@@ -76,7 +90,9 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	if client.PackageRevision == nil || strings.TrimSpace(client.PackageRevision.ResolvedRevision) != strings.TrimSpace(input.Envelope.Source.ResolvedRevision) {
 		return result, fmt.Errorf("resolved repair package does not match the exact installed revision")
 	}
-	target, err := service.Targets.ResolveTarget(ctx, input.Client, input.Scope, client.PhysicalArtifact)
+	targetClient := input.Client
+	targetClient.ClientID = domain.ClientID(client.ClientID)
+	target, err := service.Targets.ResolveTarget(ctx, targetClient, input.Scope, client.PhysicalArtifact)
 	if err != nil {
 		return result, fmt.Errorf("resolve managed repair target: %w", err)
 	}
@@ -220,6 +236,10 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 		return result, err
 	}
 	defer func() { _ = service.Stager.Discard(context.Background(), delivery) }()
+	delivery, err = bindStagedDeliveryToPhysicalOwner(delivery, plan, &client)
+	if err != nil {
+		return result, err
+	}
 	if delivery.ActivePath != target.ActivePath {
 		return result, fmt.Errorf("stager returned an unexpected repair target")
 	}

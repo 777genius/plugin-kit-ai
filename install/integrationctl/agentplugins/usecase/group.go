@@ -401,6 +401,12 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			cleanup()
 			return result, err
 		}
+		delivery, err = bindStagedDeliveryToPhysicalOwner(delivery, target.plan, target.managed)
+		if err != nil {
+			_ = service.Stager.Discard(context.Background(), delivery)
+			cleanup()
+			return result, err
+		}
 		target.delivery = delivery
 	}
 	defer cleanup()

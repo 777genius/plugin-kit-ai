@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -196,6 +197,75 @@ func TestVSCodeInfoUsesCopilotAsAuthoritativeNativeBackend(t *testing.T) {
 				t.Fatalf("VS Code evidence = %+v", got.NativeDiscoveryEvidence)
 			}
 		})
+	}
+}
+
+func TestInfoFindsSharedBindingThroughEitherAffectedSurface(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name      string
+		owner     domain.ClientID
+		requested domain.ClientID
+	}{
+		{name: "copilot owner requested as vscode", owner: domain.ClientCopilot, requested: domain.ClientVSCode},
+		{name: "vscode owner requested as copilot", owner: domain.ClientVSCode, requested: domain.ClientCopilot},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			installationID := "00000000-0000-4000-8000-000000000025"
+			physical := domain.ComputePhysicalArtifactID("demo", installationID)
+			target := filepath.Join(t.TempDir(), string(test.owner), physical)
+			binding := validReconciliationBinding(installationID, test.owner, domain.ScopeUser, target, physical)
+			binding.AffectedSurfaces = []string{"copilot", "vscode"}
+			installation := domain.Installation{InstallationID: installationID, DeclaredName: "demo", Clients: map[string]domain.ClientBinding{binding.ClientBindingID: binding}}
+			detector := &observedProbingDetector{clients: []domain.DetectedClient{{
+				ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, Version: "1.0.80",
+				ExecutablePath: "/test/bin/copilot", ConfigRoot: "/test/config/copilot",
+			}}}
+			observer := &capturingNativeObserver{observation: domain.NativeIdentityObservation{
+				State: domain.NativeIdentityManaged, ReceiptReconciled: true, NativeDiscoveryReconciled: true,
+				NativeDiscoveryState: domain.NativeIdentityManaged, NativeDiscoveryAttempted: true,
+			}}
+			app := App{Detector: detector, Lifecycle: usecase.Service{
+				Targets: scopeTargetResolver{targets: map[domain.InstallScope]string{domain.ScopeUser: target}}, NativeObserver: observer,
+			}}
+			public := publicInstallationView(installation, true)
+			if err := reconcileInstalledInfo(context.Background(), app, installation, string(test.requested), &public); err != nil {
+				t.Fatal(err)
+			}
+			if len(public.Clients) != 1 || public.Clients[0].ClientID != string(test.owner) ||
+				public.Clients[0].ReceiptReconciled == nil || !*public.Clients[0].ReceiptReconciled ||
+				public.Clients[0].NativeDiscoveryReconciled == nil || !*public.Clients[0].NativeDiscoveryReconciled ||
+				!reflect.DeepEqual(public.Clients[0].AffectedSurfaces, []string{"copilot", "vscode"}) {
+				t.Fatalf("shared info = %+v", public.Clients)
+			}
+			if detector.targetedCalls != 1 || !reflect.DeepEqual(detector.targets, []domain.ClientID{domain.ClientCopilot}) {
+				t.Fatalf("shared info probes = %+v", detector.targets)
+			}
+			if len(observer.clients) != 1 || observer.clients[0].ClientID != test.owner ||
+				observer.clients[0].ExecutablePath != "/test/bin/copilot" || observer.clients[0].Version != "1.0.80" {
+				t.Fatalf("shared observer client = %+v", observer.clients)
+			}
+		})
+	}
+}
+
+func TestInfoSharedBindingDoesNotMatchUnrelatedExplicitTarget(t *testing.T) {
+	installationID := "00000000-0000-4000-8000-000000000026"
+	physical := domain.ComputePhysicalArtifactID("demo", installationID)
+	target := filepath.Join(t.TempDir(), "copilot", physical)
+	binding := validReconciliationBinding(installationID, domain.ClientCopilot, domain.ScopeUser, target, physical)
+	binding.AffectedSurfaces = []string{"copilot", "vscode"}
+	installation := domain.Installation{InstallationID: installationID, DeclaredName: "demo", Clients: map[string]domain.ClientBinding{binding.ClientBindingID: binding}}
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{{ClientID: domain.ClientCursor, Status: domain.DetectionDetected, Version: "1.0.0"}}}
+	observer := &capturingNativeObserver{}
+	public := publicInstallationView(installation, true)
+	if err := reconcileInstalledInfo(context.Background(), App{Detector: detector, Lifecycle: usecase.Service{NativeObserver: observer}}, installation, "cursor", &public); err != nil {
+		t.Fatal(err)
+	}
+	if len(public.Clients) != 0 || len(observer.clients) != 0 {
+		t.Fatalf("unrelated explicit target matched shared binding: clients=%+v observations=%+v", public.Clients, observer.clients)
 	}
 }
 

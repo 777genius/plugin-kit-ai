@@ -374,6 +374,14 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		return result, err
 	}
+	delivery, err = bindStagedDeliveryToPhysicalOwner(delivery, plan, managedBinding)
+	if err != nil {
+		_ = service.Stager.Discard(context.Background(), delivery)
+		if dataCreated {
+			_ = service.PluginData.PurgeData(context.Background(), dataReceipt)
+		}
+		return result, err
+	}
 	keepCreatedData := false
 	defer func() {
 		if dataCreated && !keepCreatedData {
@@ -1147,6 +1155,42 @@ func rejectNativeNameCollision(state domain.StateFileV2, installationID, declare
 
 func sameNativeBackend(first, second domain.ClientID) bool {
 	return domain.SameClientBackend(first, second)
+}
+
+// bindStagedDeliveryToPhysicalOwner keeps a shared backend's immutable
+// ownership receipt bound to the client identity that originally created the
+// physical binding. The requested logical surface remains on the delivery and
+// plan so activation and user-facing results still describe what the caller
+// selected.
+func bindStagedDeliveryToPhysicalOwner(delivery domain.StagedDelivery, plan domain.DeliveryPlan, managed *domain.ClientBinding) (domain.StagedDelivery, error) {
+	if !sameNativeBackend(plan.ClientID, domain.ClientCopilot) {
+		return delivery, nil
+	}
+	owner := plan.ClientID
+	if managed != nil {
+		owner = domain.ClientID(managed.ClientID)
+		if !sameNativeBackend(owner, plan.ClientID) || managed.PhysicalArtifact != plan.PhysicalArtifactID {
+			return delivery, fmt.Errorf("shared physical binding identity does not match the staged delivery")
+		}
+	}
+	expected := "package:" + string(plan.ClientID) + ":" + plan.PhysicalArtifactID
+	canonical := "package:" + string(owner) + ":" + plan.PhysicalArtifactID
+	found := false
+	for index := range delivery.NativeObjects {
+		object := &delivery.NativeObjects[index]
+		if object.Kind != "managed_package_directory" {
+			continue
+		}
+		if found || object.ObjectID != expected {
+			return delivery, fmt.Errorf("shared staged delivery has an invalid managed package ownership identity")
+		}
+		object.ObjectID = canonical
+		found = true
+	}
+	if !found {
+		return delivery, fmt.Errorf("shared staged delivery is missing its managed package ownership identity")
+	}
+	return delivery, nil
 }
 
 func initialLifecycle(plan domain.DeliveryPlan) (domain.ActivationState, domain.VerificationState) {

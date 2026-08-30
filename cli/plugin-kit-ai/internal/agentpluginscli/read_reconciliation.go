@@ -34,23 +34,11 @@ func reconcileInstalledInfo(ctx context.Context, app App, installation domain.In
 
 	filtered := make([]publicClient, 0, len(public.Clients))
 	for _, view := range public.Clients {
-		clientID := domain.ClientID(view.ClientID)
-		if !selected[clientID] {
+		binding, bindingOK := installation.Clients[view.BindingID]
+		if !bindingMatchesSelectedSurface(view, binding, bindingOK, selected) {
 			continue
 		}
-		binding, bindingOK := installation.Clients[view.BindingID]
-		bindingClient, detectedOK := detected[clientID]
-		observerClient := bindingClient
-		if clientID == domain.ClientVSCode {
-			copilot, copilotOK := detected[domain.ClientCopilot]
-			if !copilotOK || copilot.Status != domain.DetectionDetected || strings.TrimSpace(copilot.ExecutablePath) == "" {
-				detectedOK = false
-			} else {
-				observerClient.ConfigRoot = copilot.ConfigRoot
-				observerClient.ExecutablePath = copilot.ExecutablePath
-				observerClient.Version = copilot.Version
-			}
-		}
+		bindingClient, observerClient, detectedOK := reconciliationClientsForBinding(binding, detected)
 		if !bindingOK || binding.ClientBindingID != view.BindingID || binding.ClientID != view.ClientID || binding.Scope != view.Scope {
 			detectedOK = false
 		}
@@ -73,6 +61,42 @@ func reconcileInstalledInfo(ctx context.Context, app App, installation domain.In
 	})
 	public.Clients = filtered
 	return nil
+}
+
+func bindingMatchesSelectedSurface(view publicClient, binding domain.ClientBinding, bindingOK bool, selected map[domain.ClientID]bool) bool {
+	if selected[domain.ClientID(view.ClientID)] {
+		return true
+	}
+	if bindingOK {
+		for _, surface := range bindingSurfaceTargets(binding) {
+			if selected[surface] {
+				return true
+			}
+		}
+		return false
+	}
+	for _, surface := range view.AffectedSurfaces {
+		if selected[domain.ClientID(surface)] {
+			return true
+		}
+	}
+	return false
+}
+
+func reconciliationClientsForBinding(binding domain.ClientBinding, detected map[domain.ClientID]domain.DetectedClient) (domain.DetectedClient, domain.DetectedClient, bool) {
+	owner := domain.ClientID(binding.ClientID)
+	if owner != domain.ClientCopilot && owner != domain.ClientVSCode {
+		client, ok := detected[owner]
+		return client, client, ok
+	}
+	copilot, ok := detected[domain.ClientCopilot]
+	if !ok || copilot.Status != domain.DetectionDetected || strings.TrimSpace(copilot.ExecutablePath) == "" {
+		return domain.DetectedClient{ClientID: owner}, domain.DetectedClient{ClientID: owner}, false
+	}
+	// The persisted owner selects the exact managed path while Copilot CLI is
+	// the authoritative native registry for both Copilot and VS Code surfaces.
+	copilot.ClientID = owner
+	return copilot, copilot, true
 }
 
 type clientIdentityReconciliation struct {
