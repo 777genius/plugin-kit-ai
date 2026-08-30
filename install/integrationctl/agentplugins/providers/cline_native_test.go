@@ -113,13 +113,125 @@ func TestClineLifecycleInstallsUpdatesAndRemovesExactOwnedObjects(t *testing.T) 
 	}
 }
 
+func TestClineSkillRollbackRetainsBackupWhenRestoreRenameFails(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, ".cline")
+	activeV1 := filepath.Join(root, "managed", "v1")
+	writeTestFile(t, filepath.Join(activeV1, "skills", "docs", "SKILL.md"), "v1\n")
+	desiredV1 := clineFixtureObjects(t, configRoot, activeV1, "docs", "", nativeconfig.Server{})
+	if err := applyClineNativeMutation(configRoot, activeV1, nil, desiredV1); err != nil {
+		t.Fatal(err)
+	}
+	activeV2 := filepath.Join(root, "managed", "v2")
+	writeTestFile(t, filepath.Join(activeV2, "skills", "docs", "SKILL.md"), "v2\n")
+	desiredV2 := clineFixtureObjects(t, configRoot, activeV2, "docs", "", nativeconfig.Server{})
+	activationErr := errors.New("injected Cline activation rename failure")
+	restoreErr := errors.New("injected Cline restore rename failure")
+	rename := func(oldPath, newPath string) error {
+		switch {
+		case strings.HasPrefix(filepath.Base(oldPath), "new-"):
+			return activationErr
+		case strings.HasPrefix(filepath.Base(oldPath), "old-"):
+			return restoreErr
+		default:
+			return os.Rename(oldPath, newPath)
+		}
+	}
+
+	err := applyClineNativeMutationWithRename(configRoot, activeV2, desiredV1, desiredV2, rename)
+	if err == nil || !strings.Contains(err.Error(), activationErr.Error()) || !strings.Contains(err.Error(), restoreErr.Error()) || !strings.Contains(err.Error(), "recovery retained at") {
+		t.Fatalf("rollback error = %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(configRoot, "skills", "docs")); !os.IsNotExist(statErr) {
+		t.Fatalf("failed restore unexpectedly recreated target: %v", statErr)
+	}
+	transactions, globErr := filepath.Glob(filepath.Join(configRoot, "skills", ".agentplugins-native-*"))
+	if globErr != nil || len(transactions) != 1 {
+		t.Fatalf("retained Cline transactions = %v, %v", transactions, globErr)
+	}
+	if !strings.Contains(err.Error(), transactions[0]) {
+		t.Fatalf("rollback error omitted exact recovery path %q: %v", transactions[0], err)
+	}
+	backup := filepath.Join(transactions[0], "old-docs", "SKILL.md")
+	body, readErr := os.ReadFile(backup)
+	if readErr != nil || string(body) != "v1\n" {
+		t.Fatalf("recoverable Cline backup = %q, %v", body, readErr)
+	}
+}
+
+func TestClineSkillBackupDigestMismatchRestoresLiveDirectoryAndAborts(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, ".cline")
+	activeV1 := filepath.Join(root, "managed", "v1")
+	writeTestFile(t, filepath.Join(activeV1, "skills", "docs", "SKILL.md"), "v1\n")
+	desiredV1 := clineFixtureObjects(t, configRoot, activeV1, "docs", "", nativeconfig.Server{})
+	if err := applyClineNativeMutation(configRoot, activeV1, nil, desiredV1); err != nil {
+		t.Fatal(err)
+	}
+	activeV2 := filepath.Join(root, "managed", "v2")
+	writeTestFile(t, filepath.Join(activeV2, "skills", "docs", "SKILL.md"), "v2\n")
+	desiredV2 := clineFixtureObjects(t, configRoot, activeV2, "docs", "", nativeconfig.Server{})
+	liveSkill := filepath.Join(configRoot, "skills", "docs")
+	rename := func(oldPath, newPath string) error {
+		if sameCleanPath(oldPath, liveSkill) && strings.HasPrefix(filepath.Base(newPath), "old-") {
+			writeTestFile(t, filepath.Join(oldPath, "SKILL.md"), "concurrent user change\n")
+		}
+		return os.Rename(oldPath, newPath)
+	}
+
+	err := applyClineNativeMutationWithRename(configRoot, activeV2, desiredV1, desiredV2, rename)
+	if err == nil || !strings.Contains(err.Error(), "isolated Cline skill backup") {
+		t.Fatalf("TOCTOU activation error = %v", err)
+	}
+	body, readErr := os.ReadFile(filepath.Join(liveSkill, "SKILL.md"))
+	if readErr != nil || string(body) != "concurrent user change\n" {
+		t.Fatalf("restored live Cline skill = %q, %v", body, readErr)
+	}
+}
+
+func TestRenameClineDirectoryNoReplacePreservesLateTarget(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "staged")
+	target := filepath.Join(root, "live")
+	writeTestFile(t, filepath.Join(source, "SKILL.md"), "managed\n")
+	writeTestFile(t, filepath.Join(target, "SKILL.md"), "late unmanaged\n")
+	err := renameClineDirectoryNoReplace(source, target, renameDirectoryExclusive)
+	if err == nil {
+		t.Fatalf("no-replace result = %v", err)
+	}
+	body, readErr := os.ReadFile(filepath.Join(target, "SKILL.md"))
+	if readErr != nil || string(body) != "late unmanaged\n" {
+		t.Fatalf("late target = %q, %v", body, readErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(source, "SKILL.md")); statErr != nil {
+		t.Fatalf("staged source was consumed: %v", statErr)
+	}
+}
+
+func TestClineRejectsRequiredStdioCWDBeforeProjectionMutation(t *testing.T) {
+	root := t.TempDir()
+	envelope := domain.PackageEnvelope{MCP: domain.MCPComponent{Servers: map[string]domain.MCPServer{
+		"local": {Name: "local", Type: "stdio", Decoded: map[string]any{"type": "stdio", "command": "node"}},
+	}}}
+	plan := domain.DeliveryPlan{ActivePath: filepath.Join(root, "active"), Components: []domain.ComponentDecision{
+		{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportPrepared},
+	}}
+	err := projectClineNative(root, envelope, plan, filepath.Join(root, "data"))
+	if err == nil || !strings.Contains(err.Error(), "Cline stdio MCP server does not support cwd") {
+		t.Fatalf("Cline required cwd projection error = %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(root, clineProjectionFile)); !os.IsNotExist(statErr) {
+		t.Fatalf("rejected Cline cwd mutated projection: %v", statErr)
+	}
+}
+
 func TestClineCollisionAndBusyLockLeaveNoPartialActivation(t *testing.T) {
 	for _, test := range []struct {
-		name string
-		busy bool
+		name        string
+		invalidLock bool
 	}{
 		{name: "foreign collision"},
-		{name: "busy compatible lock", busy: true},
+		{name: "invalid lock", invalidLock: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -127,11 +239,9 @@ func TestClineCollisionAndBusyLockLeaveNoPartialActivation(t *testing.T) {
 			settings := filepath.Join(root, "settings.json")
 			t.Setenv("CLINE_MCP_SETTINGS_PATH", settings)
 			foreign := `{"mcpServers":{"docs":{"transport":{"type":"stdio","command":"foreign"}}}}`
-			if test.busy {
+			if test.invalidLock {
 				foreign = `{"mcpServers":{}}`
-				if err := os.Mkdir(settings+".lock", 0o700); err != nil {
-					t.Fatal(err)
-				}
+				writeTestFile(t, settings+".lock", "not a compatible Cline lock")
 			}
 			writeTestFile(t, settings, foreign)
 			active := filepath.Join(root, "managed", "demo")
@@ -143,7 +253,7 @@ func TestClineCollisionAndBusyLockLeaveNoPartialActivation(t *testing.T) {
 			if err == nil {
 				t.Fatal("unsafe activation unexpectedly succeeded")
 			}
-			if test.busy && !strings.Contains(err.Error(), "Cline native config lock") {
+			if test.invalidLock && !strings.Contains(err.Error(), "Cline native config lock") {
 				t.Fatalf("wrong lock error: %v", err)
 			}
 			body, _ := os.ReadFile(settings)

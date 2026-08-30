@@ -3,7 +3,6 @@ package providers
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -165,7 +164,20 @@ func verifyClineNativeObjects(configRoot string, objects []domain.NativeObjectOw
 	return nil
 }
 
-func applyClineNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) (resultErr error) {
+type clineRenameFunc func(string, string) error
+
+func renameClineDirectoryNoReplace(oldPath, newPath string, rename clineRenameFunc) error {
+	return rename(oldPath, newPath)
+}
+
+func applyClineNativeMutation(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
+	return applyClineNativeMutationWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
+}
+
+func applyClineNativeMutationWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename clineRenameFunc) (resultErr error) {
+	if rename == nil {
+		return fmt.Errorf("Cline rename operation is unavailable")
+	}
 	configRoot = strings.TrimSpace(configRoot)
 	if configRoot == "" || !filepath.IsAbs(configRoot) {
 		return fmt.Errorf("Cline config root is unavailable")
@@ -202,7 +214,7 @@ func applyClineNativeMutation(configRoot, activePath string, previous, desired [
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(transactionRoot)
+	cleanupTransaction := true
 
 	staged := map[string]string{}
 	for id, object := range desiredByID {
@@ -231,30 +243,48 @@ func applyClineNativeMutation(configRoot, activePath string, previous, desired [
 	installed := map[string]domain.NativeObjectOwnership{}
 	rollbackSkills := func() error {
 		var first error
+		attempted := map[string]bool{}
 		for id, object := range installed {
+			attempted[id] = true
 			if digest, err := digestKiroSkillDirectory(object.Path); err == nil && digest == object.ManagedDigest {
 				if err := os.RemoveAll(object.Path); err != nil && first == nil {
 					first = err
 				}
 			}
 			if backup := backups[id]; backup != "" {
-				if err := os.Rename(backup, object.Path); err != nil && first == nil {
-					first = err
+				if err := renameClineDirectoryNoReplace(backup, object.Path, rename); err != nil {
+					if first == nil {
+						first = err
+					}
+				} else {
+					delete(backups, id)
 				}
-				delete(backups, id)
 			}
 		}
 		for id, backup := range backups {
-			if err := os.Rename(backup, previousByID[id].Path); err != nil && first == nil {
-				first = err
+			if attempted[id] {
+				continue
+			}
+			if err := renameClineDirectoryNoReplace(backup, previousByID[id].Path, rename); err != nil {
+				if first == nil {
+					first = err
+				}
+			} else {
+				delete(backups, id)
 			}
 		}
 		return first
 	}
 	defer func() {
+		if cleanupTransaction {
+			_ = os.RemoveAll(transactionRoot)
+		}
+	}()
+	defer func() {
 		if resultErr != nil {
 			if rollbackErr := rollbackSkills(); rollbackErr != nil {
-				resultErr = errors.Join(resultErr, fmt.Errorf("Cline skill rollback: %w", rollbackErr))
+				cleanupTransaction = false
+				resultErr = fmt.Errorf("%v; Cline skill rollback failed: %w; recovery retained at %q", resultErr, rollbackErr, transactionRoot)
 			}
 		}
 	}()
@@ -269,14 +299,21 @@ func applyClineNativeMutation(configRoot, activePath string, previous, desired [
 			return err
 		}
 		backup := filepath.Join(transactionRoot, "old-"+object.LogicalName)
-		if err := os.Rename(object.Path, backup); err != nil {
+		if err := rename(object.Path, backup); err != nil {
 			return err
 		}
 		backups[id] = backup
+		digest, digestErr := digestKiroSkillDirectory(backup)
+		if digestErr != nil || digest != object.ManagedDigest {
+			if digestErr != nil {
+				return fmt.Errorf("verify isolated Cline skill backup %q: %w", object.LogicalName, digestErr)
+			}
+			return fmt.Errorf("isolated Cline skill backup %q changed outside agentplugins", object.LogicalName)
+		}
 	}
 	for id, source := range staged {
 		object := desiredByID[id]
-		if err := os.Rename(source, object.Path); err != nil {
+		if err := renameClineDirectoryNoReplace(source, object.Path, rename); err != nil {
 			return err
 		}
 		installed[id] = object
@@ -474,6 +511,17 @@ func clineNeutralServer(server domain.MCPServer) (nativeconfig.Server, error) {
 		return value
 	}
 	result := nativeconfig.Server{Type: server.Type, Command: getString("command"), URL: getString("url")}
+	if server.Type == "stdio" {
+		if rawCWD, exists := server.Decoded["cwd"]; exists {
+			cwd, ok := rawCWD.(string)
+			if !ok {
+				return result, fmt.Errorf("Cline stdio MCP server cwd must be a string")
+			}
+			if strings.TrimSpace(cwd) != "" {
+				return result, fmt.Errorf("Cline stdio MCP server does not support cwd")
+			}
+		}
+	}
 	if server.Type == "streamable-http" || server.Type == "sse" {
 		result.Type = "remote"
 		result.RemoteTransport = server.Type
