@@ -102,6 +102,27 @@ func TestDetectorRespectsClaudeConfigDirectory(t *testing.T) {
 	}
 }
 
+func TestDetectorKeepsConfigOnlyClaudeEvidenceWithoutSelectingIt(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	configRoot := filepath.Join(home, ".claude")
+	if err := os.MkdirAll(configRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, nil)
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	claude := clientOf(clients, domain.ClientClaude)
+	if claude.Status != domain.DetectionNotDetected || claude.ConfigRoot != configRoot {
+		t.Fatalf("config-only Claude detection = %+v", claude)
+	}
+	if !surfaceDetected(claude.Surfaces, "claude_config") || surfaceDetected(claude.Surfaces, "claude_cli") {
+		t.Fatalf("config-only Claude surfaces = %+v", claude.Surfaces)
+	}
+}
+
 func TestNewOSCapturesClientConfigOverrides(t *testing.T) {
 	home := t.TempDir()
 	claudeRoot := filepath.Join(home, "claude-config")

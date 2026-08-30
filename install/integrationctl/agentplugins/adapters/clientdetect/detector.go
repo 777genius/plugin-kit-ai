@@ -245,7 +245,7 @@ func (detector Detector) detectClaude(ctx context.Context, probeVersion bool) do
 		detector.binarySurface("claude_cli", "claude"),
 		detector.directorySurface("claude_config", configRoot),
 	}
-	return detector.detectedClient(ctx, probeVersion, domain.ClientClaude, "Claude Code", configRoot, detector.lookup("claude"), surfaces)
+	return detector.detectedClientWithSelectionSurfaces(ctx, probeVersion, domain.ClientClaude, "Claude Code", configRoot, detector.lookup("claude"), surfaces, "claude_cli")
 }
 
 func (detector Detector) detectGemini(ctx context.Context, probeVersion bool) domain.DetectedClient {
@@ -529,9 +529,23 @@ func firstPath(paths ...string) string {
 }
 
 func (detector Detector) detectedClient(ctx context.Context, probeVersion bool, clientID domain.ClientID, displayName, configRoot, executablePath string, surfaces []domain.ClientSurface) domain.DetectedClient {
+	return detector.detectedClientWithSelectionSurfaces(ctx, probeVersion, clientID, displayName, configRoot, executablePath, surfaces)
+}
+
+// detectedClientWithSelectionSurfaces separates read-only discovery evidence
+// from the surfaces that make a client safe to select for lifecycle work. An
+// empty selection list means any detected surface is actionable. Clients with
+// stricter authority requirements can retain ambient evidence without becoming
+// an automatic or explicit mutation target.
+func (detector Detector) detectedClientWithSelectionSurfaces(ctx context.Context, probeVersion bool, clientID domain.ClientID, displayName, configRoot, executablePath string, surfaces []domain.ClientSurface, selectionSurfaceIDs ...string) domain.DetectedClient {
 	status := domain.DetectionNotDetected
+	selectionSurfaces := make(map[string]struct{}, len(selectionSurfaceIDs))
+	for _, id := range selectionSurfaceIDs {
+		selectionSurfaces[id] = struct{}{}
+	}
 	for _, surface := range surfaces {
-		if surface.Detected {
+		_, selectable := selectionSurfaces[surface.ID]
+		if surface.Detected && (len(selectionSurfaces) == 0 || selectable) {
 			status = domain.DetectionDetected
 			break
 		}

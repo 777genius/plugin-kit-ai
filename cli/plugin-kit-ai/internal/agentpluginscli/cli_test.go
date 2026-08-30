@@ -29,6 +29,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
+	"github.com/spf13/cobra"
 )
 
 func TestRepairSourceResolutionIsDeadlineAndCancellationResponsive(t *testing.T) {
@@ -913,6 +914,51 @@ func TestInteractiveAddDefaultsDetectedMultiselectToAll(t *testing.T) {
 		t.Fatalf("multiselect output = %q", stdout)
 	}
 	assertClientBindings(t, fixture, domain.MaterializationMaterialized, 1)
+}
+
+func TestInteractiveAddProbesOnlyTargetsSelectedAfterReadOnlyDetection(t *testing.T) {
+	clientCodex := fixtureClient(t, domain.ClientCodex)
+	clientCursor := fixtureClient(t, domain.ClientCursor)
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{clientCursor, clientCodex}}
+	fixture := newCLIFixture(t, nil)
+	fixture.app.Detector = detector
+	command := &cobra.Command{}
+	command.SetIn(strings.NewReader("1\n"))
+	command.SetOut(io.Discard)
+	selection, clients, err := promptDetectedTargets(context.Background(), command, fixture.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, err := parseTargetOption(selection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := detectSelectedTargetsForLifecycleResolution(context.Background(), detector, targets, clients, true); err != nil {
+		t.Fatal(err)
+	}
+	if detector.readOnlyCalls != 1 || detector.targetedCalls != 1 || detector.probeCalls != 0 {
+		t.Fatalf("interactive detection calls: read-only=%d targeted=%d ambient=%d", detector.readOnlyCalls, detector.targetedCalls, detector.probeCalls)
+	}
+	if !reflect.DeepEqual(detector.targets, []domain.ClientID{domain.ClientCodex}) {
+		t.Fatalf("version-probed targets = %#v", detector.targets)
+	}
+}
+
+func TestInteractiveAddIgnoresConfigOnlyClaudeButExplicitClaudeFailsClosed(t *testing.T) {
+	claude := fixtureClient(t, domain.ClientClaude)
+	claude.Status = domain.DetectionNotDetected
+	claude.ExecutablePath = ""
+	claude.Surfaces = []domain.ClientSurface{{ID: "claude_config", Detected: true, Evidence: "configuration_directory"}}
+	cursor := fixtureClient(t, domain.ClientCursor)
+	fixture := newCLIFixture(t, []domain.DetectedClient{claude, cursor})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.executeInput(true, "", "add", plugin, "--dry-run"); err != nil {
+		t.Fatalf("actionable default target failed because of stale Claude config: %v", err)
+	}
+	_, _, err := fixture.execute(false, "add", plugin, "--target", "claude", "--dry-run")
+	if err == nil || !strings.Contains(err.Error(), `target "claude" was not detected`) || !strings.Contains(err.Error(), "no target was changed") {
+		t.Fatalf("explicit config-only Claude error = %v", err)
+	}
 }
 
 func TestCommaSeparatedTargetsRejectUnsafeValues(t *testing.T) {

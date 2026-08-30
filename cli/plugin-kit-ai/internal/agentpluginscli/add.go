@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +27,7 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 			}
 			var detectedClients []domain.DetectedClient
 			if strings.TrimSpace(opts.target) == "" && app.Terminal {
-				selection, clients, err := promptDetectedTargets(cmd.Context(), cmd, app, !opts.dryRun && isDirectorySelector(args[0]))
+				selection, clients, err := promptDetectedTargets(cmd.Context(), cmd, app)
 				if err != nil {
 					return err
 				}
@@ -36,6 +37,10 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 				targets, err := parseTargetOption(opts.target)
 				if err != nil {
 					return err
+				}
+				detectedClients, err = detectSelectedTargetsForLifecycleResolution(cmd.Context(), app.Detector, targets, detectedClients, !opts.dryRun && isDirectorySelector(args[0]))
+				if err != nil {
+					return fmt.Errorf("detect selected AI clients: %w", err)
 				}
 				_, detected, err := preflightSelectedTargets(cmd.Context(), app, targets, detectedClients, false)
 				if err != nil {
@@ -166,8 +171,8 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	return err
 }
 
-func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App, probeVersion bool) (string, []domain.DetectedClient, error) {
-	clients, err := detectClientsForLifecycleResolution(ctx, app.Detector, probeVersion)
+func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App) (string, []domain.DetectedClient, error) {
+	clients, err := app.Detector.Detect(ctx)
 	if err != nil {
 		return "", nil, fmt.Errorf("detect AI clients: %w", err)
 	}
@@ -215,6 +220,21 @@ func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App, pro
 		values = append(values, string(detected[choice-1].ClientID))
 	}
 	return strings.Join(values, ","), clients, nil
+}
+
+// detectSelectedTargetsForLifecycleResolution keeps ambient discovery strictly
+// read-only. Version execution is an opt-in capability invoked only after the
+// user has selected the complete target set. Detectors without targeted probing
+// retain the read-only observations rather than falling back to executing every
+// discovered client binary.
+func detectSelectedTargetsForLifecycleResolution(ctx context.Context, detector ports.ClientDetector, targets []domain.ClientID, detected []domain.DetectedClient, probeVersion bool) ([]domain.DetectedClient, error) {
+	if !probeVersion {
+		return detected, nil
+	}
+	if targeted, ok := detector.(ports.TargetedVersionProbingClientDetector); ok {
+		return targeted.DetectTargetsWithVersionProbe(ctx, targets)
+	}
+	return detected, nil
 }
 
 func resumeInteractiveLifecycle(
