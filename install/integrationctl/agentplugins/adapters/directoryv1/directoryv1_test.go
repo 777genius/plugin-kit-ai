@@ -830,6 +830,22 @@ func TestDirectExactRequiresNoDirectory(t *testing.T) {
 			}
 		})
 	}
+	for _, canonical := range []string{
+		"owner/repo@" + revision,
+		"github:owner/repo@" + revision,
+		"https://github.com/owner/repo@" + revision,
+	} {
+		t.Run("repository root "+canonical, func(t *testing.T) {
+			selection, err := ResolveDirectExact(domain.SourceIdentity{
+				RequestedSource: canonical,
+				CanonicalSource: canonical,
+				Repository:      "owner/repo", ResolvedRevision: revision,
+			})
+			if err != nil || selection.Label != "direct source" {
+				t.Fatalf("exact repository-root source: %+v %v", selection, err)
+			}
+		})
+	}
 
 	invalid := map[string]domain.SourceIdentity{
 		"branch":              {CanonicalSource: "owner/repo@main//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: "main"},
