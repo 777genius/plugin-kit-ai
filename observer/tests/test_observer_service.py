@@ -4529,7 +4529,11 @@ class FixedAdapterContractTests(unittest.TestCase):
         allowed = root + "11 10 8:1 /usr/bin /usr/bin ro - ext4 /dev/root ro\n"
         fixed_adapters.verify_positive_mount_namespace(allowed)
         fixed_adapters.verify_positive_mount_namespace(
-            allowed + "12 10 8:2 /opt/uap-observer-inputs/cursor /opt/uap-observer-inputs/cursor ro - ext4 /dev/root ro\n",
+            allowed
+            + "12 10 8:2 /opt/uap-observer-inputs /opt/uap-observer-inputs "
+            "ro - ext4 /dev/root ro\n"
+            + "13 12 8:2 /opt/uap-observer-inputs/cursor "
+            "/opt/uap-observer-inputs/cursor ro - ext4 /dev/root ro\n",
         )
         fixed_adapters.verify_positive_mount_namespace(
             allowed
@@ -4583,6 +4587,18 @@ class FixedAdapterContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "non-allowlisted"):
             fixed_adapters.verify_positive_mount_namespace(
                 allowed + "12 10 8:2 /opt/uap-observer-inputs/unexpected /opt/uap-observer-inputs/unexpected ro - ext4 /dev/fixture ro\n",
+            )
+        with self.assertRaisesRegex(ValueError, "alternate-path bind"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root
+                + "12 10 8:2 /srv/foreign /opt/uap-observer-inputs "
+                "ro - ext4 /dev/fixture ro\n",
+            )
+        with self.assertRaisesRegex(ValueError, "not read-only"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root
+                + "12 10 8:2 /opt/uap-observer-inputs /opt/uap-observer-inputs "
+                "rw - ext4 /dev/fixture rw\n",
             )
         with self.assertRaisesRegex(ValueError, "alternate-path"):
             fixed_adapters.verify_positive_mount_namespace(

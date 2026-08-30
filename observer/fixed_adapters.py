@@ -87,7 +87,7 @@ ADAPTER_HOME_PATHS = {
 FIXED_MOUNT_PATHS = (FIXED_INPUT_PATHS - {
     "/opt/uap-observer-inputs/cursor/cursor-agent",
     str(CHROME_BINARY),
-}) | ADAPTER_HOME_PATHS
+}) | ADAPTER_HOME_PATHS | {"/opt/uap-observer-inputs"}
 CLOSURE_MOUNT_SOURCE = re.compile(r"/opt/uap-observer-closures/[a-f0-9]{64}")
 SYSTEMD_PROPAGATION_SOURCE = re.compile(
     r"/systemd/propagate/[A-Za-z0-9_.@-]+\.service",
