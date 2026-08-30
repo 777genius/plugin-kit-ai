@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/777genius/universal-agent-plugins/schemas/e2e/chrome-five-client-lifecycle.schema.json",
+  "title": "Chrome DevTools five-client manager lifecycle evidence",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "evidence_type",
+    "client",
+    "date",
+    "date_timezone",
+    "observed_at_utc",
+    "outcome",
+    "product_id",
+    "distribution_kind",
+    "package_version",
+    "installer_version",
+    "adapter_version",
+    "binary_digest",
+    "immutable_source_revision",
+    "source",
+    "installer",
+    "claude_cli",
+    "package",
+    "targets",
+    "operations",
+    "checks",
+    "scope",
+    "cleanup",
+    "run",
+    "secrets_recorded",
+    "real_user_project_used",
+    "privacy"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "evidence_type": { "const": "chrome_five_client_manager_lifecycle_v1" },
+    "client": { "const": "Agent Plugins CLI multi-client lifecycle" },
+    "date": { "type": "string", "format": "date" },
+    "date_timezone": { "const": "Europe/Kyiv" },
+    "observed_at_utc": { "$ref": "#/$defs/timestamp" },
+    "outcome": { "const": "passed" },
+    "product_id": { "const": "chrome-devtools" },
+    "distribution_kind": { "const": "direct" },
+    "package_version": { "const": "1.8.0" },
+    "installer_version": { "const": "0.1.24" },
+    "adapter_version": { "const": "agentplugins-0.1.24" },
+    "binary_digest": { "$ref": "#/$defs/digest" },
+    "immutable_source_revision": { "$ref": "#/$defs/sha" },
+    "source": {
+      "type": "object",
+      "required": [
+        "repository",
+        "pr_number",
+        "pr_url",
+        "package_path",
+        "commit_sha",
+        "git_tree_sha",
+        "commit_timestamp_utc",
+        "head_observed_at_utc",
+        "lifecycle_started_at_utc",
+        "lifecycle_completed_at_utc",
+        "head_rechecked_at_utc"
+      ],
+      "properties": {
+        "repository": { "const": "ChromeDevTools/chrome-devtools-mcp" },
+        "pr_number": { "const": 2623 },
+        "pr_url": { "const": "https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623" },
+        "package_path": { "const": "." },
+        "commit_sha": { "$ref": "#/$defs/sha" },
+        "git_tree_sha": { "$ref": "#/$defs/sha" },
+        "commit_timestamp_utc": { "$ref": "#/$defs/timestamp" },
+        "head_observed_at_utc": { "$ref": "#/$defs/timestamp" },
+        "lifecycle_started_at_utc": { "$ref": "#/$defs/timestamp" },
+        "lifecycle_completed_at_utc": { "$ref": "#/$defs/timestamp" },
+        "head_rechecked_at_utc": { "$ref": "#/$defs/timestamp" }
+      },
+      "additionalProperties": false
+    },
+    "installer": {
+      "type": "object",
+      "required": ["npm_package", "version", "npm_integrity", "binary_digest"],
+      "properties": {
+        "npm_package": { "const": "universal-agent-plugins" },
+        "version": { "const": "0.1.24" },
+        "npm_integrity": { "$ref": "#/$defs/integrity" },
+        "binary_digest": { "$ref": "#/$defs/digest" }
+      },
+      "additionalProperties": false
+    },
+    "claude_cli": {
+      "type": "object",
+      "required": [
+        "npm_package",
+        "version",
+        "npm_integrity",
+        "plugin_id",
+        "plugin_discovered_after_add",
+        "plugin_absent_after_remove"
+      ],
+      "properties": {
+        "npm_package": { "const": "@anthropic-ai/claude-code" },
+        "version": { "const": "2.1.251" },
+        "npm_integrity": { "$ref": "#/$defs/integrity" },
+        "plugin_id": { "const": "chrome-devtools@skills-dir" },
+        "plugin_discovered_after_add": { "const": true },
+        "plugin_absent_after_remove": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "package": {
+      "type": "object",
+      "required": [
+        "source_selector",
+        "revision",
+        "git_tree_sha",
+        "tree_digest",
+        "manifest_digest",
+        "physical_artifact_id",
+        "one_acquisition_per_multi_target_operation"
+      ],
+      "properties": {
+        "source_selector": { "pattern": "^ChromeDevTools/chrome-devtools-mcp@[0-9a-f]{40}$" },
+        "revision": { "$ref": "#/$defs/sha" },
+        "git_tree_sha": { "$ref": "#/$defs/sha" },
+        "tree_digest": { "$ref": "#/$defs/digest" },
+        "manifest_digest": { "$ref": "#/$defs/digest" },
+        "physical_artifact_id": { "pattern": "^chrome-devtools-[0-9a-f]{12}$" },
+        "one_acquisition_per_multi_target_operation": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        { "$ref": "#/$defs/claudeTarget" },
+        { "$ref": "#/$defs/geminiTarget" },
+        { "$ref": "#/$defs/opencodeTarget" },
+        { "$ref": "#/$defs/clineTarget" },
+        { "$ref": "#/$defs/windsurfTarget" }
+      ],
+      "items": false
+    },
+    "operations": {
+      "type": "object",
+      "required": ["dry_run", "add", "info", "doctor", "immutable_update", "repair", "remove", "list", "post_doctor"],
+      "properties": {
+        "dry_run": { "const": "passed" },
+        "add": { "const": "passed_5_of_5" },
+        "info": { "const": "passed_5_of_5" },
+        "doctor": { "const": "passed_read_only_with_authentication_unchecked" },
+        "immutable_update": {
+          "type": "object",
+          "required": ["outcome", "reason", "targets_changed", "all_writable_roots_snapshot_before", "all_writable_roots_snapshot_after", "byte_identical"],
+          "properties": {
+            "outcome": { "const": "expected_failure" },
+            "reason": { "const": "direct_full_sha_requires_explicit_switch" },
+            "targets_changed": { "const": 0 },
+            "all_writable_roots_snapshot_before": { "$ref": "#/$defs/digest" },
+            "all_writable_roots_snapshot_after": { "$ref": "#/$defs/digest" },
+            "byte_identical": { "const": true }
+          },
+          "additionalProperties": false
+        },
+        "repair": { "const": "passed_5_of_5" },
+        "remove": { "const": "passed_5_of_5_with_owned_data_purged" },
+        "list": { "const": "zero_installations" },
+        "post_doctor": { "const": "healthy" }
+      },
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["scenario", "operation", "status"],
+        "properties": {
+          "scenario": { "type": "string", "minLength": 1 },
+          "operation": { "type": "string", "minLength": 1 },
+          "status": { "const": "passed" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["proved", "not_proved"],
+      "properties": {
+        "proved": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "not_proved": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "cleanup": {
+      "type": "object",
+      "required": ["managed_installations_remaining", "owned_plugin_data_remaining", "claude_plugin_discovered_after_remove", "named_managed_artifacts_remaining", "sandbox_removed_after_evidence"],
+      "properties": {
+        "managed_installations_remaining": { "const": 0 },
+        "owned_plugin_data_remaining": { "const": 0 },
+        "claude_plugin_discovered_after_remove": { "const": false },
+        "named_managed_artifacts_remaining": { "const": 0 },
+        "sandbox_removed_after_evidence": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "required": ["repository", "run_id", "run_attempt", "source_commit"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "run_attempt": { "type": "string", "minLength": 1 },
+        "source_commit": { "$ref": "#/$defs/sha" }
+      },
+      "additionalProperties": false
+    },
+    "secrets_recorded": { "const": false },
+    "real_user_project_used": { "const": false },
+    "privacy": {
+      "type": "object",
+      "required": ["sanitized", "excluded"],
+      "properties": {
+        "sanitized": { "const": true },
+        "excluded": {
+          "type": "array",
+          "minItems": 10,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+    "targetBase": {
+      "type": "object",
+      "required": ["client_id", "package_mode", "claim_class", "add", "info", "repair", "remove"],
+      "properties": {
+        "client_id": { "type": "string" },
+        "package_mode": { "type": "string" },
+        "claim_class": { "type": "string" },
+        "add": { "const": "passed" },
+        "info": { "const": "passed" },
+        "repair": { "const": "passed" },
+        "remove": { "const": "passed" }
+      },
+      "additionalProperties": false
+    },
+    "claudeTarget": {
+      "allOf": [
+        { "$ref": "#/$defs/targetBase" },
+        { "properties": { "client_id": { "const": "claude" }, "package_mode": { "const": "compatibility_projection" }, "claim_class": { "const": "claude_cli_plugin_discovery" } } }
+      ]
+    },
+    "geminiTarget": {
+      "allOf": [
+        { "$ref": "#/$defs/targetBase" },
+        { "properties": { "client_id": { "const": "gemini" }, "package_mode": { "const": "native" }, "claim_class": { "const": "manager_projection_and_configuration_only" } } }
+      ]
+    },
+    "opencodeTarget": {
+      "allOf": [
+        { "$ref": "#/$defs/targetBase" },
+        { "properties": { "client_id": { "const": "opencode" }, "package_mode": { "const": "prepared_package" }, "claim_class": { "const": "manager_projection_and_configuration_only" } } }
+      ]
+    },
+    "clineTarget": {
+      "allOf": [
+        { "$ref": "#/$defs/targetBase" },
+        { "properties": { "client_id": { "const": "cline" }, "package_mode": { "const": "native" }, "claim_class": { "const": "manager_projection_and_configuration_only" } } }
+      ]
+    },
+    "windsurfTarget": {
+      "allOf": [
+        { "$ref": "#/$defs/targetBase" },
+        { "properties": { "client_id": { "const": "windsurf" }, "package_mode": { "const": "prepared_package" }, "claim_class": { "const": "manager_projection_and_configuration_only" } } }
+      ]
+    }
+  }
+}

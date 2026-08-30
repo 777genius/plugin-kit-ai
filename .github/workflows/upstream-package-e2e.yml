@@ -10,6 +10,10 @@ permissions:
 env:
   AGENTPLUGINS_VERSION: "0.1.24"
   AGENTPLUGINS_COMMIT: c78c79e44efd5ad07083d63436d9170b107df6cb
+  AGENTPLUGINS_NPM_INTEGRITY: sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==
+  CLAUDE_CODE_VERSION: "2.1.251"
+  CLAUDE_CODE_NPM_INTEGRITY: sha512-eG+ZPPpW2Dbmnntf1Fz9/T9ewS8I8SKfc1tcU2PqSwmftfjRPP7BXPaCyLuZ8kvgTdiPnJi/2/JnTvTRieneEQ==
+  CHROME_UPSTREAM_HEAD: 7e193aed8baa23c692355237a55237540b36cb2f
 
 jobs:
   install-lifecycle:
@@ -21,9 +25,9 @@ jobs:
       matrix:
         package:
           - id: chrome-devtools
-            source: 777genius/chrome-devtools-mcp@4ff0c06eab3c2e7af216b24a9350867d5dccb4c8//agent-plugin
-            repository: 777genius/chrome-devtools-mcp
-            revision: 4ff0c06eab3c2e7af216b24a9350867d5dccb4c8
+            source: ChromeDevTools/chrome-devtools-mcp@7e193aed8baa23c692355237a55237540b36cb2f
+            repository: ChromeDevTools/chrome-devtools-mcp
+            revision: 7e193aed8baa23c692355237a55237540b36cb2f
             plugin: chrome-devtools
             version: 1.8.0
           - id: cloudflare-docs
@@ -163,6 +167,75 @@ jobs:
         with:
           name: upstream-package-${{ matrix.package.id }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
+  chrome-five-client-lifecycle:
+    name: Chrome DevTools on Claude, Gemini, OpenCode, Cline, and Windsurf
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install and authenticate exact public npm clients
+        env:
+          TOOLS_ROOT: ${{ runner.temp }}/chrome-five-client-tools
+        run: |
+          test "$(npm view "universal-agent-plugins@${AGENTPLUGINS_VERSION}" dist.integrity)" = "$AGENTPLUGINS_NPM_INTEGRITY"
+          test "$(npm view "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" dist.integrity)" = "$CLAUDE_CODE_NPM_INTEGRITY"
+          npm install --prefix "$TOOLS_ROOT" --no-audit --no-fund \
+            "universal-agent-plugins@${AGENTPLUGINS_VERSION}" \
+            "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          npm audit signatures --prefix "$TOOLS_ROOT"
+          test "$(node -p "require('${TOOLS_ROOT}/node_modules/universal-agent-plugins/package.json').version")" = "$AGENTPLUGINS_VERSION"
+          test "$(node -p "require('${TOOLS_ROOT}/node_modules/@anthropic-ai/claude-code/package.json').version")" = "$CLAUDE_CODE_VERSION"
+          test "$("$TOOLS_ROOT/node_modules/.bin/agentplugins" version)" = "agentplugins ${AGENTPLUGINS_VERSION}"
+          test "$("$TOOLS_ROOT/node_modules/.bin/claude" --version | cut -d ' ' -f 1)" = "$CLAUDE_CODE_VERSION"
+      - name: Run the exact five-client lifecycle in fresh isolated roots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TOOLS_ROOT: ${{ runner.temp }}/chrome-five-client-tools
+          EVIDENCE_ROOT: ${{ runner.temp }}/chrome-five-client-evidence
+        run: |
+          mkdir -p "$EVIDENCE_ROOT"
+          python3 scripts/run_chrome_five_client_lifecycle.py \
+            --agentplugins "$TOOLS_ROOT/node_modules/.bin/agentplugins" \
+            --agentplugins-package-root "$TOOLS_ROOT/node_modules/universal-agent-plugins" \
+            --agentplugins-version "$AGENTPLUGINS_VERSION" \
+            --agentplugins-npm-integrity "$AGENTPLUGINS_NPM_INTEGRITY" \
+            --claude "$TOOLS_ROOT/node_modules/.bin/claude" \
+            --claude-version "$CLAUDE_CODE_VERSION" \
+            --claude-npm-integrity "$CLAUDE_CODE_NPM_INTEGRITY" \
+            --node "$(command -v node)" \
+            --npx "$(command -v npx)" \
+            --git "$(command -v git)" \
+            --gh "$(command -v gh)" \
+            --expected-head "$CHROME_UPSTREAM_HEAD" \
+            --sandbox "$RUNNER_TEMP/chrome-five-client-sandbox" \
+            --output "$EVIDENCE_ROOT/evidence.json" \
+            --run-repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --source-commit "$GITHUB_SHA"
+          python3 -m pip install check-jsonschema==0.38.0
+          check-jsonschema \
+            --schemafile schemas/e2e/chrome-five-client-lifecycle.schema.json \
+            "$EVIDENCE_ROOT/evidence.json"
+          python3 scripts/validate_client_evidence.py --file "$EVIDENCE_ROOT/evidence.json"
+          (cd "$EVIDENCE_ROOT" && sha256sum evidence.json > evidence.sha256)
+          test ! -e "$RUNNER_TEMP/chrome-five-client-sandbox"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chrome-five-client-lifecycle-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/chrome-five-client-evidence
           if-no-files-found: error
           retention-days: 90
           overwrite: false
