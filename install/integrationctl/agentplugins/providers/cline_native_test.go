@@ -208,17 +208,46 @@ func TestRenameClineDirectoryNoReplacePreservesLateTarget(t *testing.T) {
 	}
 }
 
-func TestClineRejectsRequiredStdioCWDBeforeProjectionMutation(t *testing.T) {
+func TestClineProjectsChromeLikeStdioWithoutAuthorCWD(t *testing.T) {
 	root := t.TempDir()
 	envelope := domain.PackageEnvelope{MCP: domain.MCPComponent{Servers: map[string]domain.MCPServer{
-		"local": {Name: "local", Type: "stdio", Decoded: map[string]any{"type": "stdio", "command": "node"}},
+		"chrome": {Name: "chrome", Type: "stdio", Decoded: map[string]any{
+			"type": "stdio", "command": "npx",
+			"args": []any{"-y", "chrome-devtools-mcp@latest", "--cache", "${PLUGIN_DATA}/cache"},
+			"env":  map[string]any{"MODE": "safe"},
+		}},
+	}}}
+	plan := domain.DeliveryPlan{ActivePath: filepath.Join(root, "active"), Components: []domain.ComponentDecision{
+		{Kind: domain.ComponentMCPServer, Name: "chrome", Support: domain.SupportPrepared},
+	}}
+	dataPath := filepath.Join(root, "data")
+	if err := projectClineNative(root, envelope, plan, dataPath); err != nil {
+		t.Fatalf("project Chrome-like Cline stdio server: %v", err)
+	}
+	projection, err := readClineProjection(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := projection.Servers["chrome"]
+	if server.Command != "npx" || server.CWD != "" || len(server.Args) != 4 || server.Args[3] != filepath.Join(dataPath, "cache") {
+		t.Fatalf("Cline stdio projection = %+v", server)
+	}
+	if server.Env["PLUGIN_ROOT"] != plan.ActivePath || server.Env["PLUGIN_DATA"] != dataPath || server.Env["MODE"] != "safe" {
+		t.Fatalf("Cline stdio environment = %+v", server.Env)
+	}
+}
+
+func TestClineRejectsExplicitStdioCWDBeforeProjectionMutation(t *testing.T) {
+	root := t.TempDir()
+	envelope := domain.PackageEnvelope{MCP: domain.MCPComponent{Servers: map[string]domain.MCPServer{
+		"local": {Name: "local", Type: "stdio", Decoded: map[string]any{"type": "stdio", "command": "node", "cwd": "./workspace"}},
 	}}}
 	plan := domain.DeliveryPlan{ActivePath: filepath.Join(root, "active"), Components: []domain.ComponentDecision{
 		{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportPrepared},
 	}}
 	err := projectClineNative(root, envelope, plan, filepath.Join(root, "data"))
 	if err == nil || !strings.Contains(err.Error(), "Cline stdio MCP server does not support cwd") {
-		t.Fatalf("Cline required cwd projection error = %v", err)
+		t.Fatalf("Cline explicit cwd projection error = %v", err)
 	}
 	if _, statErr := os.Stat(filepath.Join(root, clineProjectionFile)); !os.IsNotExist(statErr) {
 		t.Fatalf("rejected Cline cwd mutated projection: %v", statErr)

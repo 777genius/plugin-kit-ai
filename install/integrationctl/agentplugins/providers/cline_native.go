@@ -31,8 +31,22 @@ func projectClineNative(root string, envelope domain.PackageEnvelope, plan domai
 		portable := envelope.MCP.Servers[name]
 		if portable.Type == "stdio" {
 			portable.Decoded = cloneObject(portable.Decoded)
+			authorCWD := false
+			if rawCWD, exists := portable.Decoded["cwd"]; exists {
+				cwd, ok := rawCWD.(string)
+				if !ok {
+					return fmt.Errorf("project Cline MCP server %s: stdio cwd must be a string", name)
+				}
+				authorCWD = strings.TrimSpace(cwd) != ""
+			}
 			if err := applyStdioDataContract(portable.Decoded, plan.ActivePath, dataPath); err != nil {
 				return fmt.Errorf("project Cline MCP server %s: %w", name, err)
+			}
+			// The portable stdio contract defaults cwd to PLUGIN_ROOT, but Cline's
+			// native format cannot encode cwd. Only discard that synthesized value;
+			// an explicit author requirement must continue to fail closed below.
+			if !authorCWD {
+				delete(portable.Decoded, "cwd")
 			}
 		}
 		server, err := clineNeutralServer(portable)
