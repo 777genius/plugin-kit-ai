@@ -77,10 +77,10 @@ actual projection tree digest to match the released State v4 managed object and
 committed mutation receipt, executes only the authenticated CLI image, and
 publishes the pair with an atomic no-replace operation.
 
-Acquire the projection generator's manager binary from the exact public,
-immutable 0.1.24 release before generation. This is a separate deployment
-input from the historical 0.1.18 manager retained later for the protected hero
-matrix. The resolver verifies the GitHub artifact attestation, tag commit,
+Acquire the projection generator and protected hero matrix manager from the
+same exact public, immutable 0.1.24 release before generation. Every manager
+operation in this procedure - detection doctor, add, info, and post-add doctor -
+must use this one authenticated binary. The resolver verifies the GitHub artifact attestation, tag commit,
 release manifest, checksums, selected asset, and complete asset set. The
 explicit API checks additionally bind the public immutable release identity:
 
@@ -283,43 +283,26 @@ sha256sum /root/uap-observer-matrix.json
 Do not create, read, hash, or validate the final adapter config at this point. Its three
 projection digests do not exist until the first bootstrap phase below.
 
-Acquire the manager from the exact immutable public release; a package-manager
-facade, locally built binary, or the sanitized repository fixture is not a
-deployment input. The repository resolver checks GitHub's immutable release
-flag, tag commit, exact asset set, manifest/checksums agreement, selected asset
-SHA-256, and GitHub artifact attestation before writing the binary:
+Reuse the exact authenticated 0.1.24 manager acquired above. A package-manager
+facade, locally built binary, sanitized repository fixture, or second manager
+version is not a deployment input. Recheck the frozen binary immediately before
+profile materialization so the ChatGPT projection and every protected hero
+record are bound to the same release:
 
 ```sh
-install -d -o root -g root -m 0700 /root/approved-inputs/agentplugins-0.1.18
 PYTHONPATH="$SOURCE_ROOT" python3 - <<'PY'
 import hashlib
 import subprocess
 from pathlib import Path
-from scripts.run_launch_evidence_e2e import (
-    resolve_github_release,
-    verify_historical_github_asset_attestation,
-)
-
-root = Path("/root/approved-inputs/agentplugins-0.1.18")
-binary, manifest, manifest_digest = resolve_github_release(
-    "777genius/plugin-kit-ai", "agentplugins-v0.1.18",
-    root / "agentplugins", asset_name="agentplugins_0.1.18_linux_amd64",
-    attestation_verifier=verify_historical_github_asset_attestation,
-)
-if manifest["commit"] != "74a3790ee15d92afda8e8e3dd8f903c04811cfc7":
-    raise SystemExit("release manifest commit differs from the historical deployment pin")
-if manifest_digest != "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57":
-    raise SystemExit("release-manifest.json differs from the deployment pin")
-checksums = "sha256:" + hashlib.sha256((root / "checksums.txt").read_bytes()).hexdigest()
-if checksums != "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8":
-    raise SystemExit("checksums.txt differs from the deployment pin")
-binary_digest = "sha256:" + hashlib.sha256(Path(binary).read_bytes()).hexdigest()
-if binary_digest != "sha256:9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779":
-    raise SystemExit("selected historical linux-amd64 asset differs from the deployment pin")
+root = Path("/root/approved-inputs/agentplugins-0.1.24")
+binary = root / "agentplugins"
+binary_digest = "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest()
+if binary_digest != "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca":
+    raise SystemExit("selected linux-amd64 asset differs from the deployment pin")
 observed = subprocess.run([binary, "version"], check=True, text=True,
                           stdout=subprocess.PIPE).stdout.strip()
-if manifest["version"] != "0.1.18" or observed != "agentplugins 0.1.18":
-    raise SystemExit("selected manager binary is not exact agentplugins 0.1.18")
+if observed != "agentplugins 0.1.24":
+    raise SystemExit("selected manager binary is not exact agentplugins 0.1.24")
 PY
 ```
 
@@ -379,12 +362,12 @@ token refreshes under the isolated profile state. Never put this file in Git,
 logs, evidence, or another client's profile.
 
 Materialize the five reviewed heroes separately in each seed. Short names are
-not eligible protected inputs in agentplugins 0.1.18. Derive every add argument
+not eligible protected inputs. Derive every add argument
 from the approved tuple as the canonical
 `source_repository@source_revision//source_path`; reject a missing revision, a
-non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.18
+non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.24
 prepares these clients and retains its immutable pre-execution plan in the add
-envelope. The sealer accepts either of the two real 0.1.18 completion shapes. A
+envelope. The sealer accepts either of the two real completion shapes. A
 fully automated add must contain `result: success`, `data.status: completed`, a
 successful selected target, and a realized `active` / `installation_verified`
 activation with `group_phase: external_completed`. A client that requires an
@@ -395,7 +378,7 @@ envelope must bind the same revision and digests. Cursor must explicitly attest
 both activation and authentication. Codex and Kiro may omit only
 `activation_attested` after their native verifier has already recorded
 `active` / `installation_verified`; `authentication_attested` remains required.
-Kiro 0.1.18 info omits reconciliation fields, so that shape is eligible only
+Kiro info may omit reconciliation fields, so that shape is eligible only
 next to an accepted completion envelope. The
 immutable nested plan may still describe the earlier
 `manual_activation_required` state. Never merge,
@@ -403,7 +386,7 @@ rewrite, or synthesize the two envelopes.
 
 The manager detects clients through `PATH`. Never run it with an ambient client
 on `PATH`. Create one root-owned temporary bin directory per seed containing
-the pinned Git binary and only the exact pinned client under a name that 0.1.18
+the pinned Git binary and only the exact pinned client under a name that 0.1.24
 recognizes (`codex`, `cursor`, or `kiro-cli`). Cursor uses a fixed two-line
 launcher into the verified bundle because its executable cannot be separated
 from its sibling dependencies. Create `.codex` and export `CODEX_HOME` only for
@@ -412,7 +395,7 @@ Before any source is resolved or installed, the sole detection gate is exactly
 `agentplugins doctor --format json` (no source or target operands):
 
 ```sh
-AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.18/agentplugins
+AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.24/agentplugins
 for client in codex cursor kiro; do
   seed="/root/profile-seeds/$client"
   evidence="/root/profile-seed-evidence/$client"
@@ -514,7 +497,28 @@ value = json.loads(pathlib.Path(path).read_bytes(), object_pairs_hook=pairs,
 if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
         or value["schema_version"] != 1 or value.get("command") != "doctor"
         or value.get("result") != "success"):
-    raise SystemExit("doctor did not return the exact successful 0.1.18 envelope")
+    raise SystemExit("doctor did not return the exact successful 0.1.24 envelope")
+data = value.get("data")
+expected_clients = {
+    "chatgpt", "claude", "cline", "codex", "copilot", "cursor",
+    "gemini", "kiro", "opencode", "vscode", "windsurf",
+}
+if not isinstance(data, dict) or data.get("tool_version") != "0.1.24":
+    raise SystemExit("doctor was not produced by exact agentplugins 0.1.24")
+clients = data.get("clients")
+supported = data.get("supported_clients")
+def exact_ids(items):
+    if (not isinstance(items, list) or len(items) != len(expected_clients)
+            or not all(isinstance(item, dict) for item in items)):
+        return None
+    identities = [item.get("client_id") for item in items]
+    if (not all(isinstance(identity, str) for identity in identities)
+            or len(set(identities)) != len(identities)
+            or set(identities) != expected_clients):
+        return None
+    return identities
+if exact_ids(clients) is None or exact_ids(supported) is None:
+    raise SystemExit("doctor did not report the exact 11-client inventory")
 positive = []
 def visit(item):
     if isinstance(item, dict):
@@ -525,7 +529,7 @@ def visit(item):
         for child in item.values(): visit(child)
     elif isinstance(item, list):
         for child in item: visit(child)
-visit(value.get("data"))
+visit(data)
 if positive != [expected]:
     raise SystemExit("doctor did not detect exactly the intended target")
 PY
@@ -565,12 +569,12 @@ route or executable search path.
 Stop unless the pre-add doctor file is structured successful JSON, names the
 intended target as the sole detected client, and contains no other recognized
 client. Stop unless every add
-file is the exact successful structured 0.1.18 envelope, its top-level source
+file is the exact successful structured 0.1.24 envelope, its top-level source
 and revision reproduce the approved canonical argument, and the one requested
 target has status `success`, `completed`, or `external_completed`, with no
 failed target or incomplete, warning, error, cancellation, audit, event, or
 conflicting lifecycle state at any depth.
-The post-add 0.1.18 doctor may report either an empty findings array or its
+The post-add 0.1.24 doctor may report either an empty findings array or its
 single exact healthy `no_degradation_detected` record. Any unknown, degraded,
 additional, or malformed finding is unsealable.
 
@@ -610,12 +614,12 @@ flags. Preserve both raw outputs. Put the exact envelope accepted for that
 client in the sealer's `add` directory and archive the other under
 `materialized` or `completion`; never combine their fields. Then repeat
 post-add doctor without a source
-operand and info with 0.1.18's installed identity syntax. Codex and Cursor use
+operand and info with the installed identity syntax. Codex and Cursor use
 the installed plugin name plus its exact `--target`. Kiro uses its
-single-installed-client view because 0.1.18 omits unsupported native
+single-installed-client view when the manager omits unsupported native
 reconciliation fields only in that shape; the sealer accepts the omission only
 beside the exact CLI-emitted completion envelope. There is no receipt-export
-operation in agentplugins 0.1.18:
+operation in agentplugins 0.1.24:
 
 ```sh
 for client in codex cursor kiro; do
@@ -763,7 +767,7 @@ for client in codex cursor kiro; do
 done
 ```
 
-Real 0.1.18 info JSON reports `data.source` as `repository//path` (without the
+Real 0.1.24 info JSON reports `data.source` as `repository//path` (without the
 revision in that display field). Its `package_revision` has exactly `version`,
 `resolved_revision`, `tree_digest`, and `manifest_digest`; it does not repeat
 distribution metadata. The sealer checks those fields and the displayed source

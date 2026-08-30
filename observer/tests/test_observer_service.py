@@ -7685,7 +7685,10 @@ class FixedAdapterContractTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "incomplete or unreconciled"):
             sealer.matching_client(kiro_info, "context7", "kiro", approved)
-        expected_clients = ("chatgpt", "codex", "copilot", "cursor", "kiro", "vscode")
+        expected_clients = (
+            "chatgpt", "claude", "cline", "codex", "copilot", "cursor",
+            "gemini", "kiro", "opencode", "vscode", "windsurf",
+        )
         doctor = {
             "schema_version": 1, "command": "doctor", "result": "success",
             "data": {
@@ -7706,6 +7709,30 @@ class FixedAdapterContractTests(unittest.TestCase):
         stale_doctor["data"]["tool_version"] = "0.1.18"
         with self.assertRaisesRegex(ValueError, "tool_version is not exactly 0.1.24"):
             sealer.matching_doctor(stale_doctor, "cursor", {"context7": approved})
+        incomplete_client_inventory = json.loads(json.dumps(doctor))
+        incomplete_client_inventory["data"]["clients"] = incomplete_client_inventory["data"]["clients"][:-1]
+        incomplete_client_inventory["data"]["supported_clients"] = incomplete_client_inventory["data"]["supported_clients"][:-1]
+        with self.assertRaisesRegex(ValueError, "complete five-plugin profile"):
+            sealer.matching_doctor(incomplete_client_inventory, "cursor", {"context7": approved})
+        for field in ("clients", "supported_clients"):
+            duplicate_client = json.loads(json.dumps(doctor))
+            duplicate_client["data"][field][-1]["client_id"] = duplicate_client["data"][field][0]["client_id"]
+            with self.subTest(field=field, invalid="duplicate"), self.assertRaisesRegex(
+                ValueError, "complete five-plugin profile",
+            ):
+                sealer.matching_doctor(duplicate_client, "cursor", {"context7": approved})
+            extra_duplicate = json.loads(json.dumps(doctor))
+            extra_duplicate["data"][field].append(json.loads(json.dumps(extra_duplicate["data"][field][0])))
+            with self.subTest(field=field, invalid="extra-duplicate"), self.assertRaisesRegex(
+                ValueError, "complete five-plugin profile",
+            ):
+                sealer.matching_doctor(extra_duplicate, "cursor", {"context7": approved})
+            malformed_client = json.loads(json.dumps(doctor))
+            malformed_client["data"][field][-1] = "windsurf"
+            with self.subTest(field=field, invalid="non-dict"), self.assertRaisesRegex(
+                ValueError, "complete five-plugin profile",
+            ):
+                sealer.matching_doctor(malformed_client, "cursor", {"context7": approved})
         healthy_doctor = json.loads(json.dumps(doctor))
         healthy_doctor["data"]["findings"] = [{
             "status": "healthy", "code": "no_degradation_detected",

@@ -459,7 +459,7 @@ def matching_client(
 
 
 def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict[str, Any]) -> bool:
-    """Validate the real agentplugins 0.1.18 add envelope and approved source."""
+    """Validate the real agentplugins 0.1.24 add envelope and approved source."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "add" or value.get("result") != "success":
         raise ValueError(f"{plugin}: manager add is not successful agentplugins JSON")
     data = value.get("data")
@@ -578,17 +578,32 @@ def matching_doctor(value: dict[str, Any], client: str, approved: dict[str, dict
     }:
         clients = data.get("clients")
         supported = data.get("supported_clients")
-        detected = [
-            item.get("client_id") for item in clients or []
-            if isinstance(item, dict) and item.get("status") == "detected"
+        expected_clients = {
+            "chatgpt", "claude", "cline", "codex", "copilot", "cursor",
+            "gemini", "kiro", "opencode", "vscode", "windsurf",
+        }
+
+        def exact_client_ids(items: Any) -> list[str] | None:
+            if (
+                not isinstance(items, list) or len(items) != len(expected_clients)
+                or not all(isinstance(item, dict) for item in items)
+            ):
+                return None
+            identities = [item.get("client_id") for item in items]
+            if (
+                not all(isinstance(identity, str) for identity in identities)
+                or len(set(identities)) != len(identities)
+                or set(identities) != expected_clients
+            ):
+                return None
+            return identities
+
+        client_ids = exact_client_ids(clients)
+        supported_ids = exact_client_ids(supported)
+        detected = [] if client_ids is None else [
+            item.get("client_id") for item in clients
+            if item.get("status") == "detected"
         ]
-        client_ids = {
-            item.get("client_id") for item in clients or [] if isinstance(item, dict)
-        }
-        supported_ids = {
-            item.get("client_id") for item in supported or [] if isinstance(item, dict)
-        }
-        expected_clients = {"codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"}
         if (
             data.get("read_only") is not True or data.get("open_operation_count") != 0
             or data.get("installation_count") != len(HEROES)
@@ -599,7 +614,7 @@ def matching_doctor(value: dict[str, Any], client: str, approved: dict[str, dict
                     "message": "no tracked degradation was detected",
                 }],
             )
-            or detected != [client] or client_ids != expected_clients or supported_ids != expected_clients
+            or detected != [client] or client_ids is None or supported_ids is None
             or prohibited_lifecycle_state(value)
         ):
             raise ValueError("post-add doctor does not prove one complete five-plugin profile")

@@ -698,7 +698,23 @@ class WorkflowContractTests(unittest.TestCase):
         snippet = runbook[start:runbook.index("\nPY", start)]
         valid = {
             "schema_version": 1, "command": "doctor", "result": "success",
-            "data": {"clients": [{"client_id": "codex", "detected": True}]},
+            "data": {
+                "tool_version": "0.1.24",
+                "clients": [
+                    {"client_id": name, "detected": name == "codex"}
+                    for name in (
+                        "chatgpt", "claude", "cline", "codex", "copilot", "cursor",
+                        "gemini", "kiro", "opencode", "vscode", "windsurf",
+                    )
+                ],
+                "supported_clients": [
+                    {"client_id": name, "package_mode": "native"}
+                    for name in (
+                        "chatgpt", "claude", "cline", "codex", "copilot", "cursor",
+                        "gemini", "kiro", "opencode", "vscode", "windsurf",
+                    )
+                ],
+            },
         }
         with tempfile.TemporaryDirectory() as temporary:
             evidence = Path(temporary) / "doctor.json"
@@ -708,11 +724,26 @@ class WorkflowContractTests(unittest.TestCase):
                 text=True, capture_output=True,
             )
             self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            stale_binary = json.loads(json.dumps(valid))
+            stale_binary["data"]["tool_version"] = "0.1.18"
+            incomplete_inventory = json.loads(json.dumps(valid))
+            incomplete_inventory["data"]["clients"].pop()
+            incomplete_inventory["data"]["supported_clients"].pop()
+            duplicate_inventory = json.loads(json.dumps(valid))
+            duplicate_inventory["data"]["clients"].append(
+                json.loads(json.dumps(duplicate_inventory["data"]["clients"][0])),
+            )
+            malformed_inventory = json.loads(json.dumps(valid))
+            malformed_inventory["data"]["supported_clients"][-1] = "windsurf"
             adversarial = (
                 b'{"schema_version":true,"command":"doctor","result":"success","data":{}}',
                 b'{"schema_version":1,"Schema_Version":1,"command":"doctor","result":"success","data":{}}',
                 b'{"schema_version":1,"command":"doctor","result":"success","data":{},"value":NaN}',
                 b'{"schema_version":1,"command":"doctor","result":"success","data":{},"value":1e400}',
+                json.dumps(stale_binary).encode(),
+                json.dumps(incomplete_inventory).encode(),
+                json.dumps(duplicate_inventory).encode(),
+                json.dumps(malformed_inventory).encode(),
             )
             for body in adversarial:
                 evidence.write_bytes(body)
@@ -1135,8 +1166,8 @@ class WorkflowContractTests(unittest.TestCase):
             "repository does not install UID-, cgroup-, or service-identity firewall rules",
             "`IPAddressDeny=any`",
             "resolve_github_release",
-            '"agentplugins-v0.1.18"',
-            'asset_name="agentplugins_0.1.18_linux_amd64"',
+            '"agentplugins-v0.1.24"',
+            'asset_name="agentplugins_0.1.24_linux_amd64"',
             '"$AGENTPLUGINS" add "$source" --target "$client" --format json',
             '"$AGENTPLUGINS" info "$plugin" --target "$client" --format json',
             "manual_activation_required",
@@ -1154,31 +1185,22 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn(phrase, runbook)
         self.assertIn("Do not bypass OIDC", runbook)
 
-    def test_runbook_uses_exact_current_and_historical_release_verifiers(self) -> None:
+    def test_runbook_uses_one_exact_current_release_for_all_manager_operations(self) -> None:
         runbook = OBSERVER_RUNBOOK.read_text()
         current = runbook.split(
             'root = Path("/root/approved-inputs/agentplugins-0.1.24")', 1,
         )[1].split("```", 1)[0]
-        historical = runbook.split(
-            'root = Path("/root/approved-inputs/agentplugins-0.1.18")', 1,
-        )[1].split("```", 1)[0]
         self.assertIn('"agentplugins-v0.1.24"', current)
         self.assertNotIn("attestation_verifier=", current)
-        self.assertIn('"agentplugins-v0.1.18"', historical)
-        self.assertIn(
-            "attestation_verifier=verify_historical_github_asset_attestation",
-            historical,
-        )
+        self.assertNotIn("agentplugins-0.1.18", runbook)
+        self.assertNotIn("agentplugins-v0.1.18", runbook)
+        self.assertNotIn("verify_historical_github_asset_attestation", runbook)
         self.assertEqual(
-            runbook.count("attestation_verifier=verify_historical_github_asset_attestation"), 1,
+            runbook.count("AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.24/agentplugins"), 1,
         )
-        self.assertIn(
-            "from scripts.run_launch_evidence_e2e import (\n"
-            "    resolve_github_release,\n"
-            "    verify_historical_github_asset_attestation,\n"
-            ")",
-            runbook,
-        )
+        self.assertIn("Every manager\noperation in this procedure", runbook)
+        self.assertIn('data.get("tool_version") != "0.1.24"', runbook)
+        self.assertIn("doctor did not report the exact 11-client inventory", runbook)
         self.assertIn("five minutes before", runbook)
         self.assertIn("genuinely\nexternal unmerged PR", runbook)
         self.assertNotIn("uap-observer-egress-fqdns.txt", runbook)
