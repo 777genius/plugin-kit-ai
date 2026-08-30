@@ -100,11 +100,26 @@ func TestClaudeLifecycleAddUpdateRepairRemoveWithIsolatedConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(active, ".claude-plugin", "plugin.json"), []byte(`{"name":"demo","version":"tampered"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Authentication = domain.AuthenticationComplete
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
 	input.InstallationID = added.InstallationID
 	input.OperationID = "operation-three"
 	repaired, err := service.Repair(context.Background(), input)
-	if err != nil || repaired.Activation.Activation != domain.ActivationActive {
+	if err != nil || repaired.Activation.Activation != domain.ActivationActive || repaired.Activation.Authentication != domain.AuthenticationComplete {
 		t.Fatalf("repair=%+v err=%v", repaired, err)
+	}
+	state, err = store.Load()
+	if err != nil || onlyBinding(state.Installations[0]).Authentication != domain.AuthenticationComplete {
+		t.Fatalf("repair downgraded completed authentication: state=%+v err=%v", state, err)
 	}
 
 	removed, err := service.Remove(context.Background(), RemoveInput{
@@ -117,7 +132,7 @@ func TestClaudeLifecycleAddUpdateRepairRemoveWithIsolatedConfig(t *testing.T) {
 	if _, err := os.Stat(active); !os.IsNotExist(err) {
 		t.Fatalf("managed Claude path remains after remove: %v", err)
 	}
-	state, err := store.Load()
+	state, err = store.Load()
 	if err != nil || len(state.Installations) != 1 || len(state.Installations[0].Clients) != 0 {
 		t.Fatalf("state=%+v err=%v", state, err)
 	}

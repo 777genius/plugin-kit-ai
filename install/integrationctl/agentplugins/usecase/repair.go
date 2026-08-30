@@ -289,6 +289,7 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 			Delivery:     domain.StagedDelivery{ClientID: delivery.ClientID, OwnedBase: delivery.OwnedBase, ActivePath: delivery.ActivePath, ArtifactDigest: delivery.ArtifactDigest, NativeObjects: delivery.NativeObjects},
 			DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, VerifyOnly: true,
 		})
+		outcome = preserveManagedAuthentication(outcome, client.Authentication)
 		result.Activation = outcome
 		if _, updateErr := service.updateLifecycle(installation.InstallationID, clientKey, outcome); updateErr != nil {
 			if activationErr != nil {
