@@ -1,107 +1,92 @@
 {
-  "client": "Agent Plugins CLI multi-client lifecycle",
-  "version": "0.1.24",
-  "date": "2026-08-30",
-  "date_timezone": "Europe/Kyiv",
-  "observed_at_utc": "2026-08-30T17:06:48Z",
-  "evidence_type": "isolated_manager_lifecycle_v1",
-  "product_id": "chrome-devtools",
-  "distribution_kind": "direct",
-  "package_version": "1.8.0",
-  "tree_digest": "sha256:b2bc4b45c3ea0f13c780ff0a2ff25b1e664b1fda59de3e081e8b478848376e6a",
-  "manifest_digest": "sha256:b34a4dcd71cd536a7f5a3a51d76d53ae5af3d0ce0f18783e71c7f01da865b867",
-  "installer_version": "0.1.24",
   "adapter_version": "agentplugins-0.1.24",
-  "binary_digest": "sha256:c9d3dfe4b4b06d70733841d72fd9c8b9070ce066f6fa5dd7260073cf69565972",
-  "immutable_source_revision": "7e193aed8baa23c692355237a55237540b36cb2f",
-  "outcome": "passed",
-  "source": {
-    "repository": "ChromeDevTools/chrome-devtools-mcp",
-    "package_path": ".",
-    "package_standard": "Agent Plugins 1.0"
-  },
-  "targets": [
-    "claude",
-    "gemini",
-    "opencode",
-    "cline",
-    "windsurf"
-  ],
+  "binary_digest": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca",
   "checks": [
     {
-      "scenario": "resolve and validate the exact upstream package once for five selected clients",
       "operation": "multi_target_dry_run",
+      "scenario": "resolve one exact upstream package for five targets",
       "status": "passed"
     },
     {
-      "scenario": "install the Claude Code compatibility projection and verify it with the installed Claude CLI",
-      "operation": "add_claude",
+      "operation": "add_info_doctor",
+      "scenario": "install and inspect five manager-owned client projections",
       "status": "passed"
     },
     {
-      "scenario": "install and verify the Gemini CLI native projection",
-      "operation": "add_gemini",
+      "operation": "claude_plugin_list",
+      "scenario": "discover the installed package through the real Claude CLI",
       "status": "passed"
     },
     {
-      "scenario": "install and verify the OpenCode prepared package",
-      "operation": "add_opencode",
+      "operation": "update",
+      "scenario": "reject immutable direct-source update without changing bytes",
       "status": "passed"
     },
     {
-      "scenario": "install and verify the Cline native projection",
-      "operation": "add_cline",
-      "status": "passed"
-    },
-    {
-      "scenario": "install and verify the Windsurf prepared package",
-      "operation": "add_windsurf",
-      "status": "passed"
-    },
-    {
-      "scenario": "inspect the five-target installation without changing client state",
-      "operation": "doctor",
-      "status": "passed"
-    },
-    {
-      "scenario": "repair and reverify all five managed targets",
-      "operation": "repair",
-      "status": "passed"
-    },
-    {
-      "scenario": "remove all five targets and purge ownership-verified managed data",
-      "operation": "remove",
-      "status": "passed"
-    },
-    {
-      "scenario": "confirm no installation record or named managed file remains",
-      "operation": "post_remove_verification",
+      "operation": "repair_remove",
+      "scenario": "repair, remove, purge owned data, and verify zero managed residue",
       "status": "passed"
     }
   ],
-  "scope": {
-    "proved": [
-      "exact_upstream_agent_plugins_package_resolution",
-      "one_command_multi_target_install",
-      "manager_add_doctor_repair_remove_lifecycle",
-      "client_specific_projection_and_configuration",
-      "claude_cli_installation_discovery"
-    ],
-    "not_proved": [
-      "live_model_tool_invocation",
-      "chrome_browser_runtime_control",
-      "oauth_flow",
-      "directory_short_alias_resolution"
-    ]
+  "claude_cli": {
+    "npm_integrity": "sha512-eG+ZPPpW2Dbmnntf1Fz9/T9ewS8I8SKfc1tcU2PqSwmftfjRPP7BXPaCyLuZ8kvgTdiPnJi/2/JnTvTRieneEQ==",
+    "npm_package": "@anthropic-ai/claude-code",
+    "plugin_absent_after_remove": true,
+    "plugin_discovered_after_add": true,
+    "plugin_id": "chrome-devtools@skills-dir",
+    "version": "2.1.251"
   },
   "cleanup": {
+    "claude_plugin_discovered_after_remove": false,
     "managed_installations_remaining": 0,
-    "managed_named_files_remaining": 0
+    "named_managed_artifacts_remaining": 0,
+    "owned_plugin_data_remaining": 0,
+    "sandbox_removed_after_evidence": true
   },
-  "secrets_recorded": false,
-  "real_user_project_used": false,
+  "client": "Agent Plugins CLI multi-client lifecycle",
+  "date": "2026-08-30",
+  "date_timezone": "Europe/Kyiv",
+  "distribution_kind": "direct",
+  "evidence_type": "chrome_five_client_manager_lifecycle_v1",
+  "immutable_source_revision": "7e193aed8baa23c692355237a55237540b36cb2f",
+  "installer": {
+    "binary_digest": "sha256:e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca",
+    "npm_integrity": "sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==",
+    "npm_package": "universal-agent-plugins",
+    "version": "0.1.24"
+  },
+  "installer_version": "0.1.24",
+  "observed_at_utc": "2026-08-30T19:38:11Z",
+  "operations": {
+    "add": "passed_5_of_5",
+    "doctor": "passed_read_only_with_authentication_unchecked",
+    "dry_run": "passed",
+    "immutable_update": {
+      "all_writable_roots_snapshot_after": "sha256:dcb3eefcc028affbbe8e733d89b600708d62a0eb1601f17a6a55cc4ee3b74b66",
+      "all_writable_roots_snapshot_before": "sha256:dcb3eefcc028affbbe8e733d89b600708d62a0eb1601f17a6a55cc4ee3b74b66",
+      "byte_identical": true,
+      "outcome": "expected_failure",
+      "reason": "direct_full_sha_requires_explicit_switch",
+      "targets_changed": 0
+    },
+    "info": "passed_5_of_5",
+    "list": "zero_installations",
+    "post_doctor": "healthy",
+    "remove": "passed_5_of_5_with_owned_data_purged",
+    "repair": "passed_5_of_5"
+  },
+  "outcome": "passed",
+  "package": {
+    "git_tree_sha": "58508ba29ecd470f8afe59a5f234e4d27bdda15b",
+    "manifest_digest": "sha256:b34a4dcd71cd536a7f5a3a51d76d53ae5af3d0ce0f18783e71c7f01da865b867",
+    "one_acquisition_per_multi_target_operation": true,
+    "physical_artifact_id": "chrome-devtools-8da0def18222",
+    "revision": "7e193aed8baa23c692355237a55237540b36cb2f",
+    "source_selector": "ChromeDevTools/chrome-devtools-mcp@7e193aed8baa23c692355237a55237540b36cb2f",
+    "tree_digest": "sha256:b2bc4b45c3ea0f13c780ff0a2ff25b1e664b1fda59de3e081e8b478848376e6a"
+  },
+  "package_version": "1.8.0",
   "privacy": {
-    "sanitized": true,
     "excluded": [
       "temporary_paths",
       "operation_ids",
@@ -113,6 +98,97 @@
       "OAuth codes",
       "OAuth state",
       "authorization URLs"
+    ],
+    "sanitized": true
+  },
+  "product_id": "chrome-devtools",
+  "real_user_project_used": false,
+  "run": {
+    "repository": "777genius/universal-agent-plugins",
+    "run_attempt": "1",
+    "run_id": "33331394696",
+    "source_commit": "bec7f643e50fee5f2bbebad045f107d81ab7a867"
+  },
+  "schema_version": 1,
+  "scope": {
+    "not_proved": [
+      "gemini_cli_runtime",
+      "opencode_runtime",
+      "cline_runtime",
+      "windsurf_runtime",
+      "live_model_tool_invocation",
+      "chrome_browser_runtime_control",
+      "oauth_flow",
+      "directory_short_alias_resolution"
+    ],
+    "proved": [
+      "exact_upstream_agent_plugins_package_resolution",
+      "one_command_multi_target_install",
+      "manager_add_info_doctor_repair_remove_lifecycle",
+      "client_specific_projection_and_configuration",
+      "claude_cli_plugin_discovery_and_removal",
+      "immutable_update_zero_mutation"
     ]
-  }
+  },
+  "secrets_recorded": false,
+  "source": {
+    "commit_sha": "7e193aed8baa23c692355237a55237540b36cb2f",
+    "commit_timestamp_utc": "2026-08-30T17:16:23Z",
+    "git_tree_sha": "58508ba29ecd470f8afe59a5f234e4d27bdda15b",
+    "head_observed_at_utc": "2026-08-30T19:37:52Z",
+    "head_rechecked_at_utc": "2026-08-30T19:38:12Z",
+    "lifecycle_completed_at_utc": "2026-08-30T19:38:11Z",
+    "lifecycle_started_at_utc": "2026-08-30T19:37:52Z",
+    "package_path": ".",
+    "pr_number": 2623,
+    "pr_url": "https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623",
+    "repository": "ChromeDevTools/chrome-devtools-mcp"
+  },
+  "targets": [
+    {
+      "add": "passed",
+      "claim_class": "claude_cli_plugin_discovery",
+      "client_id": "claude",
+      "info": "passed",
+      "package_mode": "compatibility_projection",
+      "remove": "passed",
+      "repair": "passed"
+    },
+    {
+      "add": "passed",
+      "claim_class": "manager_projection_and_configuration_only",
+      "client_id": "gemini",
+      "info": "passed",
+      "package_mode": "native",
+      "remove": "passed",
+      "repair": "passed"
+    },
+    {
+      "add": "passed",
+      "claim_class": "manager_projection_and_configuration_only",
+      "client_id": "opencode",
+      "info": "passed",
+      "package_mode": "prepared_package",
+      "remove": "passed",
+      "repair": "passed"
+    },
+    {
+      "add": "passed",
+      "claim_class": "manager_projection_and_configuration_only",
+      "client_id": "cline",
+      "info": "passed",
+      "package_mode": "native",
+      "remove": "passed",
+      "repair": "passed"
+    },
+    {
+      "add": "passed",
+      "claim_class": "manager_projection_and_configuration_only",
+      "client_id": "windsurf",
+      "info": "passed",
+      "package_mode": "prepared_package",
+      "remove": "passed",
+      "repair": "passed"
+    }
+  ]
 }
