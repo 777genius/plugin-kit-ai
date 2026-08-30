@@ -3,6 +3,7 @@
 package nativeconfig
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -31,9 +32,6 @@ func lockNativeConfig(path string) (func() error, error) {
 	return func() error {
 		unlockErr := syscall.Flock(fd, syscall.LOCK_UN)
 		closeErr := file.Close()
-		if unlockErr != nil {
-			return unlockErr
-		}
-		return closeErr
+		return errors.Join(unlockErr, closeErr)
 	}, nil
 }

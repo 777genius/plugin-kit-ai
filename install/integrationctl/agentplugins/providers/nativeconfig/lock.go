@@ -1,6 +1,8 @@
 package nativeconfig
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +11,22 @@ import (
 	"sync"
 	"time"
 )
+
+const clineLockStaleAfter = 10 * time.Second
+
+type clineLockTiming struct {
+	staleAfter        time.Duration
+	pollInterval      time.Duration
+	acquireTimeout    time.Duration
+	heartbeatInterval time.Duration
+}
+
+var defaultClineLockTiming = clineLockTiming{
+	staleAfter:        clineLockStaleAfter,
+	pollInterval:      25 * time.Millisecond,
+	acquireTimeout:    20 * time.Second,
+	heartbeatInterval: 2 * time.Second,
+}
 
 func (kernel Kernel) acquireCandidateLocks(paths Paths, codec Codec) (func() error, error) {
 	pathsToLock := []string{filepath.Clean(paths.JSON)}
@@ -20,10 +38,11 @@ func (kernel Kernel) acquireCandidateLocks(paths Paths, codec Codec) (func() err
 	for _, path := range pathsToLock {
 		release, err := kernel.acquireWriteLock(path, codec)
 		if err != nil {
+			cleanupErr := error(nil)
 			for index := len(releases) - 1; index >= 0; index-- {
-				_ = releases[index]()
+				cleanupErr = errors.Join(cleanupErr, releases[index]())
 			}
-			return nil, err
+			return nil, errors.Join(err, cleanupErr)
 		}
 		releases = append(releases, release)
 	}
@@ -98,46 +117,218 @@ func (kernel Kernel) acquireWriteLock(path string, codec Codec) (func() error, e
 }
 
 func lockClineConfig(path string) (func() error, error) {
-	deadline := time.Now().Add(10 * time.Second)
+	return lockClineConfigWithTiming(path, defaultClineLockTiming)
+}
+
+type acquiredClineLock struct {
+	lockDir   string
+	ownerFile string
+	token     string
+	identity  os.FileInfo
+	stop      chan struct{}
+	done      chan error
+}
+
+func lockClineConfigWithTiming(path string, timing clineLockTiming) (func() error, error) {
+	token, err := newClineLockToken()
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(timing.acquireTimeout)
 	for {
-		err := os.Mkdir(path, 0o700)
-		if err == nil {
-			break
+		lock, acquired, err := tryAcquireClineLock(path, token)
+		if err != nil {
+			return nil, err
 		}
-		if !os.IsExist(err) {
+		if acquired {
+			startClineLockHeartbeat(lock, timing.heartbeatInterval)
+			var once sync.Once
+			var releaseErr error
+			return func() error {
+				once.Do(func() { releaseErr = releaseClineLock(lock) })
+				return releaseErr
+			}, nil
+		}
+		if _, err := reclaimStaleClineLock(path, timing.staleAfter); err != nil {
 			return nil, err
 		}
 		if !time.Now().Before(deadline) {
 			return nil, fmt.Errorf("timed out waiting for Cline native config lock")
 		}
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(timing.pollInterval)
 	}
-	created, err := os.Lstat(path)
-	if err != nil || !created.IsDir() || created.Mode()&os.ModeSymlink != 0 {
+
+}
+
+func newClineLockToken() (string, error) {
+	random := make([]byte, 16)
+	if _, err := rand.Read(random); err != nil {
+		return "", fmt.Errorf("create Cline lock owner token: %w", err)
+	}
+	return fmt.Sprintf("%d.%d.%s", os.Getpid(), time.Now().UnixMilli(), hex.EncodeToString(random)), nil
+}
+
+func tryAcquireClineLock(lockDir, token string) (*acquiredClineLock, bool, error) {
+	if err := os.MkdirAll(filepath.Dir(lockDir), 0o755); err != nil {
+		return nil, false, err
+	}
+	stagingDir := lockDir + ".tmp." + token
+	if err := os.RemoveAll(stagingDir); err != nil {
+		return nil, false, err
+	}
+	if err := os.Mkdir(stagingDir, 0o700); err != nil {
+		return nil, false, err
+	}
+	ownerName := "owner." + token
+	ownerFile := filepath.Join(stagingDir, ownerName)
+	cleanup := func() { _ = os.RemoveAll(stagingDir) }
+	if err := os.WriteFile(ownerFile, []byte(token), 0o600); err != nil {
+		cleanup()
+		return nil, false, err
+	}
+	identity, err := os.Lstat(stagingDir)
+	if err != nil {
+		cleanup()
+		return nil, false, err
+	}
+	if err := os.Rename(stagingDir, lockDir); err != nil {
+		cleanup()
+		if os.IsExist(err) {
+			return nil, false, nil
+		}
+		_, currentErr := os.Lstat(lockDir)
+		if currentErr == nil {
+			return nil, false, nil
+		}
+		if os.IsNotExist(currentErr) {
+			return nil, false, err
+		}
+		return nil, false, currentErr
+	}
+	return &acquiredClineLock{
+		lockDir:   lockDir,
+		ownerFile: filepath.Join(lockDir, ownerName),
+		token:     token,
+		identity:  identity,
+		stop:      make(chan struct{}),
+		done:      make(chan error, 1),
+	}, true, nil
+}
+
+func reclaimStaleClineLock(lockDir string, staleAfter time.Duration) (bool, error) {
+	current, err := os.Lstat(lockDir)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !current.IsDir() || current.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("Cline native config lock is not an exact directory")
+	}
+	if time.Since(current.ModTime()) < staleAfter {
+		return false, nil
+	}
+	token, err := newClineLockToken()
+	if err != nil {
+		return false, err
+	}
+	staleDir := lockDir + ".stale." + token
+	if err := os.Rename(lockDir, staleDir); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	renamed, err := os.Lstat(staleDir)
+	if err != nil {
+		return false, err
+	}
+	if !os.SameFile(current, renamed) {
+		return false, fmt.Errorf("Cline stale lock identity changed: %w", ErrConcurrentChange)
+	}
+	// The owner may have refreshed the directory between our initial stat and
+	// rename. Put a lock that proved live back instead of deleting it.
+	if time.Since(renamed.ModTime()) < staleAfter {
+		if err := os.Rename(staleDir, lockDir); err != nil {
+			return false, fmt.Errorf("restore refreshed Cline lock: %w", errors.Join(ErrConcurrentChange, err))
+		}
+		return false, nil
+	}
+	if err := os.RemoveAll(staleDir); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func verifyClineLockOwnership(lock *acquiredClineLock) error {
+	current, err := os.Lstat(lock.lockDir)
+	if err != nil {
+		return fmt.Errorf("Cline native config lock identity changed: %w", errors.Join(ErrConcurrentChange, err))
+	}
+	if !current.IsDir() || current.Mode()&os.ModeSymlink != 0 || !os.SameFile(lock.identity, current) {
+		return fmt.Errorf("Cline native config lock identity changed: %w", ErrConcurrentChange)
+	}
+	ownerInfo, err := os.Lstat(lock.ownerFile)
+	if err != nil || !ownerInfo.Mode().IsRegular() || ownerInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("Cline native config lock owner changed: %w", errors.Join(ErrConcurrentChange, err))
+	}
+	owner, err := os.ReadFile(lock.ownerFile)
+	if err != nil || string(owner) != lock.token {
 		if err == nil {
-			err = fmt.Errorf("Cline native config lock is not an exact directory")
+			err = fmt.Errorf("foreign owner token")
 		}
-		return nil, err
+		return fmt.Errorf("Cline native config lock owner changed: %w", errors.Join(ErrConcurrentChange, err))
 	}
-	return func() error {
-		current, err := os.Lstat(path)
-		if err != nil {
-			return err
+	return nil
+}
+
+func startClineLockHeartbeat(lock *acquiredClineLock, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-lock.stop:
+				lock.done <- nil
+				return
+			default:
+			}
+			select {
+			case <-lock.stop:
+				lock.done <- nil
+				return
+			case now := <-ticker.C:
+				if err := verifyClineLockOwnership(lock); err != nil {
+					lock.done <- fmt.Errorf("refresh Cline native config lock: %w", err)
+					return
+				}
+				if err := os.Chtimes(lock.lockDir, now, now); err != nil {
+					lock.done <- fmt.Errorf("refresh Cline native config lock: %w", err)
+					return
+				}
+			}
 		}
-		if !current.IsDir() || current.Mode()&os.ModeSymlink != 0 || !os.SameFile(created, current) {
-			return fmt.Errorf("Cline native config lock identity changed: %w", ErrConcurrentChange)
-		}
-		return os.Remove(path)
-	}, nil
+	}()
+}
+
+func releaseClineLock(lock *acquiredClineLock) error {
+	close(lock.stop)
+	heartbeatErr := <-lock.done
+	if err := verifyClineLockOwnership(lock); err != nil {
+		return errors.Join(heartbeatErr, err)
+	}
+	if err := os.Remove(lock.ownerFile); err != nil {
+		return errors.Join(heartbeatErr, err)
+	}
+	if err := os.Remove(lock.lockDir); err != nil {
+		return errors.Join(heartbeatErr, err)
+	}
+	return heartbeatErr
 }
 
 func joinUnlock(errp *error, release func() error) {
 	if err := release(); err != nil {
-		// The handle is always closed after the unlock attempt. Do not turn a
-		// verified successful mutation into a failed lifecycle operation merely
-		// because the explicit unlock syscall reported an error.
-		if *errp != nil {
-			*errp = errors.Join(*errp, fmt.Errorf("unlock native config: %w", err))
-		}
+		*errp = errors.Join(*errp, fmt.Errorf("unlock native config: %w", err))
 	}
 }

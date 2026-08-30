@@ -35,7 +35,7 @@ func (kernel Kernel) Apply(req Request) (Receipt, error) {
 // replacement. The batch is all-or-none for cooperating agentplugins writers.
 // See conditionalFileIO for the unavoidable portable race with clients that do
 // not honor the same locks.
-func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
+func (kernel Kernel) ApplyBatch(requests []Request) (receipts []Receipt, err error) {
 	if kernel.files == nil {
 		return nil, fmt.Errorf("native config file IO is required")
 	}
@@ -54,7 +54,7 @@ func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = release() }()
+	defer joinUnlock(&err, release)
 	file, err := kernel.resolve(requests[0].Paths)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 		}
 	}
 
-	receipts := make([]Receipt, len(requests))
+	receipts = make([]Receipt, len(requests))
 	for index, req := range requests {
 		if req.Action == ActionRemove {
 			continue
