@@ -211,8 +211,12 @@ jobs:
           stage="${RUNNER_TEMP}/agentplugins-npm-${version}"
           mkdir -p "${stage}"
           cp -R release-source/npm/agentplugins/. "${stage}/"
+          git -C release-source diff --quiet HEAD -- \
+            docs/AGENTPLUGINS_CLIENT_E2E.md \
+            docs/evidence/agentplugins-client-e2e-2026-08-30.json
           node proof-tools/npm/agentplugins/scripts/stage-release.js \
-            "${stage}" "${assets}" "${version}" "${commit}" "${policy[@]}"
+            "${stage}" "${assets}" "${version}" "${commit}" "${policy[@]}" \
+            --evidence-root "${GITHUB_WORKSPACE}/release-source/docs"
           (cd "${stage}" && npm test && npm pack --dry-run --ignore-scripts)
           pack_json="$(cd "${stage}" && npm pack --ignore-scripts --json)"
           tarball_file="$(jq -er 'if length == 1 then .[0].filename else error("expected one npm tarball") end' <<<"${pack_json}")"

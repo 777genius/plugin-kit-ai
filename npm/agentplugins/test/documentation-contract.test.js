@@ -107,8 +107,12 @@ test("copyable direct-source examples use a marked replacement full SHA", () => 
 });
 
 test("checked-in client E2E evidence remains exact and auditable", () => {
-  const evidenceDoc = path.resolve(__dirname, "../../../docs/AGENTPLUGINS_CLIENT_E2E.md");
-  const transcriptPath = path.resolve(__dirname, "../../../docs/evidence/agentplugins-client-e2e-2026-08-30.json");
+  const stagedEvidence = path.resolve(__dirname, "evidence-root");
+  const evidenceRoot = fs.existsSync(stagedEvidence)
+    ? stagedEvidence
+    : path.resolve(__dirname, "../../../docs");
+  const evidenceDoc = path.join(evidenceRoot, "AGENTPLUGINS_CLIENT_E2E.md");
+  const transcriptPath = path.join(evidenceRoot, "evidence/agentplugins-client-e2e-2026-08-30.json");
   const markdown = fs.readFileSync(evidenceDoc, "utf8");
   const transcriptBytes = fs.readFileSync(transcriptPath);
   const transcript = JSON.parse(transcriptBytes.toString("utf8"));
