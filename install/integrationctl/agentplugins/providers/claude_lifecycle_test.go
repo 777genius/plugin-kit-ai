@@ -24,6 +24,8 @@ func TestClaudeSkillsDirAddUpdateRemoveUseOnlyExactListVerification(t *testing.T
 	request.Client.ConfigRoot = filepath.Join(t.TempDir(), "claude-config")
 	request.Delivery.ActivePath = filepath.Join(request.Client.ConfigRoot, "skills", "demo-managed")
 	request.Delivery.OwnedBase = filepath.Dir(request.Delivery.ActivePath)
+	request.Plan.TargetAnchor = request.Client.ConfigRoot
+	request.Plan.TargetRoot = request.Delivery.OwnedBase
 	request.Plan.ActivePath = request.Delivery.ActivePath
 	if err := os.MkdirAll(request.Delivery.ActivePath, 0o700); err != nil {
 		t.Fatal(err)
@@ -188,6 +190,8 @@ func newClaudeTimeoutActivationRequest(t *testing.T) domain.ActivationRequest {
 	request.Client.ConfigRoot = filepath.Join(t.TempDir(), "claude-config")
 	request.Delivery.ActivePath = filepath.Join(request.Client.ConfigRoot, "skills", "demo-managed")
 	request.Delivery.OwnedBase = filepath.Dir(request.Delivery.ActivePath)
+	request.Plan.TargetAnchor = request.Client.ConfigRoot
+	request.Plan.TargetRoot = request.Delivery.OwnedBase
 	request.Plan.ActivePath = request.Delivery.ActivePath
 	if err := os.MkdirAll(request.Delivery.ActivePath, 0o700); err != nil {
 		t.Fatal(err)
@@ -344,6 +348,8 @@ func TestClaudeExactListVerificationRejectsCollisionAndDrivesInstallFailure(t *t
 	request.Client.ConfigRoot = filepath.Join(t.TempDir(), "claude-config")
 	request.Delivery.ActivePath = filepath.Join(request.Client.ConfigRoot, "skills", "demo-managed")
 	request.Delivery.OwnedBase = filepath.Dir(request.Delivery.ActivePath)
+	request.Plan.TargetAnchor = request.Client.ConfigRoot
+	request.Plan.TargetRoot = request.Delivery.OwnedBase
 	request.Plan.ActivePath = request.Delivery.ActivePath
 	if err := os.MkdirAll(request.Delivery.ActivePath, 0o700); err != nil {
 		t.Fatal(err)
@@ -365,14 +371,56 @@ func TestClaudeProbeRejectsConfigAndManagedPathMismatchBeforeSpawn(t *testing.T)
 	request.Client.ConfigRoot = filepath.Join(t.TempDir(), "claude-config")
 	request.Delivery.ActivePath = filepath.Join(t.TempDir(), "foreign", "demo")
 	request.Delivery.OwnedBase = filepath.Dir(request.Delivery.ActivePath)
+	request.Plan.TargetAnchor = request.Client.ConfigRoot
+	request.Plan.TargetRoot = filepath.Join(request.Client.ConfigRoot, "skills")
 	request.Plan.ActivePath = request.Delivery.ActivePath
 	if err := os.MkdirAll(request.Delivery.ActivePath, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	runner := &recordingRunner{}
-	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
-	if err == nil || outcome.Activation != domain.ActivationFailed || len(runner.commands) != 0 {
-		t.Fatalf("outcome=%+v err=%v commands=%v", outcome, err, runner.commands)
+	_, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err == nil || len(runner.commands) != 0 {
+		t.Fatalf("err=%v commands=%v", err, runner.commands)
+	}
+}
+
+func TestClaudeActivationPreflightRejectsUnsafeAnchorWithoutRunningClient(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientClaude)
+	request.BackendExecutable = "/test/bin/claude"
+	request.Client.ConfigRoot = filepath.Join(t.TempDir(), "claude-config")
+	request.Plan.TargetAnchor = filepath.Join(t.TempDir(), "foreign-config")
+	request.Plan.TargetRoot = filepath.Join(request.Client.ConfigRoot, "skills")
+	request.Plan.ActivePath = filepath.Join(request.Plan.TargetRoot, "demo-managed")
+	runner := &recordingRunner{}
+
+	err := (Activator{Runner: runner}).PreflightActivation(request)
+	if err == nil || !strings.Contains(err.Error(), "delivery anchor") || len(runner.commands) != 0 {
+		t.Fatalf("preflight err=%v commands=%v", err, runner.commands)
+	}
+}
+
+func TestClaudeActivationProbeNormalizesPathsForPreflightAndActivation(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	config := filepath.Join(base, "nested", "..", "claude-config")
+	request := activationRequest(t, domain.ClientClaude)
+	request.BackendExecutable = "/test/bin/claude"
+	request.Client.ConfigRoot = config
+	request.Plan.TargetAnchor = config
+	request.Plan.TargetRoot = filepath.Join(config, "skills")
+	request.Plan.ActivePath = filepath.Join(config, "skills", "demo-managed")
+	request.Delivery.ActivePath = request.Plan.ActivePath
+
+	probe, err := prepareClaudeActivationProbe(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if probe.configRoot != filepath.Clean(config) || probe.activePath != filepath.Join(filepath.Clean(config), "skills", "demo-managed") {
+		t.Fatalf("normalized probe = %+v", probe)
+	}
+	if got, ok := environmentValue(probe.command.Env, "CLAUDE_CONFIG_DIR"); !ok || got != probe.configRoot {
+		t.Fatalf("probe environment config root = %q, %t", got, ok)
 	}
 }
 

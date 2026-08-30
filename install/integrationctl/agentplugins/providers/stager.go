@@ -722,9 +722,34 @@ func hasSupported(plan domain.DeliveryPlan, kind domain.ComponentKind) bool {
 func cloneObject(source map[string]any) map[string]any {
 	result := make(map[string]any, len(source))
 	for key, value := range source {
-		result[key] = value
+		result[key] = cloneJSONValue(value)
 	}
 	return result
+}
+
+func cloneJSONValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		return cloneObject(value)
+	case []any:
+		result := make([]any, len(value))
+		for index, item := range value {
+			result[index] = cloneJSONValue(item)
+		}
+		return result
+	case map[string]string:
+		result := make(map[string]string, len(value))
+		for key, item := range value {
+			result[key] = item
+		}
+		return result
+	case []string:
+		return append([]string(nil), value...)
+	case json.RawMessage:
+		return append(json.RawMessage(nil), value...)
+	default:
+		return value
+	}
 }
 
 func applyStdioDataContract(config map[string]any, pluginRoot, dataPath string) error {

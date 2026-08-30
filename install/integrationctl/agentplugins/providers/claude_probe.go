@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
@@ -22,6 +23,39 @@ const (
 
 type claudeDescendantGraceRunner interface {
 	RunWithDescendantExitGrace(context.Context, legacyports.Command, time.Duration) (legacyports.CommandResult, error)
+}
+
+type claudeActivationProbe struct {
+	command    legacyports.Command
+	configRoot string
+	activePath string
+}
+
+func prepareClaudeActivationProbe(request domain.ActivationRequest) (claudeActivationProbe, error) {
+	configRoot := filepath.Clean(strings.TrimSpace(request.Client.ConfigRoot))
+	if !filepath.IsAbs(configRoot) {
+		return claudeActivationProbe{}, fmt.Errorf("absolute Claude Code config root is required")
+	}
+	targetAnchor := filepath.Clean(strings.TrimSpace(request.Plan.TargetAnchor))
+	if !filepath.IsAbs(targetAnchor) || targetAnchor != configRoot {
+		return claudeActivationProbe{}, fmt.Errorf("Claude Code delivery anchor must match the configured root")
+	}
+	targetRoot := filepath.Clean(strings.TrimSpace(request.Plan.TargetRoot))
+	if targetRoot != filepath.Join(configRoot, "skills") {
+		return claudeActivationProbe{}, fmt.Errorf("Claude Code delivery root must be the exact configured skills root")
+	}
+	activePath := filepath.Clean(strings.TrimSpace(request.Plan.ActivePath))
+	if !filepath.IsAbs(activePath) || filepath.Dir(activePath) != targetRoot {
+		return claudeActivationProbe{}, fmt.Errorf("Claude Code managed plugin path is not an exact child of the configured skills root")
+	}
+	if deliveryPath := strings.TrimSpace(request.Delivery.ActivePath); deliveryPath != "" && filepath.Clean(deliveryPath) != activePath {
+		return claudeActivationProbe{}, fmt.Errorf("Claude Code activation path does not match the preflighted delivery path")
+	}
+	command, err := claudeListCommand(request.BackendExecutable, configRoot, activePath)
+	if err != nil {
+		return claudeActivationProbe{}, err
+	}
+	return claudeActivationProbe{command: command, configRoot: configRoot, activePath: activePath}, nil
 }
 
 func runClaudeListCommand(ctx context.Context, runner CommandRunner, command legacyports.Command) (legacyports.CommandResult, error) {

@@ -149,6 +149,55 @@ func TestClaudeProjectionExposesOnlyPlannedSurfacesAndRebindsRuntime(t *testing.
 	assertMissing(t, delivery.StagingPath)
 }
 
+func TestClaudeProjectionKeepsMultiTargetStdioContractsIndependent(t *testing.T) {
+	envelope := stagingEnvelope(t)
+	envelope.MCP.Servers = map[string]domain.MCPServer{"local": {
+		Name: "local", Type: "stdio", Decoded: map[string]any{
+			"type": "stdio", "command": "node",
+			"args": []any{"${PLUGIN_ROOT}/bin/run", "${PLUGIN_DATA}/cache"},
+			"env":  map[string]any{"CACHE": "${PLUGIN_DATA}/cache"},
+		},
+	}}
+
+	type target struct {
+		root       string
+		pluginRoot string
+		dataPath   string
+	}
+	targets := []target{
+		{root: filepath.Join(t.TempDir(), "first"), pluginRoot: filepath.Join(t.TempDir(), "first-runtime"), dataPath: filepath.Join(t.TempDir(), "first-data")},
+		{root: filepath.Join(t.TempDir(), "second"), pluginRoot: filepath.Join(t.TempDir(), "second-runtime"), dataPath: filepath.Join(t.TempDir(), "second-data")},
+	}
+	for _, target := range targets {
+		if err := os.MkdirAll(target.root, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := projectClaudeMCP(target.root, envelope, []string{"local"}, target.pluginRoot, target.dataPath); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, target := range targets {
+		projected := readObject(t, filepath.Join(target.root, ".mcp.json"))["local"].(map[string]any)
+		args := projected["args"].([]any)
+		env := projected["env"].(map[string]any)
+		if args[0] != filepath.Join(target.pluginRoot, "bin", "run") || args[1] != filepath.Join(target.dataPath, "cache") {
+			t.Fatalf("target %s args = %v", target.root, args)
+		}
+		if env["PLUGIN_ROOT"] != target.pluginRoot || env["PLUGIN_DATA"] != target.dataPath || env["CACHE"] != filepath.Join(target.dataPath, "cache") {
+			t.Fatalf("target %s env = %v", target.root, env)
+		}
+	}
+
+	source := envelope.MCP.Servers["local"].Decoded
+	if args := source["args"].([]any); args[0] != "${PLUGIN_ROOT}/bin/run" || args[1] != "${PLUGIN_DATA}/cache" {
+		t.Fatalf("portable args mutated across targets: %v", args)
+	}
+	if env := source["env"].(map[string]any); len(env) != 1 || env["CACHE"] != "${PLUGIN_DATA}/cache" {
+		t.Fatalf("portable env mutated across targets: %v", env)
+	}
+}
+
 func TestStagerProjectsExactOwnedPluginDataContract(t *testing.T) {
 	t.Parallel()
 	envelope := stagingEnvelope(t)

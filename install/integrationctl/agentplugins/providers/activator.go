@@ -52,6 +52,10 @@ func (activator Activator) AutomaticallyActivates(request domain.ActivationReque
 // PreflightActivation rejects lifecycle configurations that would otherwise
 // discover a missing required capability only after native client mutation.
 func (activator Activator) PreflightActivation(request domain.ActivationRequest) error {
+	if request.Client.ClientID == domain.ClientClaude {
+		_, err := prepareClaudeActivationProbe(request)
+		return err
+	}
 	if !activator.AutomaticallyActivates(request) || request.Client.ClientID != domain.ClientKiro || !hasSupportedMCP(request.Plan.Components) {
 		return nil
 	}
@@ -561,11 +565,15 @@ func (activator Activator) verifyCodex(ctx context.Context, request domain.Activ
 }
 
 func (activator Activator) verifyClaude(ctx context.Context, request domain.ActivationRequest) error {
-	listed, err := activator.runClaudeListResult(ctx, request.BackendExecutable, request.Client.ConfigRoot, request.Delivery.ActivePath)
+	probe, err := prepareClaudeActivationProbe(request)
+	if err != nil {
+		return fmt.Errorf("prepare Claude Code plugin listing: %w", err)
+	}
+	listed, err := activator.runPreparedClaudeListResult(ctx, probe.command)
 	if err != nil {
 		return fmt.Errorf("verify Claude Code plugin listing: %w", err)
 	}
-	switch claudePluginStatus(listed.Stdout, request.DeclaredName, request.Delivery.ActivePath) {
+	switch claudePluginStatus(listed.Stdout, request.DeclaredName, probe.activePath) {
 	case claudeStatusInstalled:
 		return nil
 	case claudeStatusAbsent, claudeStatusCollision:
@@ -644,6 +652,10 @@ func (activator Activator) runClaudeListResult(ctx context.Context, executable, 
 	if err != nil {
 		return legacyports.CommandResult{}, err
 	}
+	return activator.runPreparedClaudeListResult(ctx, command)
+}
+
+func (activator Activator) runPreparedClaudeListResult(ctx context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
 	result, err := runClaudeListCommand(ctx, activator.Runner, command)
 	if err != nil {
 		return result, fmt.Errorf("start Claude Code CLI: %w", err)
