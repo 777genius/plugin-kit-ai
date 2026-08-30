@@ -191,8 +191,10 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove its managed OpenCode skills and MCP entries automatically")
 			return outcome, nil
 		}
-		if err := deactivateOpenCodeNative(ctx, request); err != nil {
-			return outcome, err
+		if err := deactivateOpenCodeNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeDeactivationCleanup(&outcome, err) {
+				return outcome, err
+			}
 		}
 		outcome.ExternalRemovalComplete = true
 		return outcome, nil
@@ -429,8 +431,10 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			if err := verifyOpenCodeNativeObjects(request.Client.ConfigRoot, request.Delivery.ActivePath, request.Delivery.NativeObjects); err != nil {
 				return failedActivation(outcome, "repair the managed OpenCode skills and MCP configuration", err)
 			}
-		} else if err := activateOpenCodeNative(ctx, request); err != nil {
-			return failedActivation(outcome, "retry the managed OpenCode native installation", err)
+		} else if err := activateOpenCodeNativeWithKernel(ctx, request, activator.nativeConfigKernel()); err != nil {
+			if !committedNativeCleanup(&outcome, err) {
+				return failedActivation(outcome, "retry the managed OpenCode native installation", err)
+			}
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled

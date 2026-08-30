@@ -317,17 +317,25 @@ func buildOpenCodeNativeObjects(stagingRoot string, envelope domain.PackageEnvel
 }
 
 func activateOpenCodeNative(ctx context.Context, request domain.ActivationRequest) error {
+	return activateOpenCodeNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func activateOpenCodeNativeWithKernel(ctx context.Context, request domain.ActivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyOpenCodeNative(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects)
+	return applyOpenCodeNativeWithKernel(request.Client.ConfigRoot, request.Delivery.ActivePath, request.PreviousNativeObjects, request.Delivery.NativeObjects, kernel)
 }
 
 func deactivateOpenCodeNative(ctx context.Context, request domain.DeactivationRequest) error {
+	return deactivateOpenCodeNativeWithKernel(ctx, request, nativeconfig.New())
+}
+
+func deactivateOpenCodeNativeWithKernel(ctx context.Context, request domain.DeactivationRequest, kernel nativeconfig.Kernel) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return applyOpenCodeNative(request.Client.ConfigRoot, "", request.NativeObjects, nil)
+	return applyOpenCodeNativeWithKernel(request.Client.ConfigRoot, "", request.NativeObjects, nil, kernel)
 }
 
 func verifyOpenCodeNativeObjects(configRoot, activePath string, objects []domain.NativeObjectOwnership) error {
@@ -366,14 +374,22 @@ func verifyOpenCodeNativeObjects(configRoot, activePath string, objects []domain
 }
 
 func applyOpenCodeNative(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
-	return applyOpenCodeNativeWithOps(configRoot, activePath, previous, desired, renameDirectoryExclusive, os.RemoveAll)
+	return applyOpenCodeNativeWithKernel(configRoot, activePath, previous, desired, nativeconfig.New())
+}
+
+func applyOpenCodeNativeWithKernel(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel) error {
+	return applyOpenCodeNativeWithKernelAndOps(configRoot, activePath, previous, desired, kernel, renameDirectoryExclusive, os.RemoveAll)
 }
 
 func applyOpenCodeNativeWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc) (resultErr error) {
-	return applyOpenCodeNativeWithOps(configRoot, activePath, previous, desired, rename, os.RemoveAll)
+	return applyOpenCodeNativeWithKernelAndOps(configRoot, activePath, previous, desired, nativeconfig.New(), rename, os.RemoveAll)
 }
 
 func applyOpenCodeNativeWithOps(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc, removeAll func(string) error) (resultErr error) {
+	return applyOpenCodeNativeWithKernelAndOps(configRoot, activePath, previous, desired, nativeconfig.New(), rename, removeAll)
+}
+
+func applyOpenCodeNativeWithKernelAndOps(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, kernel nativeconfig.Kernel, rename openCodeRenameFunc, removeAll func(string) error) (resultErr error) {
 	if rename == nil {
 		return fmt.Errorf("OpenCode rename operation is unavailable")
 	}
@@ -441,14 +457,25 @@ func applyOpenCodeNativeWithOps(configRoot, activePath string, previous, desired
 		}
 	}()
 	if len(requests) > 0 {
-		receipts, err := nativeconfig.New().ApplyBatch(requests)
-		if err != nil {
-			return err
+		receipts, applyErr := kernel.ApplyBatch(requests)
+		if applyErr != nil && !nativeconfig.IsCommittedCleanup(applyErr) {
+			return applyErr
 		}
-		// The native config is now atomically committed. Keep the corresponding
-		// skills in place even if the following invariant check reports a provider
-		// defect; removing them would leave the installed config half-functional.
-		committed = true
+		if len(receipts) != len(requests) {
+			if applyErr != nil {
+				return errors.Join(applyErr, fmt.Errorf("OpenCode native config committed without complete receipts"))
+			}
+			return fmt.Errorf("OpenCode native config returned incomplete receipts")
+		}
+		if applyErr != nil {
+			// ApplyBatch promises that typed committed-cleanup failures include the
+			// receipts for bytes already written. Preserve both those bytes and the
+			// skills installed in the same provider transaction.
+			committed = true
+		}
+		if applyErr == nil {
+			committed = true
+		}
 		desiredByID := objectMap(desired)
 		for index, request := range requests {
 			if request.Action == nativeconfig.ActionRemove {
@@ -459,6 +486,11 @@ func applyOpenCodeNativeWithOps(configRoot, activePath string, previous, desired
 				return fmt.Errorf("OpenCode native receipt differs from staged ownership")
 			}
 		}
+		skills.commit()
+		if applyErr != nil {
+			return applyErr
+		}
+		return nil
 	}
 	committed = true
 	// Config and skills are now externally committed. Transaction-root cleanup

@@ -301,6 +301,132 @@ func TestOpenCodeCommittedCleanupFailureKeepsReceiptsAndLaterLifecycleConsistent
 	}
 }
 
+func TestOpenCodeActivatorTreatsCommittedUnlockFailureAsSuccessfulLifecycle(t *testing.T) {
+	cleanupErr := errors.New("injected native config unlock failure")
+	committedKernel := nativeconfig.NewWithLockAcquirer(func(nativeconfig.Paths, nativeconfig.Codec) (func() error, error) {
+		return func() error { return cleanupErr }, nil
+	})
+
+	t.Run("add", func(t *testing.T) {
+		configRoot, active, objects, request := openCodeActivationFixture(t, "add")
+		outcome, err := (Activator{NativeConfig: &committedKernel}).Activate(context.Background(), request)
+		assertOpenCodeCommittedActivation(t, outcome, err)
+		if err := verifyOpenCodeNativeObjects(configRoot, active, objects); err != nil {
+			t.Fatalf("committed add state: %v", err)
+		}
+		if err := applyOpenCodeNative(configRoot, "", objects, nil); err != nil {
+			t.Fatalf("remove after committed add: %v", err)
+		}
+	})
+
+	t.Run("update", func(t *testing.T) {
+		root := t.TempDir()
+		configRoot := filepath.Join(root, "xdg", "opencode")
+		activeV1 := filepath.Join(root, "managed", "v1")
+		firstEnvelope, firstPlan := openCodeTestPackage(t, activeV1, configRoot, "old")
+		first, err := buildOpenCodeNativeObjects(activeV1, firstEnvelope, firstPlan)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := applyOpenCodeNative(configRoot, activeV1, nil, first); err != nil {
+			t.Fatal(err)
+		}
+
+		activeV2 := filepath.Join(root, "managed", "v2")
+		secondEnvelope, secondPlan := openCodeTestPackage(t, activeV2, configRoot, "new")
+		second, err := buildOpenCodeNativeObjects(activeV2, secondEnvelope, secondPlan)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := domain.ActivationRequest{
+			Client: domain.DetectedClient{ClientID: domain.ClientOpenCode, Status: domain.DetectionDetected, ConfigRoot: configRoot},
+			Plan:   secondPlan, Delivery: domain.StagedDelivery{ClientID: domain.ClientOpenCode, OwnedBase: filepath.Dir(activeV2), ActivePath: activeV2, NativeObjects: second},
+			DeclaredName: "demo", Replacing: true, PreviousNativeObjects: first,
+		}
+		outcome, err := (Activator{NativeConfig: &committedKernel}).Activate(context.Background(), request)
+		assertOpenCodeCommittedActivation(t, outcome, err)
+		if err := verifyOpenCodeNativeObjects(configRoot, activeV2, second); err != nil {
+			t.Fatalf("committed update state: %v", err)
+		}
+		if err := applyOpenCodeNative(configRoot, activeV2, second, second); err != nil {
+			t.Fatalf("repair after committed update: %v", err)
+		}
+	})
+
+	t.Run("repair", func(t *testing.T) {
+		configRoot, active, objects, request := openCodeActivationFixture(t, "repair")
+		if err := applyOpenCodeNative(configRoot, active, nil, objects); err != nil {
+			t.Fatal(err)
+		}
+		writeOpenCodeTestFile(t, filepath.Join(configRoot, "opencode.json"), `{"mcp":{}}`)
+		request.PreviousNativeObjects = objects
+		request.Delivery.NativeObjects = objects
+		request.Replacing = true
+		outcome, err := (Activator{NativeConfig: &committedKernel}).Activate(context.Background(), request)
+		assertOpenCodeCommittedActivation(t, outcome, err)
+		if err := verifyOpenCodeNativeObjects(configRoot, active, objects); err != nil {
+			t.Fatalf("committed repair state: %v", err)
+		}
+		if err := applyOpenCodeNative(configRoot, "", objects, nil); err != nil {
+			t.Fatalf("remove after committed repair: %v", err)
+		}
+	})
+
+	t.Run("remove", func(t *testing.T) {
+		configRoot, active, objects, _ := openCodeActivationFixture(t, "remove")
+		if err := applyOpenCodeNative(configRoot, active, nil, objects); err != nil {
+			t.Fatal(err)
+		}
+		outcome, err := (Activator{NativeConfig: &committedKernel}).Deactivate(context.Background(), domain.DeactivationRequest{
+			Client:       domain.DetectedClient{ClientID: domain.ClientOpenCode, Status: domain.DetectionDetected, ConfigRoot: configRoot},
+			DeclaredName: "demo", CurrentActivation: domain.ActivationActive, Confirmed: true, NativeObjects: objects,
+		})
+		if err != nil {
+			t.Fatalf("committed remove returned error: %v", err)
+		}
+		if !outcome.ExternalRemovalComplete || len(outcome.UserActions) != 1 || !strings.Contains(outcome.UserActions[0], "committed") {
+			t.Fatalf("committed remove outcome = %+v", outcome)
+		}
+		if _, err := os.Lstat(filepath.Join(configRoot, "skills", "docs")); !os.IsNotExist(err) {
+			t.Fatalf("committed remove retained skill: %v", err)
+		}
+		assertOpenCodeEntry(t, readOpenCodeTestFile(t, filepath.Join(configRoot, "opencode.json")), false, "", "")
+		if err := applyOpenCodeNative(configRoot, active, nil, objects); err != nil {
+			t.Fatalf("add after committed remove: %v", err)
+		}
+	})
+}
+
+func openCodeActivationFixture(t *testing.T, skillText string) (string, string, []domain.NativeObjectOwnership, domain.ActivationRequest) {
+	t.Helper()
+	root := t.TempDir()
+	configRoot := filepath.Join(root, "xdg", "opencode")
+	active := filepath.Join(root, "managed", "demo")
+	envelope, plan := openCodeTestPackage(t, active, configRoot, skillText)
+	objects, err := buildOpenCodeNativeObjects(active, envelope, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := domain.ActivationRequest{
+		Client: domain.DetectedClient{ClientID: domain.ClientOpenCode, Status: domain.DetectionDetected, ConfigRoot: configRoot},
+		Plan:   plan, Delivery: domain.StagedDelivery{ClientID: domain.ClientOpenCode, OwnedBase: filepath.Dir(active), ActivePath: active, NativeObjects: objects}, DeclaredName: "demo",
+	}
+	return configRoot, active, objects, request
+}
+
+func assertOpenCodeCommittedActivation(t *testing.T, outcome domain.ActivationOutcome, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("committed activation returned error: %v", err)
+	}
+	if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled || len(outcome.UserActions) < 1 {
+		t.Fatalf("committed activation outcome = %+v", outcome)
+	}
+	if !strings.Contains(outcome.UserActions[0], "committed") {
+		t.Fatalf("committed activation cleanup action = %q", outcome.UserActions[0])
+	}
+}
+
 func TestOpenCodeFailedUpdateRestoresPreviousManagedSkill(t *testing.T) {
 	root := t.TempDir()
 	configRoot := filepath.Join(root, "xdg", "opencode")
