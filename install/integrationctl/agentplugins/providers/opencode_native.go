@@ -366,12 +366,19 @@ func verifyOpenCodeNativeObjects(configRoot, activePath string, objects []domain
 }
 
 func applyOpenCodeNative(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) error {
-	return applyOpenCodeNativeWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
+	return applyOpenCodeNativeWithOps(configRoot, activePath, previous, desired, renameDirectoryExclusive, os.RemoveAll)
 }
 
 func applyOpenCodeNativeWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc) (resultErr error) {
+	return applyOpenCodeNativeWithOps(configRoot, activePath, previous, desired, rename, os.RemoveAll)
+}
+
+func applyOpenCodeNativeWithOps(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc, removeAll func(string) error) (resultErr error) {
 	if rename == nil {
 		return fmt.Errorf("OpenCode rename operation is unavailable")
+	}
+	if removeAll == nil {
+		return fmt.Errorf("OpenCode cleanup operation is unavailable")
 	}
 	if strings.TrimSpace(configRoot) == "" || !filepath.IsAbs(configRoot) {
 		return fmt.Errorf("OpenCode config root is unavailable")
@@ -421,7 +428,7 @@ func applyOpenCodeNativeWithRename(configRoot, activePath string, previous, desi
 	if err != nil {
 		return err
 	}
-	skills, err := installOpenCodeSkillsWithRename(configRoot, activePath, previous, desired, rename)
+	skills, err := installOpenCodeSkillsWithOps(configRoot, activePath, previous, desired, rename, removeAll)
 	if err != nil {
 		return err
 	}
@@ -454,7 +461,13 @@ func applyOpenCodeNativeWithRename(configRoot, activePath string, previous, desi
 		}
 	}
 	committed = true
-	return skills.commit()
+	// Config and skills are now externally committed. Transaction-root cleanup
+	// is best effort and cannot truthfully turn this into a failed activation:
+	// the lifecycle must persist the desired native receipts. A failed cleanup
+	// leaves a committed marker in the private transaction root so the residue
+	// is distinguishable from rollback recovery and safe to remove later.
+	skills.commit()
+	return nil
 }
 
 func validateOpenCodeProjection(configRoot, activePath string, projection openCodeProjection) error {
@@ -626,10 +639,11 @@ type openCodeSkillTxn struct {
 	backups   map[string]openCodeBackup
 	installed map[string]domain.NativeObjectOwnership
 	rename    openCodeRenameFunc
+	removeAll func(string) error
 }
 
 func installOpenCodeSkills(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership) (*openCodeSkillTxn, error) {
-	return installOpenCodeSkillsWithRename(configRoot, activePath, previous, desired, renameDirectoryExclusive)
+	return installOpenCodeSkillsWithOps(configRoot, activePath, previous, desired, renameDirectoryExclusive, os.RemoveAll)
 }
 
 func renameOpenCodeDirectoryNoReplace(oldPath, newPath string, rename openCodeRenameFunc) error {
@@ -642,10 +656,17 @@ func renameOpenCodeDirectoryNoReplace(oldPath, newPath string, rename openCodeRe
 }
 
 func installOpenCodeSkillsWithRename(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc) (*openCodeSkillTxn, error) {
+	return installOpenCodeSkillsWithOps(configRoot, activePath, previous, desired, rename, os.RemoveAll)
+}
+
+func installOpenCodeSkillsWithOps(configRoot, activePath string, previous, desired []domain.NativeObjectOwnership, rename openCodeRenameFunc, removeAll func(string) error) (*openCodeSkillTxn, error) {
 	if rename == nil {
 		return nil, fmt.Errorf("OpenCode rename operation is unavailable")
 	}
-	txn := &openCodeSkillTxn{backups: map[string]openCodeBackup{}, installed: map[string]domain.NativeObjectOwnership{}, rename: rename}
+	if removeAll == nil {
+		return nil, fmt.Errorf("OpenCode cleanup operation is unavailable")
+	}
+	txn := &openCodeSkillTxn{backups: map[string]openCodeBackup{}, installed: map[string]domain.NativeObjectOwnership{}, rename: rename, removeAll: removeAll}
 	previousByID, desiredByID := objectMap(previous), objectMap(desired)
 	if !containsOpenCodeSkill(previous) && !containsOpenCodeSkill(desired) {
 		return txn, nil
@@ -769,9 +790,11 @@ func (txn *openCodeSkillTxn) rollback() error {
 	return result
 }
 
-func (txn *openCodeSkillTxn) commit() error {
+func (txn *openCodeSkillTxn) commit() {
 	if txn.root == "" {
-		return nil
+		return
 	}
-	return os.RemoveAll(txn.root)
+	marker := filepath.Join(txn.root, ".agentplugins-committed")
+	_ = atomicfile.Write(marker, []byte("OpenCode native config and skills committed; this transaction residue is safe to remove.\n"), 0o600)
+	_ = txn.removeAll(txn.root)
 }

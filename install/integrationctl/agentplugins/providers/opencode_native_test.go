@@ -232,6 +232,75 @@ func TestOpenCodeRollbackDoesNotReplaceConcurrentForeignDirectory(t *testing.T) 
 	}
 }
 
+func TestOpenCodeCommittedCleanupFailureKeepsReceiptsAndLaterLifecycleConsistent(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, "xdg", "opencode")
+	activeV1 := filepath.Join(root, "managed", "v1")
+	firstEnvelope, firstPlan := openCodeTestPackage(t, activeV1, configRoot, "old")
+	first, err := buildOpenCodeNativeObjects(activeV1, firstEnvelope, firstPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyOpenCodeNative(configRoot, activeV1, nil, first); err != nil {
+		t.Fatal(err)
+	}
+
+	activeV2 := filepath.Join(root, "managed", "v2")
+	secondEnvelope, secondPlan := openCodeTestPackage(t, activeV2, configRoot, "new")
+	second, err := buildOpenCodeNativeObjects(activeV2, secondEnvelope, secondPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanupErr := errors.New("injected committed cleanup failure")
+	cleanupCalls := 0
+	err = applyOpenCodeNativeWithOps(configRoot, activeV2, first, second, renameDirectoryExclusive, func(path string) error {
+		cleanupCalls++
+		if !strings.HasPrefix(filepath.Base(path), ".agentplugins-native-") {
+			t.Fatalf("cleanup target = %s", path)
+		}
+		return cleanupErr
+	})
+	if err != nil {
+		t.Fatalf("committed OpenCode update reported an activation failure: %v", err)
+	}
+	if cleanupCalls != 1 {
+		t.Fatalf("committed cleanup calls = %d, want 1", cleanupCalls)
+	}
+	if err := verifyOpenCodeNativeObjects(configRoot, activeV2, second); err != nil {
+		t.Fatalf("committed OpenCode receipts do not describe external state: %v", err)
+	}
+	if got := readOpenCodeTestFile(t, filepath.Join(configRoot, "skills", "docs", "SKILL.md")); !strings.Contains(got, "new") {
+		t.Fatalf("committed OpenCode skill = %q", got)
+	}
+
+	transactions, globErr := filepath.Glob(filepath.Join(configRoot, "skills", ".agentplugins-native-*"))
+	if globErr != nil || len(transactions) != 1 {
+		t.Fatalf("committed cleanup residue = %v, %v", transactions, globErr)
+	}
+	if marker := readOpenCodeTestFile(t, filepath.Join(transactions[0], ".agentplugins-committed")); !strings.Contains(marker, "safe to remove") {
+		t.Fatalf("committed cleanup residue marker = %q", marker)
+	}
+	if backup := readOpenCodeTestFile(t, filepath.Join(transactions[0], "old-docs", "SKILL.md")); !strings.Contains(backup, "old") {
+		t.Fatalf("committed cleanup backup = %q", backup)
+	}
+
+	// Receipt-backed repair and remove must use the committed V2 ownership,
+	// independent of the clearly marked cleanup residue from the prior update.
+	if err := applyOpenCodeNative(configRoot, activeV2, second, second); err != nil {
+		t.Fatalf("repair after committed cleanup residue: %v", err)
+	}
+	if err := applyOpenCodeNative(configRoot, "", second, nil); err != nil {
+		t.Fatalf("remove after committed cleanup residue: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(configRoot, "skills", "docs")); !os.IsNotExist(err) {
+		t.Fatalf("removed OpenCode skill remains: %v", err)
+	}
+	assertOpenCodeEntry(t, readOpenCodeTestFile(t, filepath.Join(configRoot, "opencode.json")), false, "", "")
+	if _, err := os.Stat(filepath.Join(transactions[0], ".agentplugins-committed")); err != nil {
+		t.Fatalf("committed cleanup evidence was unexpectedly consumed: %v", err)
+	}
+}
+
 func TestOpenCodeFailedUpdateRestoresPreviousManagedSkill(t *testing.T) {
 	root := t.TempDir()
 	configRoot := filepath.Join(root, "xdg", "opencode")
