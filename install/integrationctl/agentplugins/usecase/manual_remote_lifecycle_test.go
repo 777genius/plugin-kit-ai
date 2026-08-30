@@ -109,11 +109,17 @@ func TestKiroSkillSupportsAutomaticAddUpdateAndRepair(t *testing.T) {
 }
 
 func TestOpenCodeSupportsAutomaticMCPAndSkillLifecycle(t *testing.T) {
-	t.Parallel()
 	service, store, _ := serviceFixture(t)
 	service.NativeObserver = providers.NativeIdentityObserver{Stager: service.Stager}
 	client := domain.DetectedClient{ClientID: domain.ClientOpenCode, DisplayName: "OpenCode", Status: domain.DetectionDetected,
 		ConfigRoot: filepath.Join(t.TempDir(), "xdg", "opencode"), ExecutablePath: "/test/bin/opencode"}
+	runtimeRoot := t.TempDir()
+	for _, runtimePath := range []string{filepath.Join(runtimeRoot, "node"), filepath.Join(runtimeRoot, "bun")} {
+		if err := os.WriteFile(runtimePath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatalf("write isolated runtime fixture: %v", err)
+		}
+	}
+	t.Setenv("PATH", runtimeRoot)
 
 	add := openCodePluginInput(t, client, "1.0.0", "sha256:opencode-v1", "sha256:opencode-manifest-v1", "node")
 	added, err := service.AddGroup(context.Background(), GroupInput{Targets: []AddInput{add}, OperationGroupID: "opencode-add", Confirmed: true})
