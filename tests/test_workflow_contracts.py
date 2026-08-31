@@ -1913,26 +1913,48 @@ sys.modules['catalog_process_isolation']=module
         with tempfile.TemporaryDirectory() as temporary:
             sandbox = Path(temporary)
             (sandbox / "state").mkdir()
-            for sequence in (19, 20):
-                snapshot = {"sequence": sequence}
+            def cache_fixture(sequence=20, count=2000, snapshot_count=None, projected_count=None):
+                records = [record] + [{"slug": f"padding-{index}"} for index in range(count - 1)]
+                search = {"sequence": sequence, "records": records}
+                snapshot = {"sequence": sequence, "complete": True,
+                            "records": records if snapshot_count is None else records[:snapshot_count],
+                            "search_projection": {"record_count": count if projected_count is None else projected_count,
+                                "digest": "sha256:" + hashlib.sha256(json.dumps(search).encode()).hexdigest()}}
                 digest = "sha256:" + hashlib.sha256(json.dumps(snapshot).encode()).hexdigest()
-                cache = {"sequence": sequence, "pointer": encode(snapshot), "snapshot": encode(snapshot),
-                         "envelope": encode({"sequence": sequence, "snapshot_digest": digest, "key_id": "test-key"}),
-                         "search": encode({"records": [record]})}
-                path = sandbox / "state/discovery-v1-cache.json"
+                return {"sequence": sequence, "pointer": encode({"sequence": sequence}), "snapshot": encode(snapshot),
+                        "envelope": encode({"sequence": sequence, "snapshot_digest": digest, "key_id": "test-key"}),
+                        "search": encode(search)}
+            path = sandbox / "state/discovery-v1-cache.json"
+            for sequence in (20, 21):
+                cache = cache_fixture(sequence)
                 path.write_text(json.dumps(cache))
-                self.assertEqual(validate(sandbox, selector, data)["sequence"], sequence)
-                cache["search"] = encode({"records": [{**record, "revision": "f" * 40}]})
-                path.write_text(json.dumps(cache))
+                identity = validate(sandbox, selector, data)
+                self.assertEqual(identity["sequence"], sequence)
+                self.assertEqual(identity["record_count"], 2000)
+                forged_data = {**data, "revision": "f" * 40}
                 with self.assertRaises(AssertionError):
+                    validate(sandbox, selector, forged_data)
+            for changed in ({"sequence": 13}, {"sequence": 19}, {"sequence": True},
+                            {"count": 1999}, {"count": 1}, {"snapshot_count": 1999},
+                            {"projected_count": 1999}, {"projected_count": True}):
+                path.write_text(json.dumps(cache_fixture(**changed)))
+                with self.subTest(changed=changed), self.assertRaises(AssertionError):
+                    validate(sandbox, selector, data)
+            for field, forged in (("sequence", 21), ("records", [record])):
+                cache = cache_fixture()
+                search = json.loads(base64.b64decode(cache["search"]))
+                search[field] = forged
+                cache["search"] = encode(search)
+                path.write_text(json.dumps(cache))
+                with self.subTest(field=field), self.assertRaises(AssertionError):
                     validate(sandbox, selector, data)
 
     def test_upstream_proof_is_credential_free_and_uploads_only_sanitized_summary(self) -> None:
         workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
         job = workflow["jobs"]["install-lifecycle"]
         packages = job["strategy"]["matrix"]["package"]
-        self.assertEqual(len(packages), 4)
-        self.assertEqual(packages[-1], {"id": "discovered-context7",
+        self.assertEqual(len(packages), 5)
+        self.assertEqual(packages[-2], {"id": "discovered-context7",
             "source": "discovery:upstash/context7//plugins/agent-plugins/context7", "repository": "upstash/context7",
             "revision": "4e980f6b494d6f970cc5ec1df417ba684b2f6e0b", "plugin": "context7", "version": "1.0.0"})
         step = next(step for step in job["steps"] if step.get("name", "").startswith("Prove isolated preparation"))
@@ -1948,6 +1970,117 @@ sys.modules['catalog_process_isolation']=module
             "${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence/evidence.json",
             "${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence/evidence.sha256",
         ])
+
+    def test_upstream_public_npm_and_reviewed_alias_have_no_private_overrides(self) -> None:
+        workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
+        job = workflow["jobs"]["install-lifecycle"]
+        self.assertEqual(job["strategy"]["matrix"]["package"][-1], {
+            "id": "reviewed-chrome-short-alias", "source": "chrome-devtools",
+            "repository": "777genius/universal-agent-plugins", "revision": "signed-directory-release",
+            "plugin": "chrome-devtools", "version": "1.7.0-uap.1"})
+        install = next(step for step in job["steps"] if step.get("name") == "Install exact public npm wrapper without credentials")
+        self.assertNotIn("env", install)
+        for required in ('env -i PATH="$PATH"', 'NPM_CONFIG_CACHE="$tools_root/cache"',
+                         'NPM_CONFIG_USERCONFIG="$tools_root/home/user.npmrc"', 'NPM_CONFIG_GLOBALCONFIG="$tools_root/home/global.npmrc"',
+                         'NPM_CONFIG_REGISTRY=https://registry.npmjs.org', 'dist.integrity',
+                         'npm audit signatures --prefix "$TOOLS_ROOT"'):
+            self.assertIn(required, install["run"])
+        body = commands(job)
+        self.assertNotIn("AGENTPLUGINS_DIRECTORY_ORIGIN", body)
+        self.assertNotIn("AGENTPLUGINS_INTERNAL_PROOF", body)
+        self.assertIn('binary="$RUNNER_TEMP/upstream-npm/node_modules/.bin/agentplugins"', body)
+        self.assertIn('native_digest == "sha256:" + hashlib.sha256(release_binary.read_bytes()).hexdigest()', body)
+        self.assertIn('mutable_selector = discovered or directory', body)
+        self.assertIn('success=mutable_selector', body)
+        token_steps = [step.get("name") for step in job["steps"] if "GH_TOKEN" in json.dumps(step)]
+        self.assertEqual(token_steps, ["Download and authenticate the exact released CLI"])
+
+    def test_upstream_directory_identity_rejects_old_or_mismatched_reviewed_release(self) -> None:
+        validate = self.upstream_inline_contract()["directory_identity"]
+        registry = json.loads((ROOT / "registry/directory.json").read_text())
+        product = next(item for item in registry["products"] if item["id"] == "chrome-devtools")
+        distribution = copy.deepcopy(next(item for item in registry["distributions"] if item["id"] == "777genius/chrome-devtools-bridge"))
+        declared = next(item for item in registry["distributions"] if item["id"] == product["default_distribution"])
+        release = next(item for item in distribution["releases"] if item["sequence"] == 2)
+        release["package_source"]["revision"] = "a" * 40
+        snapshot = {"snapshot_schema_version": 1, "sequence": 20, "products": [product],
+                    "distributions": [distribution, declared]}
+        encode = lambda value: base64.b64encode(json.dumps(value).encode()).decode()
+        with tempfile.TemporaryDirectory() as temporary:
+            sandbox = Path(temporary)
+            (sandbox / "state").mkdir()
+            def check(candidate, *, sequence=20, source_path="plugins/chrome-devtools", bad_digest=False):
+                candidate = copy.deepcopy(candidate)
+                candidate["sequence"] = sequence
+                digest = "sha256:" + hashlib.sha256(json.dumps(candidate).encode()).hexdigest()
+                origin = {"product_id": "chrome-devtools", "distribution_id": distribution["id"],
+                          "distribution_kind": "community_bridge", "desired_release_sequence": 2,
+                          "snapshot_schema": 1, "snapshot_sequence": sequence, "snapshot_digest": digest}
+                data = {"version": release["package_version"], "tree_digest": release["tree_digest"],
+                        "manifest_digest": release["manifest_digest"], "revision": "a" * 40, "directory": origin}
+                installed = {"origin_mode": "directory", "directory": origin,
+                             "source": {"resolved_revision": "a" * 40, "package_subpath": source_path}}
+                cache = {"sequence": sequence, "snapshot": encode(candidate),
+                         "envelope": encode({"sequence": sequence, "snapshot_digest": "wrong" if bad_digest else digest, "key_id": "test-key"})}
+                (sandbox / "state/directory-v1-cache.json").write_text(json.dumps(cache))
+                return validate(sandbox, data, installed)
+            self.assertEqual(check(snapshot)["snapshot_sequence"], 20)
+            self.assertEqual(check(snapshot, sequence=21)["snapshot_sequence"], 21)
+            for changed in ({"sequence": 13}, {"source_path": "wrong"}, {"bad_digest": True}):
+                with self.subTest(changed=changed), self.assertRaises(AssertionError):
+                    check(snapshot, **changed)
+            for field, wrong in (("package_version", "1.7.0"), ("tree_digest", "sha256:" + "b" * 64),
+                                 ("manifest_digest", "sha256:" + "c" * 64)):
+                forged = copy.deepcopy(snapshot)
+                forged["distributions"][0]["releases"][1][field] = wrong
+                with self.subTest(field=field), self.assertRaises(AssertionError):
+                    check(forged)
+
+    def test_upstream_public_site_smoke_uses_real_pages_and_disposable_dependency_roots(self) -> None:
+        workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
+        job = workflow["jobs"]["public-site"]
+        body = commands(job)
+        source = (ROOT / "site/scripts/check-public-site.mjs").read_text()
+        self.assertEqual(job["runs-on"], "ubuntu-24.04")
+        self.assertIn('smoke_root="$RUNNER_TEMP/public-site-smoke"', body)
+        self.assertIn('env -i PATH="$PATH"', body)
+        self.assertIn('pnpm install --frozen-lockfile --ignore-scripts --store-dir "$SMOKE_ROOT/store"', body)
+        self.assertIn('pnpm exec playwright install --with-deps chromium', body)
+        for forbidden in ("GH_TOKEN", "UAP_SIGNED_SNAPSHOT_PATH", "pnpm generate"):
+            self.assertNotIn(forbidden, body)
+        for required in ('https://777genius.github.io/universal-agent-plugins/',
+                         'registry.snapshot_sequence >= 20', 'discovery.sequence >= 20',
+                         'discovery.records.length >= 2000', 'navigator.clipboard.readText()',
+                         'assert.deepEqual(errors, [])', 'width: 390', 'width: 1440',
+                         'discovery:upstash/context7//plugins/agent-plugins/context7'):
+            self.assertIn(required, source)
+        for forbidden in ('.route(', 'route.fulfill', 'addInitScript', 'executablePath', 'child_process'):
+            self.assertNotIn(forbidden, source)
+
+    def test_upstream_public_site_artifacts_are_json_and_newline_terminated_sha(self) -> None:
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node is required to execute the artifact serialization contract")
+        script = r'''
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const source = readFileSync(process.argv[1], 'utf8').split('await mkdir(evidenceRoot,')[1];
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const files = {};
+await new AsyncFunction('evidenceRoot', 'evidence', 'mkdir', 'writeFile', 'join', 'digest',
+  'await mkdir(evidenceRoot,' + source)('memory', { schema_version: 1, viewports: [] },
+  async () => {}, async (path, body) => { files[path] = body }, (_, name) => name,
+  bytes => 'sha256:' + createHash('sha256').update(bytes).digest('hex'));
+console.log(JSON.stringify(files));
+'''
+        result = subprocess.run([node, "--input-type=module", "-e", script,
+                                 str(ROOT / "site/scripts/check-public-site.mjs")],
+                                capture_output=True, text=True, check=True)
+        files = json.loads(result.stdout)
+        body = files["public-site.json"]
+        self.assertEqual(json.loads(body), {"schema_version": 1, "viewports": []})
+        self.assertTrue(body.endswith("\n"))
+        self.assertEqual(files["public-site.sha256"], hashlib.sha256(body.encode()).hexdigest() + "  public-site.json\n")
 
     def test_nested_launch_workflow_permissions_never_escalate(self) -> None:
         publication = load(DIRECTORY_PUBLICATION)

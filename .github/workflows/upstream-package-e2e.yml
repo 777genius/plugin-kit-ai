@@ -16,6 +16,44 @@ env:
   CHROME_UPSTREAM_HEAD: 02372c4d47ad257773b2b80c7d7fd056d7067be0
 
 jobs:
+  public-site:
+    name: Public Pages desktop and mobile consumer smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
+      - name: Check actual public Pages without fixtures or credentials
+        run: |
+          smoke_root="$RUNNER_TEMP/public-site-smoke"
+          mkdir -p "$smoke_root"/{home,cache,tmp}
+          cp site/package.json site/pnpm-lock.yaml site/pnpm-workspace.yaml site/scripts/check-public-site.mjs "$smoke_root/"
+          env -i PATH="$PATH" HOME="$smoke_root/home" TMPDIR="$smoke_root/tmp" \
+            XDG_CACHE_HOME="$smoke_root/cache" PLAYWRIGHT_BROWSERS_PATH="$smoke_root/browsers" \
+            NPM_CONFIG_USERCONFIG="$smoke_root/home/user.npmrc" NPM_CONFIG_GLOBALCONFIG="$smoke_root/home/global.npmrc" \
+            SMOKE_ROOT="$smoke_root" EVIDENCE_ROOT="$RUNNER_TEMP/public-site-evidence" CI=true \
+            bash -euo pipefail <<'SH'
+          cd "$SMOKE_ROOT"
+          pnpm install --frozen-lockfile --ignore-scripts --store-dir "$SMOKE_ROOT/store"
+          pnpm exec playwright install --with-deps chromium
+          node check-public-site.mjs
+          SH
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-site-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/public-site-evidence
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
   install-lifecycle:
     name: ${{ matrix.package.id }} on Codex, Cursor, and Kiro
     runs-on: ubuntu-24.04
@@ -48,6 +86,12 @@ jobs:
             revision: 4e980f6b494d6f970cc5ec1df417ba684b2f6e0b
             plugin: context7
             version: 1.0.0
+          - id: reviewed-chrome-short-alias
+            source: chrome-devtools
+            repository: 777genius/universal-agent-plugins
+            revision: signed-directory-release
+            plugin: chrome-devtools
+            version: 1.7.0-uap.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,6 +99,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
       - name: Download and authenticate the exact released CLI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -96,6 +143,21 @@ jobs:
               --source-digest "$AGENTPLUGINS_COMMIT"
           done
           test "$(./agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 version)" = "agentplugins ${AGENTPLUGINS_VERSION}"
+      - name: Install exact public npm wrapper without credentials
+        run: |
+          tools_root="$RUNNER_TEMP/upstream-npm"
+          mkdir -p "$tools_root"/{home,cache,tmp}
+          env -i PATH="$PATH" HOME="$tools_root/home" TMPDIR="$tools_root/tmp" \
+            NPM_CONFIG_CACHE="$tools_root/cache" NPM_CONFIG_USERCONFIG="$tools_root/home/user.npmrc" \
+            NPM_CONFIG_GLOBALCONFIG="$tools_root/home/global.npmrc" NPM_CONFIG_REGISTRY=https://registry.npmjs.org \
+            TOOLS_ROOT="$tools_root" AGENTPLUGINS_VERSION="$AGENTPLUGINS_VERSION" \
+            AGENTPLUGINS_NPM_INTEGRITY="$AGENTPLUGINS_NPM_INTEGRITY" bash -euo pipefail <<'SH'
+          cd "$TOOLS_ROOT"
+          test "$(npm view "universal-agent-plugins@${AGENTPLUGINS_VERSION}" dist.integrity)" = "$AGENTPLUGINS_NPM_INTEGRITY"
+          npm install --prefix "$TOOLS_ROOT" --no-audit --no-fund "universal-agent-plugins@${AGENTPLUGINS_VERSION}"
+          npm audit signatures --prefix "$TOOLS_ROOT"
+          test "$(node -p "require('${TOOLS_ROOT}/node_modules/universal-agent-plugins/package.json').version")" = "$AGENTPLUGINS_VERSION"
+          SH
       - name: Prove isolated preparation, immutable update, and owned cleanup
         env:
           SOURCE: ${{ matrix.package.source }}
@@ -107,17 +169,18 @@ jobs:
           run_root="$RUNNER_TEMP/upstream-${{ matrix.package.id }}"
           mkdir -p "$run_root"/{home,state,workspace,config,cache,tmp,evidence}
           mkdir -p "$run_root/home"/{.codex,.cursor,.kiro}
-          binary="$RUNNER_TEMP/release/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
+          binary="$RUNNER_TEMP/upstream-npm/node_modules/.bin/agentplugins"
           python3 -B - "$run_root" "$binary" "$GITHUB_WORKSPACE/scripts" <<'PY'
           import base64
           import hashlib
           import json
           import os
+          import subprocess
           import sys
           from pathlib import Path
 
           sys.path.insert(0, sys.argv[3])
-          from run_chrome_five_client_lifecycle import checked_json, ensure_sanitized, require_success, snapshot_roots, validate_doctor
+          from run_chrome_five_client_lifecycle import binary_digest, checked_json, ensure_sanitized, require_success, snapshot_roots, validate_doctor
 
           def exact_targets(data):
               assert type(data["succeeded"]) is int and data["succeeded"] == 3
@@ -126,9 +189,9 @@ jobs:
               assert {item["target"] for item in data["targets"]} == {"codex", "cursor", "kiro"}
               assert {item["status"] for item in data["targets"]} == {"external_completed"}
 
-          def validate_update(value, stderr, discovered):
+          def validate_update(value, stderr, mutable_selector):
               data = value["data"]
-              if discovered:
+              if mutable_selector:
                   require_success(value, "update")
                   exact_targets(data)
                   assert data["status"] == "completed"
@@ -162,17 +225,65 @@ jobs:
               snapshot = base64.b64decode(cache["snapshot"], validate=True)
               pointer = json.loads(base64.b64decode(cache["pointer"], validate=True))
               envelope = json.loads(base64.b64decode(cache["envelope"], validate=True))
-              search = json.loads(base64.b64decode(cache["search"], validate=True))
+              search_bytes = base64.b64decode(cache["search"], validate=True)
+              search = json.loads(search_bytes)
+              snapshot_data = json.loads(snapshot)
               digest = "sha256:" + hashlib.sha256(snapshot).hexdigest()
-              assert cache["sequence"] == pointer["sequence"] == envelope["sequence"] == json.loads(snapshot)["sequence"]
+              assert type(cache["sequence"]) is int and cache["sequence"] >= 20
+              assert cache["sequence"] == pointer["sequence"] == envelope["sequence"] == snapshot_data["sequence"] == search["sequence"]
               assert digest == envelope["snapshot_digest"]
+              record_count = len(search["records"])
+              projection = snapshot_data["search_projection"]
+              assert snapshot_data["complete"] is True and record_count >= 2000
+              assert type(projection["record_count"]) is int
+              assert record_count == len(snapshot_data["records"]) == projection["record_count"]
+              assert projection["digest"] == "sha256:" + hashlib.sha256(search_bytes).hexdigest()
               records = [record for record in search["records"] if record["slug"] == source]
               assert len(records) == 1
               record = records[0]
               assert record["repository"] == "upstash/context7" and record["package_path"] == "plugins/agent-plugins/context7"
               for field in ("revision", "tree_digest", "manifest_digest"):
                   assert record[field] == data[field]
-              return {"sequence": cache["sequence"], "snapshot_digest": digest, "key_id": envelope["key_id"]}
+              return {"sequence": cache["sequence"], "snapshot_digest": digest, "key_id": envelope["key_id"],
+                      "record_count": record_count, "search_digest": projection["digest"]}
+
+          def directory_identity(sandbox, data, installation):
+              # Only inspect the production cache written and signature-verified by the released CLI.
+              cache = json.loads((sandbox / "state/directory-v1-cache.json").read_text())
+              raw = base64.b64decode(cache["snapshot"], validate=True)
+              snapshot = json.loads(raw)
+              envelope = json.loads(base64.b64decode(cache["envelope"], validate=True))
+              digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+              sequence = cache["sequence"]
+              assert type(sequence) is int and sequence >= 20
+              assert sequence == snapshot["sequence"] == envelope["sequence"]
+              assert digest == envelope["snapshot_digest"]
+              product, = [item for item in snapshot["products"] if item["id"] == "chrome-devtools"]
+              distribution, = [item for item in snapshot["distributions"] if item["id"] == "777genius/chrome-devtools-bridge"]
+              assert distribution["id"] in product["distributions"]
+              assert distribution["product_id"] == product["id"] and distribution["status"] == "active"
+              assert distribution["kind"] == "community_bridge"
+              declared, = [item for item in snapshot["distributions"] if item["id"] == product["default_distribution"]]
+              assert declared["status"] == "suspended" and declared["id"] != distribution["id"]
+              release, = [item for item in distribution["releases"] if item["sequence"] == 2]
+              policy, = [item for item in distribution["release_policies"] if item["release_sequence"] == 2]
+              assert policy["status"] == "active"
+              assert release["package_version"] == data["version"] == "1.7.0-uap.1"
+              assert release["tree_digest"] == data["tree_digest"] == "sha256:9ecf4bcd3eff01f3cb23a46838f65e5c9e213a29367514b320dc92aee98689ed"
+              assert release["manifest_digest"] == data["manifest_digest"] == "sha256:38c1ccf9c0857300832c140caf1049aaaacaa09594011d45e68b85a416734265"
+              source = release["package_source"]
+              assert source["repository"] == "777genius/universal-agent-plugins" and source["path"] == "plugins/chrome-devtools"
+              assert len(source["revision"]) == 40 and int(source["revision"], 16) >= 0
+              assert data["revision"] == installation["source"]["resolved_revision"] == source["revision"]
+              assert installation["source"]["package_subpath"] == source["path"]
+              assert installation["origin_mode"] == "directory"
+              expected = {"product_id": product["id"], "distribution_id": distribution["id"],
+                          "distribution_kind": distribution["kind"], "desired_release_sequence": 2,
+                          "snapshot_schema": snapshot["snapshot_schema_version"],
+                          "snapshot_sequence": sequence, "snapshot_digest": digest}
+              assert data["directory"] == installation["directory"] == expected
+              return {**expected, "key_id": envelope["key_id"], "source": source,
+                      "declared_default_distribution": declared["id"], "fallback_selected": True}
 
           sandbox = Path(sys.argv[1])
           root = sandbox / "evidence"
@@ -188,6 +299,15 @@ jobs:
 
           source, plugin = os.environ["SOURCE"], os.environ["EXPECTED_PLUGIN"]
           discovered = source.startswith("discovery:")
+          directory = source == "chrome-devtools"
+          mutable_selector = discovered or directory
+          version = subprocess.run([sys.argv[2], "version"], env=env, cwd=roots["workspace"],
+                                   check=True, capture_output=True, text=True, timeout=120)
+          assert version.stdout.strip() == "agentplugins " + os.environ["AGENTPLUGINS_VERSION"]
+          package_root = Path(sys.argv[2]).parent.parent / "universal-agent-plugins"
+          native_digest = binary_digest(roots["cache"], os.environ["AGENTPLUGINS_VERSION"], package_root)
+          release_binary = Path(os.environ["RUNNER_TEMP"]) / "release" / f"agentplugins_{os.environ['AGENTPLUGINS_VERSION']}_linux_amd64"
+          assert native_digest == "sha256:" + hashlib.sha256(release_binary.read_bytes()).hexdigest()
           common = ["--target", "codex,cursor,kiro"]
           add, _, _ = run("add", source, *common)
           info, _, _ = run("info", plugin, *common)
@@ -199,7 +319,8 @@ jobs:
               assert data.get("version") == expected_version
           else:
               assert not data.get("version")
-          assert data["revision"] == os.environ["EXPECTED_REVISION"]
+          if not directory:
+              assert data["revision"] == os.environ["EXPECTED_REVISION"]
           exact_targets(data)
           acquisition = data["acquisition"]
           assert type(acquisition["acquisition_count"]) is int and acquisition["acquisition_count"] == 1
@@ -224,22 +345,24 @@ jobs:
           owned_paths = [Path(item["target_locator"]) for item in bindings]
           assert all(path.is_relative_to(sandbox) and path != sandbox and path.exists() for path in owned_paths)
           discovery_before = discovery_identity(sandbox, source, data) if discovered else None
+          directory_before = directory_identity(sandbox, data, installation) if directory else None
           if discovered:
               assert installation["origin_mode"] == "direct" and not installation.get("directory")
               assert installation["source"]["requested_source"] == installation["source"]["canonical_source"] == source
-          # Discovery may refresh its verified cache; installed state and client artifacts must not change.
-          immutable_roots = roots if not discovered else {name: path for name, path in roots.items() if name != "state"}
-          if discovered:
+          # Signed selectors may refresh verified caches; installed state and client artifacts must not change.
+          immutable_roots = roots if not mutable_selector else {name: path for name, path in roots.items() if name != "state"}
+          if mutable_selector:
               immutable_roots.update({f"owned_{index}": path for index, path in enumerate(owned_paths)})
               plugin_data = roots["state"] / "plugin-data"
               if plugin_data.is_dir():
                   immutable_roots["plugin_data"] = plugin_data
           state_before = state_file.read_bytes()
           before = snapshot_roots(immutable_roots)
-          update, update_stderr, _ = run("update", plugin, *common, success=discovered)
-          validate_update(update, update_stderr, discovered)
+          update, update_stderr, _ = run("update", plugin, *common, success=mutable_selector)
+          validate_update(update, update_stderr, mutable_selector)
           assert state_file.read_bytes() == state_before and snapshot_roots(immutable_roots) == before
           discovery_after = discovery_identity(sandbox, source, data) if discovered else None
+          directory_after = directory_identity(sandbox, data, installation) if directory else None
           remove, _, _ = run("remove", plugin, *common, "--external-uninstalled", "--purge-data")
           removed = require_success(remove, "remove")
           exact_targets(removed)
@@ -252,6 +375,10 @@ jobs:
           evidence = {
               "schema_version": 1,
               "cli_version": os.environ["AGENTPLUGINS_VERSION"],
+              "npm_package": "universal-agent-plugins",
+              "npm_integrity": os.environ["AGENTPLUGINS_NPM_INTEGRITY"],
+              "native_binary_digest": native_digest,
+              "native_binary_matches_attested_release": True,
               "repository": os.environ["EXPECTED_REPOSITORY"],
               "revision": data["revision"],
               "plugin": data["plugin"],
@@ -265,7 +392,10 @@ jobs:
               "signed_discovery_selector_resolution": discovered,
               "discovery_before_update": discovery_before,
               "discovery_after_update": discovery_after,
-              "update": "passed_no_change" if discovered else "blocked_immutable_full_sha_no_mutation",
+              "signed_directory_short_alias_resolution": directory,
+              "directory_before_update": directory_before,
+              "directory_after_update": directory_after,
+              "update": "passed_no_change" if mutable_selector else "blocked_immutable_full_sha_no_mutation",
               "version_upgrade_executed": False,
               "single_acquisition": True,
               "shared_installation_identity": True,
