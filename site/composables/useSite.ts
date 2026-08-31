@@ -8,6 +8,11 @@ export const clients: ClientTarget[] = [
   { id: 'copilot', name: 'GitHub Copilot CLI', icon: 'github-copilot.svg', note: 'Managed native plugin' },
   { id: 'vscode', name: 'VS Code', icon: 'vscode.svg', note: 'Copilot plugin integration' },
   { id: 'kiro', name: 'Kiro', icon: 'kiro.svg', note: 'Native folder package' },
+  { id: 'claude', name: 'Claude Code', icon: 'terminal.svg', note: 'Managed MCP configuration' },
+  { id: 'gemini', name: 'Gemini CLI', icon: 'terminal.svg', note: 'Managed MCP configuration' },
+  { id: 'opencode', name: 'OpenCode', icon: 'terminal.svg', note: 'Managed MCP configuration' },
+  { id: 'cline', name: 'Cline', icon: 'terminal.svg', note: 'Managed MCP configuration' },
+  { id: 'windsurf', name: 'Windsurf', icon: 'terminal.svg', note: 'Prepared package; manual activation required' },
 ]
 
 export function useSite() {

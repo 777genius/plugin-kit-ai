@@ -1,0 +1,100 @@
+{
+  "evidence_type": "local_chrome_live_client_check_v1",
+  "client": "OpenCode runtime and Gemini MCP discovery",
+  "date": "2026-08-31",
+  "platform": "darwin-arm64",
+  "signed_publication_evidence": false,
+  "real_user_project_used": false,
+  "installer": {
+    "npm_package": "universal-agent-plugins",
+    "version": "0.1.24",
+    "binary_digest": "sha256:c9d3dfe4b4b06d70733841d72fd9c8b9070ce066f6fa5dd7260073cf69565972"
+  },
+  "isolation": {
+    "workspace": "new disposable empty directory",
+    "profiles": "separate HOME and XDG directories",
+    "browser": "Chrome DevTools MCP profile under disposable HOME",
+    "fixture": "loopback-only HTML page containing a random marker absent from the model prompt",
+    "allowed_tools": ["new_page", "take_snapshot", "list_pages", "close_page"],
+    "other_agent_tools": "denied"
+  },
+  "root_package": {
+    "repository": "777genius/chrome-devtools-mcp",
+    "upstream_pr": "https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623",
+    "revision": "02372c4d47ad257773b2b80c7d7fd056d7067be0",
+    "acquisition": "local source checkout with identical package bytes",
+    "version": "1.8.0",
+    "tree_digest": "sha256:50145f0cfd0e4095cfb00fc74755c0c930dc8258952c868de5dc81b54765c1a0",
+    "manifest_digest": "sha256:b34a4dcd71cd536a7f5a3a51d76d53ae5af3d0ce0f18783e71c7f01da865b867",
+    "regression": "npx from the repository root shadowed the published npm package with unbuilt local sources; explicit --prefix ${PLUGIN_DATA} fixes resolution without authored cwd",
+    "install": {
+      "passed_targets": ["claude", "gemini", "opencode", "cline", "windsurf"],
+      "profile_detection": "isolated seeded configuration directories; not a claim of installed GUI clients",
+      "doctor": "passed",
+      "repair": "passed_5_of_5",
+      "remove_with_purge_data": "passed_5_of_5"
+    },
+    "opencode": {
+      "version": "1.18.25",
+      "model": "opencode/big-pickle",
+      "outcome": "passed",
+      "exit_code": 0,
+      "completed_tool_calls": ["chrome-devtools_new_page", "chrome-devtools_take_snapshot"],
+      "fixture_requested": true,
+      "unprompted_marker_recovered": true,
+      "duration_seconds": 26.88,
+      "event_log_digest": "sha256:3f6df16978a97c9f44bb72fdb100a00f196e36b6b4c79e3190536f9119b595b0"
+    },
+    "gemini": {
+      "version": "0.57.0",
+      "mcp_discovery": "connected",
+      "model": "gemini-2.5-flash",
+      "model_runtime": "blocked",
+      "reason": "Google returned IneligibleTierError with UNSUPPORTED_CLIENT for the existing individual-account session",
+      "model_runtime_claimed": false
+    }
+  },
+  "directory_bridge": {
+    "distribution": "777genius/chrome-devtools-bridge",
+    "release_sequence": 2,
+    "version": "1.7.0-uap.1",
+    "acquisition": "local package with exact Directory bridge bytes; not a public short-alias installation",
+    "tree_digest": "sha256:9ecf4bcd3eff01f3cb23a46838f65e5c9e213a29367514b320dc92aee98689ed",
+    "manifest_digest": "sha256:38c1ccf9c0857300832c140caf1049aaaacaa09594011d45e68b85a416734265",
+    "opencode": {
+      "version": "1.18.25",
+      "model": "opencode/big-pickle",
+      "outcome": "passed",
+      "exit_code": 0,
+      "completed_tool_calls": ["chrome-devtools_new_page", "chrome-devtools_take_snapshot"],
+      "fixture_requested": true,
+      "unprompted_marker_recovered": true,
+      "duration_seconds": 32.77,
+      "event_log_digest": "sha256:8df638b1773c178da61cf12816208e35e7e0043db9c14808bc479003818c88e6"
+    }
+  },
+  "not_proved": [
+    "Gemini live model tool invocation",
+    "Cline or Windsurf live model runtime",
+    "OpenCode OpenAI OAuth refresh (returned 401; runtime used a built-in free provider)",
+    "public chrome-devtools short alias for newly added clients before signed Directory publication"
+  ],
+  "checks": [
+    {"scenario": "fixed root package five-client installation lifecycle", "status": "passed"},
+    {"scenario": "OpenCode model uses root-package Chrome tools", "status": "passed"},
+    {"scenario": "OpenCode model uses exact Directory bridge Chrome tools", "status": "passed"},
+    {"scenario": "Gemini discovers the fixed root MCP server", "status": "passed"},
+    {"scenario": "Gemini model invokes Chrome tools", "status": "auth_required"}
+  ],
+  "cleanup": {
+    "test_installations_removed_with_purge_data": true,
+    "disposable_profiles_and_copied_credentials_deleted": true,
+    "test_browser_processes_remaining": 0,
+    "original_user_profiles_unchanged": true
+  },
+  "privacy": {
+    "sanitized": true,
+    "excluded": ["temporary paths", "account identifiers", "credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "authorization URLs", "operation IDs", "fixture marker values"]
+  },
+  "secrets_recorded": false
+}

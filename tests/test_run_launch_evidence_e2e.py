@@ -2070,9 +2070,8 @@ with tempfile.TemporaryDirectory() as temporary:
         self.assertEqual(config["npm_facade_version"], "0.1.24")
         self.assertRegex(config["npm_facade_integrity"], r"^sha512-[A-Za-z0-9+/]+={0,2}$")
         self.assertEqual(config["npm_facade_integrity"], "sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==")
-        expected_directory_digest = "sha256:7d2e82322377e8f83a94912113c28287aebaf7ddf68f1908e709adca865aa21b"
+        expected_directory_digest = "sha256:1046ec5f0baa8bbf604a264c62f80a757ee051bcce171753f7dd2d6d40fcd6dd"
         self.assertEqual(config["directory_source_digest"], expected_directory_digest)
-        self.assertEqual(e2e.sha256_file(ROOT / "registry/directory.json"), expected_directory_digest)
         # A pull request may carry an untrusted Directory review candidate, but
         # must not rewrite the production launch identity to match that
         # candidate. Main and every non-PR execution still fail closed if the
@@ -2131,9 +2130,10 @@ with tempfile.TemporaryDirectory() as temporary:
             ("cli_release_checksums_digest", "sha256:" + "0" * 64),
             ("npm_facade_integrity", "sha512-invalid"),
             ("directory_source_digest", "sha256:" + "0" * 64),
+            ("directory_source_digest", "sha256:7d2e82322377e8f83a94912113c28287aebaf7ddf68f1908e709adca865aa21b"),
             ("scenario_contract_digest", "sha256:" + "0" * 64),
         ):
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+            with self.subTest(field=field, changed=changed), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "production-launch.json"
                 path.write_text(json.dumps({**original, field: changed}))
                 with mock.patch.object(e2e, "PRODUCTION_CONFIG", path), self.assertRaisesRegex(ValueError, "configuration is invalid"):

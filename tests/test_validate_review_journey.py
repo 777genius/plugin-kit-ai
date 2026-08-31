@@ -142,6 +142,28 @@ class PromotionReadinessTests(unittest.TestCase):
         self.assertEqual(package_gate["artifact"]["minimum_installer_version"], "0.1.18")
         self.assertEqual(package_gate["artifact"]["enforced_capabilities"], ["mcp"])
 
+    def test_new_client_promotion_targets_share_directory_contract_and_reject_unknown(self) -> None:
+        temporary, _repository, args, record = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        delivery = {"claude": "managed", "gemini": "managed", "opencode": "managed", "cline": "managed", "windsurf": "prepared"}
+        record["policy"]["minimum_installer_version"] = "0.1.24"
+        record["policy"]["targets"] = [
+            {"client": client, "scopes": ["user"], "delivery": mode, "authentication": "not_required"}
+            for client, mode in delivery.items()
+        ]
+        template = record["evidence"][0]
+        record["evidence"] = [
+            {**copy.deepcopy(template), "id": f"official-materialization-{client}", "client": client, "installer_version": "0.1.24"}
+            for client in sorted(delivery)
+        ]
+        self.write_record(args, record)
+        result = journey.promotion(args)
+        self.assertEqual(result["candidate"]["policy"]["targets"], record["policy"]["targets"])
+        record["policy"]["targets"][-1]["client"] = "unknown"
+        self.write_record(args, record)
+        with self.assertRaisesRegex(journey.JourneyError, "canonical order"):
+            journey.promotion(args)
+
     def test_unversioned_package_requires_directory_description_and_keywords(self) -> None:
         for field, value, message in (
             ("description", "", "description required"),

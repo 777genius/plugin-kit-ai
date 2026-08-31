@@ -17,7 +17,7 @@
     "source_path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[?#%])[^\\u0000]+(?<!/)$"},
     "level": {"enum": ["schema", "materialization", "discovery", "runtime", "oauth"]},
     "outcome": {"enum": ["passed", "failed", "inconclusive", "not_tested", "not_applicable"]},
-    "client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]},
+"client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"]},
     "client_version": {"type": "string", "minLength": 1},
     "installer_version": {"type": "string", "minLength": 1},
     "adapter_version": {"type": "string", "minLength": 1},

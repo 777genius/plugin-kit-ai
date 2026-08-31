@@ -1096,6 +1096,8 @@ class DirectoryDomainTests(unittest.TestCase):
                     expected_minimum = registry.LOCKED_NPM_RUNTIME_MINIMUM_INSTALLER_VERSION
                 if distribution["id"] == "upstash/context7":
                     expected_minimum = "0.1.13"
+                if distribution["id"] == "777genius/chrome-devtools-bridge" and policy["release_sequence"] == 2:
+                    expected_minimum = "0.1.24"
                 self.assertEqual(policy["minimum_installer_version"], expected_minimum)
             release = distribution["releases"][0]
             if release["package_source"]["revision"] is not None:
@@ -1161,6 +1163,48 @@ class DirectoryDomainTests(unittest.TestCase):
         registry.validate_locked_npm_runtime(registry.ROOT / "plugins" / "context7")
         source = self.source()
         registry.validate_active_local_runtime_closures(source)
+
+    def test_chrome_alias_resolves_every_reviewed_client_and_complete_target_set(self) -> None:
+        source = self.source()
+        clients = ["codex", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"]
+        bridge = next(item for item in source["distributions"] if item["id"] == "777genius/chrome-devtools-bridge")
+        previous, active = bridge["release_policies"]
+        self.assertEqual([target["client"] for target in previous["targets"]], clients[:5])
+        self.assertEqual(previous["minimum_installer_version"], "0.1.8")
+        self.assertEqual([target["client"] for target in active["targets"]], clients)
+        self.assertEqual(active["minimum_installer_version"], "0.1.24")
+        self.assertEqual(active["current_evidence"], [])
+        self.assertEqual(registry.eligible_product_targets(source, "chrome-devtools"), clients)
+        # CLI agentplugins-v0.1.24, c78c79e44efd5ad07083d63436d9170b107df6cb:
+        # domain.ClientDefinitions().DirectoryDelivery is distinct from PackageMode.
+        expected_delivery = {"claude": "managed", "gemini": "managed", "opencode": "managed", "cline": "managed", "windsurf": "prepared"}
+        for client, delivery in expected_delivery.items():
+            self.assertIn({"client": client, "authentication": "not_required", "scopes": ["user"], "delivery": delivery}, active["targets"])
+        for targets in [[client] for client in clients] + [clients, clients[5:], ["codex", "gemini"]]:
+            with self.subTest(targets=targets):
+                result = registry.resolve_directory(source, "chrome-devtools", targets)
+                self.assertEqual((result["distribution_id"], result["release_sequence"]), (bridge["id"], 2))
+                self.assertIn("declared default 777genius/chrome-devtools", result["fallback_reason"])
+        for targets in [["unknown"], ["codex", "unknown"], ["claude", "claude"]]:
+            with self.subTest(targets=targets), self.assertRaisesRegex(registry.RegistryError, "unique supported client IDs"):
+                registry.resolve_directory(source, "chrome-devtools", targets)
+        with self.assertRaisesRegex(registry.RegistryError, "no distribution supports"):
+            registry.resolve_directory(source, "chrome-devtools", clients + ["chatgpt"])
+
+    def test_chrome_preview_preserves_complete_target_resolution_without_runtime_claims(self) -> None:
+        source = self.source()
+        source["products"] = [item for item in source["products"] if item["id"] == "chrome-devtools"]
+        source["distributions"] = [item for item in source["distributions"] if item["product_id"] == "chrome-devtools"]
+        source["evidence"] = []
+        preview = registry.directory_preview(source)
+        registry._validate_document(preview, "directory-preview.schema.json", "Chrome review preview")
+        product = preview["products"][0]
+        clients = registry.eligible_product_targets(source, "chrome-devtools")
+        self.assertEqual(product["default_distribution"], "777genius/chrome-devtools")
+        self.assertEqual(len(product["target_resolutions"]), 2 ** len(clients) - 1)
+        full = next(item for item in product["target_resolutions"] if [target["client"] for target in item["targets"]] == clients)
+        self.assertEqual((full["distribution_id"], full["release_sequence"]), ("777genius/chrome-devtools-bridge", 2))
+        self.assertTrue(all(item["current_evidence"] == [] for item in product["distributions"]))
 
     def test_active_locked_npm_runtime_rejects_incompatible_installer_policy(self) -> None:
         source = self.source()

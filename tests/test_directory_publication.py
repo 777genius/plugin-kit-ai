@@ -83,6 +83,88 @@ def install_fixture_feed(root: Path, envelope: str = "envelope-current.json") ->
 
 
 class CanonicalAndSignatureTests(unittest.TestCase):
+    def test_all_directory_client_enums_match_publication_and_reject_unknown_ids(self) -> None:
+        import jsonschema
+        import build_registry
+
+        expected = ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"]
+        self.assertEqual(list(build_registry.CLIENT_IDS), expected)
+        self.assertEqual(publication.CLIENTS, set(expected))
+
+        def enums(value):
+            if isinstance(value, dict):
+                if value.get("enum", [])[:2] == ["codex", "chatgpt"]:
+                    yield value
+                for child in value.values():
+                    yield from enums(child)
+            elif isinstance(value, list):
+                for child in value:
+                    yield from enums(child)
+
+        for name in ("directory-distribution", "directory-publication-candidate", "directory-preview", "directory-evidence", "directory-evidence-artifact", "registry-index", "promotion-candidate"):
+            with self.subTest(schema=name):
+                contracts = list(enums(json.loads((ROOT / "schemas" / f"{name}.schema.json").read_text())))
+                self.assertTrue(contracts)
+                for contract in contracts:
+                    self.assertEqual(contract["enum"], expected)
+                    validator = jsonschema.Draft202012Validator(contract)
+                    for client in expected:
+                        validator.validate(client)
+                    self.assertFalse(validator.is_valid("unknown"))
+
+    def test_publication_target_and_evidence_contracts_accept_new_clients(self) -> None:
+        for client in ("claude", "gemini", "opencode", "cline", "windsurf"):
+            with self.subTest(client=client):
+                candidate = fixture_json("candidate.json")
+                policy = candidate["distributions"][0]["release_policies"][0]
+                policy["targets"][0]["client"] = client
+                candidate["evidence"][0]["client"] = client
+                publication.validate_with_schema(candidate, publication.CANDIDATE_SCHEMA)
+                publication.validate_directory_records(candidate, snapshot=False)
+                candidate["evidence"][0]["client"] = "unknown"
+                with self.assertRaises(publication.PublicationError):
+                    publication.validate_directory_records(candidate, snapshot=False)
+                candidate["evidence"][0]["client"] = client
+                policy["targets"][0]["client"] = "unknown"
+                with self.assertRaises(publication.PublicationError):
+                    publication.validate_with_schema(candidate, publication.CANDIDATE_SCHEMA)
+                with self.assertRaises(publication.PublicationError):
+                    publication.validate_directory_records(candidate, snapshot=False)
+
+    def test_prepare_preserves_new_client_policy_without_inventing_evidence(self) -> None:
+        config = prepare.load_config(ROOT / "registry" / "publication" / "config.json")
+        reviewed = json.loads((ROOT / "registry" / "directory.json").read_text())
+        bridge = next(item for item in reviewed["distributions"] if item["id"] == "777genius/chrome-devtools-bridge")
+        policy = copy.deepcopy(bridge["release_policies"][1])
+        policy["release_sequence"] = 1
+        fixture_candidate = fixture_json("candidate.json")
+        distribution = fixture_candidate["distributions"][0]
+        release = distribution["releases"][0]
+        product = fixture_candidate["products"][0]
+        product["distributions"] = [distribution["id"]]
+        with tempfile.TemporaryDirectory(prefix="uap-client-policy-") as temporary:
+            repository = Path(temporary)
+            package = repository / "plugins" / "demo"
+            write_valid_package(package, repository=config["repository"])
+            subprocess.run(["/usr/bin/git", "init", "-q", str(repository)], check=True)
+            subprocess.run(["/usr/bin/git", "-C", str(repository), "add", "."], check=True)
+            subprocess.run(["/usr/bin/git", "-C", str(repository), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "-qm", "source"], check=True)
+            revision = subprocess.check_output(["/usr/bin/git", "-C", str(repository), "rev-parse", "HEAD"], text=True).strip()
+            release.update({"sequence": 1, "package_version": "1.0.0", "tree_digest": prepare.package_tree_digest(package), "manifest_digest": prepare.manifest_digest(package), "components": ["mcp"]})
+            release["package_source"] = {"repository": config["repository"], "revision": None, "path": "plugins/demo"}
+            release.pop("published_at", None)
+            distribution.update({"kind": "community", "release_policies": [policy], "releases": [release]})
+            source = {"schema_version": 1, "products": [product], "distributions": [distribution], "evidence": []}
+            candidate = prepare.build_candidate(source, config, revision, "new-client-policy", None, repository_root=repository)
+            publication.validate_with_schema(candidate, publication.CANDIDATE_SCHEMA)
+            publication.validate_directory_records(candidate, snapshot=False)
+            self.assertEqual(candidate["distributions"][0]["release_policies"], [policy])
+            self.assertEqual(candidate["evidence"], [])
+            self.assertEqual(candidate["distributions"][0]["releases"][0]["package_source"]["revision"], revision)
+            policy["targets"][0]["client"] = "unknown"
+            with self.assertRaises(publication.PublicationError):
+                prepare.build_candidate(source, config, revision, "unknown-client-policy", None, repository_root=repository)
+
     def test_all_contract_fixtures_are_canonical_and_schema_valid(self) -> None:
         schemas = {
             "candidate.json": publication.CANDIDATE_SCHEMA,

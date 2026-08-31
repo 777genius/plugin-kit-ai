@@ -5,6 +5,7 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { authenticationLabel, deliveryLabel, directoryIsExpired, expectedDistribution, githubSourceUrl, isPinnedExternalSource, mirroredIconPath, parseDirectoryData, parseRegistryIndex, resolveDistribution, targetAuthenticationLabel, validationLabel } from '../utils/registry.ts'
 import { pluginCommands } from '../utils/commands.ts'
+import type { ClientID } from '../types/registry.ts'
 
 const fixture = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/registry.valid.json', import.meta.url)), 'utf8')) as unknown
 const snapshotFixture = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/directory.snapshot.json', import.meta.url)), 'utf8')) as unknown
@@ -74,6 +75,56 @@ function mix(first: RGB, second: RGB, firstWeight: number): RGB {
 }
 
 describe('registry parsing', () => {
+  it('parses the reviewed Chrome alias for all ten clients without runtime claims', () => {
+    const raw = JSON.parse(readFileSync(fileURLToPath(new URL('../../registry/directory.json', import.meta.url)), 'utf8'))
+    const plugin = parseDirectoryData(raw, 'review_preview').plugins.find(item => item.name === 'chrome-devtools')!
+    const clients: ClientID[] = ['codex', 'cursor', 'copilot', 'vscode', 'kiro', 'claude', 'gemini', 'opencode', 'cline', 'windsurf']
+    assert.equal(plugin.declared_default_distribution, '777genius/chrome-devtools')
+    assert.equal(plugin.default_distribution, '777genius/chrome-devtools-bridge')
+    assert.deepEqual(new Set(plugin.client_support.clients), new Set(clients))
+    assert.equal(validationLabel(plugin), 'No current evidence')
+    for (const targets of [...clients.map(client => [client]), clients, clients.slice(5)]) {
+      const selected = expectedDistribution(plugin, targets)!
+      assert.equal(selected.id, '777genius/chrome-devtools-bridge')
+      assert.equal(selected.release_sequence, 2)
+      assert.equal(pluginCommands(plugin, targets).add, `npx universal-agent-plugins add chrome-devtools --target ${targets.join(',')}`)
+    }
+    assert.equal(expectedDistribution(plugin, [...clients, 'chatgpt']), undefined)
+    const delivery = { claude: 'managed', gemini: 'managed', opencode: 'managed', cline: 'managed', windsurf: 'prepared' }
+    for (const [client, mode] of Object.entries(delivery) as Array<[ClientID, string]>) {
+      assert.equal(plugin.client_support.delivery[client], mode)
+      assert.deepEqual(plugin.client_support.scopes[client], ['user'])
+    }
+    const bridge = raw.distributions.find((item: { id: string }) => item.id === '777genius/chrome-devtools-bridge')
+    bridge.release_policies[1].targets[0].client = 'unknown'
+    assert.throws(() => parseDirectoryData(raw, 'review_preview'), /invalid or duplicate client/)
+  })
+
+  it('accepts new client targets and evidence in the published snapshot parser', () => {
+    for (const client of ['claude', 'gemini', 'opencode', 'cline', 'windsurf'] as const) {
+      const raw = signedFixture()
+      const delivery = client === 'windsurf' ? 'prepared' : 'managed'
+      const bridge = raw.distributions.find(item => item.id === 'example/demo-bridge')!
+      bridge.release_policies[0]!.targets.push({ client, authentication: 'not_required', delivery, scopes: ['user'] })
+      const evidence = raw.evidence.find(item => item.id === 'runtime-demo-codex')!
+      evidence.client = client
+      // Synthetic fixture evidence remains bound to its original release.
+      raw.distributions[0]!.release_policies[0]!.targets.push({ client, authentication: 'not_required', delivery, scopes: ['user'] })
+      const plugin = parseDirectoryData(raw, 'published_snapshot').plugins[0]!
+      assert.equal(expectedDistribution(plugin, [client])?.id, 'example/demo-bridge')
+      assert.equal(plugin.distributions[0]!.evidence.find(item => item.id === evidence.id)?.client, client)
+    }
+  })
+
+  it('includes new clients in the selector with local icon assets', () => {
+    const source = readFileSync(fileURLToPath(new URL('../composables/useSite.ts', import.meta.url)), 'utf8')
+    for (const client of ['claude', 'gemini', 'opencode', 'cline', 'windsurf']) {
+      const match = source.match(new RegExp(`id: '${client}', name: '[^']+', icon: '([^']+)'`))
+      assert.ok(match, `${client} must be selectable`)
+      assert.ok(readFileSync(fileURLToPath(new URL(`../public/client-icons/${match[1]}`, import.meta.url)), 'utf8').includes('<svg'))
+    }
+  })
+
   it('normalizes a signed snapshot into one product with source alternatives and exact evidence', () => {
     const directory = parseDirectoryData(snapshotFixture, 'published_snapshot')
     assert.equal(directory.data_source, 'published_snapshot')

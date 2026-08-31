@@ -25,6 +25,7 @@ import jsonschema
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_bridges import BridgeError, check_all
 from build_registry import (
+    CLIENT_IDS,
     DIRECTORY_TREE_DIGEST_ALGORITHM, RegistryError, directory_tree_digest,
     PORTABLE_MAX_FILE_BYTES, PORTABLE_MAX_FILES, PORTABLE_MAX_TREE_BYTES,
     required_components, validate_directory, validate_registry_path,
@@ -40,7 +41,6 @@ MERGED_AT_RE = __import__("re").compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[
 REPOSITORY_RE = __import__("re").compile(r"^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 REQUIRED_PROMOTION_GATES = ("pr_metadata", "repository_identity", "default_history", "reviewed_identity", "candidate_identity", "package", "policy", "evidence")
 REQUIRED_SUBMISSION_GATES = ("git_fork_branch", "schema", "package", "registry_policy", "bridge_reproduction", "side_effect_boundary")
-CLIENT_IDS = ("codex", "chatgpt", "cursor", "copilot", "vscode", "kiro")
 MAX_PROMOTION_EVIDENCE = 24
 JSON_SAFE_INTEGER_MAX = 9_007_199_254_740_991
 

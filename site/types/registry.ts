@@ -13,7 +13,7 @@ export interface PluginSource {
   icon_sha256?: string
 }
 
-export type ClientID = 'codex' | 'chatgpt' | 'cursor' | 'copilot' | 'vscode' | 'kiro'
+export type ClientID = 'codex' | 'chatgpt' | 'cursor' | 'copilot' | 'vscode' | 'kiro' | 'claude' | 'gemini' | 'opencode' | 'cline' | 'windsurf'
 export type ComponentID = 'extensions' | 'mcp' | 'skills'
 export type DistributionKind = 'upstream' | 'community_bridge' | 'community' | 'direct'
 export type EvidenceLevel = 'schema' | 'materialization' | 'discovery' | 'runtime' | 'oauth'

@@ -18,7 +18,7 @@
       "type": "object",
       "required": ["client", "authentication"],
       "properties": {
-        "client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]},
+"client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"]},
         "authentication": {"enum": ["not_required", "required", "unknown"]}
       },
       "additionalProperties": false

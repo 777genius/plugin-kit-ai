@@ -60,7 +60,7 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]}
+"items": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"]}
         }
       },
       "additionalProperties": false

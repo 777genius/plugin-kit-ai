@@ -60,7 +60,7 @@
       "type": "object",
       "required": ["client", "scopes", "delivery", "authentication"],
       "properties": {
-        "client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]},
+"client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"]},
         "scopes": {"const": ["user"]},
         "delivery": {"enum": ["managed", "prepared", "manual_activation"]},
         "authentication": {"enum": ["not_required", "required", "unknown"]},
