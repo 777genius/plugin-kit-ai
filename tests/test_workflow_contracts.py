@@ -1162,7 +1162,7 @@ class WorkflowContractTests(unittest.TestCase):
             "ALL_PROXY=http://127.0.0.2:8766",
             "explicitly empty `NO_PROXY`",
             "current\nprovider-owned host list for Codex, Cursor, Kiro, GitHub",
-            "current installer supports a fresh host only",
+            "installer itself still supports a clean state only",
             "repository does not install UID-, cgroup-, or service-identity firewall rules",
             "`IPAddressDeny=any`",
             "resolve_github_release",
@@ -1207,7 +1207,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("NO_OPEN_BROWSER=1 agent login", runbook)
         self.assertNotIn("/root/uap-observer-egress-proxy.socket", runbook)
         self.assertNotIn("/root/uap-observer-egress-proxy.service", runbook)
-        self.assertNotIn("/usr/local/libexec/", runbook)
+        self.assertIn("STABLE_RESET_HELPER=/usr/local/libexec/uap-observer-reset", runbook)
         self.assertIn("/opt/uap-observer-current/libexec/uap-observer-provision-profile", runbook)
         for recovery_contract in (
             "test ! -e /root/uap-observer-recovery",

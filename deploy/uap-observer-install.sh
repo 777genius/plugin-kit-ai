@@ -117,8 +117,40 @@ trap 'cleanup_observer_config_snapshot' EXIT
 trap 'exit 1' HUP INT TERM
 
 install -d -o root -g root -m 0755 /run/lock
-exec 9>/run/lock/uap-observer-install.lock
+case "${UAP_OBSERVER_INSTALL_LOCK_FD:-}" in
+  '')
+    test ! -L /run/lock/uap-observer-install.lock
+    if [ -e /run/lock/uap-observer-install.lock ]; then
+      test -f /run/lock/uap-observer-install.lock
+    fi
+    install_lock_umask=$(umask)
+    umask 077
+    exec 9<>/run/lock/uap-observer-install.lock
+    umask "$install_lock_umask"
+    ;;
+  9)
+    test -e /proc/self/fd/9
+    test "$(readlink -f /proc/self/fd/9)" = /run/lock/uap-observer-install.lock
+    ;;
+  *)
+    echo "observer install lock FD must be the reviewed descriptor 9" >&2
+    exit 1
+    ;;
+esac
 flock -n 9 || { echo "another observer install is active" >&2; exit 1; }
+python3 -B - /run/lock/uap-observer-install.lock <<'PY'
+import os,stat,sys
+
+info=os.fstat(9)
+path_info=os.lstat(sys.argv[1])
+if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or
+        not stat.S_ISREG(path_info.st_mode) or
+        (info.st_dev,info.st_ino) != (path_info.st_dev,path_info.st_ino)):
+    raise SystemExit("observer install lock descriptor or pathname is unsafe")
+# Repair legacy 0644 locks without replacing the inode or releasing the lock.
+os.fchmod(9,0o600)
+PY
+test "$(stat -c '%u:%a:%h' /run/lock/uap-observer-install.lock)" = '0:600:1'
 
 # Recovery is deliberately before even requiring, opening, hashing, or
 # otherwise validating caller-controlled arguments.  A retry after power loss

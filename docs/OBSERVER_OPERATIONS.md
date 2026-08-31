@@ -935,6 +935,135 @@ controls do not replace the host firewall. Cloud images with
 `manage_etc_hosts: true` overwrite `/etc/hosts`, so do not use a local hosts
 entry as persistent DNS configuration.
 
+### Reprovision the same disposable observer VM
+
+Do not create another VM for a release change. The reset helper can reuse only
+the existing disposable observer and only when its exact sentinel, machine ID,
+old install identity, and old closure digest all match. It has no alternate-root
+or arbitrary-cleanup CLI. The signing key, reviewed client/Chrome inputs, Caddy
+state/config, deployment configs, egress input, and external firewall/route stay
+outside its quarantine.
+
+Put only reviewed replacement inputs below the fixed root-owned mode-`0700`
+tree `/root/uap-observer-reset-prepared-v1`. Its exact inventory is the four
+mode-`0700` directories `seeds`, `evidence`, `path`, and `projection-digests`
+plus canonical root-owned mode-`0400` `manifest.json`. The manifest binds the
+new catalog SHA/install identity, fixed installer paths and digests, exact
+Codex/Cursor/Kiro seed and projection digests, and descriptor-safe digests of
+all four trees. Each projection digest must also match the prepared adapter
+config and the installed protected projection after provisioning. Links,
+hardlinks, special files, mount crossings, group/world writes, extra entries,
+or more than one million entries are rejected. The source must be a clean,
+self-contained checkout whose root-owned `.git` directory and object store are
+inside the prepared tree; linked worktrees, alternates, external common dirs,
+and nested linked checkouts are rejected. Never use a workstation profile or
+real project. Capture these current identities at the start of **every** reset
+transaction, including later resets on the same VM:
+
+```sh
+MACHINE_ID="$(tr -d '\n' </etc/machine-id)"
+OLD_CLOSURE="$(readlink /opt/uap-observer-current | sed 's#^uap-observer-closures/##')"
+OLD_INSTALL="$(cat "/opt/uap-observer-closures/$OLD_CLOSURE/.install-identity")"
+```
+
+Only during first-time setup, create the sentinel from that recorded disposable
+VM identity. Never overwrite an existing sentinel or copy it to another host:
+
+```sh
+(
+umask 077
+set -C
+jq -cn --arg machine_id "$MACHINE_ID" \
+  '{machine_id:$machine_id,purpose:"uap-observer-e2e-disposable",schema_version:1}' \
+  >/etc/uap-observer-disposable.json
+)
+```
+
+Keep the installer lock on descriptor 9 through reset, the unchanged installer,
+profile provisioning, health checks, and finalize. The helper journals unit
+state and the exact normalized transient-ingress command/path contract, stops
+transient public ingress first, then stops managed services and sockets.
+Immediately before the first rename it rejects active runner
+cgroups/processes, jobs, pending consent/attestations, unexpected state/systemd
+inventory, partial installer paths, links, substitutions, or changed preserved
+inputs. Every old path is atomically renamed to a same-filesystem quarantine and
+the phase is fsynced.
+
+```sh
+exec 9>/run/lock/uap-observer-install.lock
+flock -n 9
+export UAP_OBSERVER_INSTALL_LOCK_FD=9
+CATALOG_SHA=<approved-40-hex-catalog-commit>
+APPROVED_RESET_SOURCE=/root/uap-observer-reset-prepared-v1/evidence/source
+INITIAL_RESET_HELPER="$APPROVED_RESET_SOURCE/deploy/uap-observer-reset.py"
+STABLE_RESET_HELPER=/usr/local/libexec/uap-observer-reset
+
+python3 -B "$INITIAL_RESET_HELPER" apply \
+  --machine-id "$MACHINE_ID" \
+  --catalog-sha "$CATALOG_SHA" \
+  --old-install-identity "$OLD_INSTALL" \
+  --old-closure-digest "$OLD_CLOSURE"
+
+# apply holds FD 9 while it runs the unchanged installer from the canonical
+# manifest, provisions all three declared seeds, and reaches new-ready only
+# after installed projections, managed services, listeners, transient ingress,
+# and its CA-authenticated public endpoint are verified.
+
+NEW_CLOSURE="$(readlink /opt/uap-observer-current | sed 's#^uap-observer-closures/##')"
+NEW_INSTALL="$(cat "/opt/uap-observer-closures/$NEW_CLOSURE/.install-identity")"
+python3 -B "$STABLE_RESET_HELPER" finalize \
+  --machine-id "$MACHINE_ID" \
+  --catalog-sha "$CATALOG_SHA" \
+  --old-install-identity "$OLD_INSTALL" \
+  --old-closure-digest "$OLD_CLOSURE" \
+  --new-install-identity "$NEW_INSTALL" \
+  --new-closure-digest "$NEW_CLOSURE"
+
+unset UAP_OBSERVER_INSTALL_LOCK_FD
+flock -u 9
+exec 9>&-
+```
+
+The first `apply` installs exact digest-bound copies of the reset helper and its
+closure-identity library under `/usr/local/libexec`; use that stable helper for
+every retry, status, rollback, and finalize. It remains outside managed and
+prepared cleanup, so recovery never depends on a checkout that was removed.
+The next transaction may rotate those two files only after the new prepared
+source/catalog is verified and no journal, completion marker, or quarantine
+from any prior reset remains.
+
+Finalize is irreversible after its durable `finalizing` phase begins. It proves
+the explicit new closure and install identity, recreates the exact reviewed
+transient `uap-observer-caddy-internal.service`, proves that process executes the
+new closure, verifies the CA-authenticated public endpoint and exact local
+egress CONNECT path, then removes only the old
+quarantine and fixed prepared tree. A retry resumes the same finalization, and
+an executable still used by public ingress is never deleted.
+
+An ordinary install, provisioning, or health error makes `apply` restore the
+exact old closure, state, units, enablement, active state, and transient ingress
+before returning the primary failure. If a process crash or documented
+failpoint leaves a durable transaction, keep descriptor 9 locked and inspect or
+resume its rollback:
+
+```sh
+python3 -B "$STABLE_RESET_HELPER" status \
+  --machine-id "$MACHINE_ID"
+python3 -B "$STABLE_RESET_HELPER" rollback \
+  --machine-id "$MACHINE_ID" \
+  --catalog-sha "$CATALOG_SHA" \
+  --old-install-identity "$OLD_INSTALL" \
+  --old-closure-digest "$OLD_CLOSURE"
+```
+
+`apply`, `rollback`, and `finalize` are resumable across their failpoints. On an
+unknown error, rerun only that same command or `rollback`; never edit the
+journal, completion tombstone, quarantine, pointer, closure, or unit files
+manually. Rollback enters a durable cleanup phase before deleting candidate
+quarantine. Finalization and rollback write a fixed root-owned completion
+tombstone before removing the journal, so a retry can finish even if power is
+lost after the journal disappears.
+
 ## 3. Install and start
 
 First compute the three `sha256:` arguments from the final adapter, observer,
@@ -1069,6 +1198,15 @@ and key ID match the repository variables.
 
 ## 4. Operate one evidence run
 
+For the sequence-20 cutover, dispatch exactly one Directory publication. Approve
+each of the three protected Directory deployments when GitHub presents it so
+sequence 20 can be built and signed while `stable-launch-e2e` waits. After reset,
+provisioning, health, fresh consent, and fresh human attestation are complete,
+approve each of the two sequential `stable-launch-e2e` protected deployments
+when GitHub presents it. Do not dispatch a second scan or publication while a
+gate waits; a failed staged sequence is superseded only by the next append-only
+sequence.
+
 Before approving the protected job, obtain its challenge, run ID/attempt,
 catalog SHA, canonical request digest, scenario-contract digest, and fresh
 pseudonymous identity/root IDs through the release-coordinator channel. Create
@@ -1119,7 +1257,8 @@ the host from DNS/load balancing, stop Caddy and the observer before stopping
 the proxy, and keep the failed GitHub gate red:
 
 ```sh
-systemctl stop uap-observer-caddy.service uap-observer.service \
+systemctl stop uap-observer-caddy-internal.service \
+  uap-observer-caddy.service uap-observer.service \
   uap-observer-runner.socket uap-observer-runner.service \
   uap-observer-signer.service
 systemctl stop uap-observer-egress-proxy.socket \
@@ -1131,12 +1270,14 @@ Do not bypass OIDC, reuse consent/attestations, edit the installed closure or
 proxy allowlist in place, relax the no-direct-egress firewall policy, or
 substitute fixture evidence. Proxy rollback means restore the last independently
 reviewed source commit and allowlist tuple (including its recorded digest and
-mode) on a new disposable host; do not keep this host serving while changing
-those inputs.
+mode). Before `finalizing`, use the same-VM reset transaction's rollback. Do not
+keep the public ingress serving while changing those inputs.
 
-The current installer supports a fresh host only. If
+The installer itself still supports a clean state only. The same-VM reset helper
+creates that exact clean state under the install lock, runs the unchanged
+installer, and restores the recorded old state on failure. If
 `/opt/uap-observer-current` exists, it accepts only byte-identical inputs and
 verifies that closure; it does not upgrade, switch to another closure, or
-provide a post-deployment downgrade. Rollback for a changed release is therefore
-to return DNS to the last independently healthy host (if one exists) and dispose
-this test host. Build and verify another fresh disposable host for every change.
+provide a post-finalize downgrade. After irreversible finalize, a later release
+uses a new reviewed prepared bundle and another guarded reset transaction on the
+same exact disposable host; do not create another VM merely for a release change.
