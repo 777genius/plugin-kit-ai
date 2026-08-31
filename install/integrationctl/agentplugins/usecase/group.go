@@ -275,6 +275,10 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			if !sameNativeBackend(prior.input.Client.ClientID, target.Client.ClientID) {
 				return result, fmt.Errorf("targets collide on physical backend %s", key)
 			}
+			if prior.noChange {
+				result.Targets[targetIndex].NoChange = true
+				result.Targets[targetIndex].Activation = result.Targets[prior.resultIndexes[0]].Activation
+			}
 			prior.resultIndexes = append(prior.resultIndexes, targetIndex)
 			result.Targets[targetIndex].Plan = prior.plan
 			continue

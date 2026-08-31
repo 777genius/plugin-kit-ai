@@ -557,7 +557,7 @@ func (activator Activator) verifyCopilot(ctx context.Context, request domain.Act
 	if err != nil {
 		return fmt.Errorf("verify Copilot plugin listing: %w", err)
 	}
-	switch copilotPluginStatus(listed.Stdout, pluginSpec) {
+	switch copilotPluginStatus(listed.Stdout, pluginSpec, request.Delivery.ActivePath) {
 	case copilotStatusInstalled:
 		return nil
 	case copilotStatusAbsent:
@@ -974,6 +974,9 @@ func foldJSONKey(key string) string {
 }
 
 var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)
+var copilotLiveEntry = regexp.MustCompile(`^  • ([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*) \(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\) \(([A-Za-z0-9_-]+)\)$`)
+
+const copilotLiveHeader = "Live Plugins (loaded from a local marketplace directory, never copied):"
 
 type copilotStatus int
 
@@ -986,7 +989,52 @@ const (
 var errCopilotListContractUnknown = errors.New("Copilot plugin list output is not recognized")
 var errRecognizedNegativeEvidence = errors.New("recognized negative client evidence")
 
-func copilotPluginStatus(stdout []byte, expected string) copilotStatus {
+func copilotLivePluginStatus(stdout []byte, expected, expectedPath string) (copilotStatus, bool) {
+	document := strings.TrimSuffix(strings.ReplaceAll(string(stdout), "\r\n", "\n"), "\n")
+	lines := strings.Split(document, "\n")
+	if len(lines) == 0 || lines[0] != copilotLiveHeader {
+		return copilotStatusUnknown, false
+	}
+	if len(lines) < 3 || (len(lines)-1)%2 != 0 || strings.TrimSpace(expectedPath) == "" {
+		return copilotStatusUnknown, true
+	}
+	seen := make(map[string]bool, (len(lines)-1)/2)
+	matches := 0
+	for index := 1; index < len(lines); index += 2 {
+		entry := copilotLiveEntry.FindStringSubmatch(lines[index])
+		if len(entry) != 3 || seen[entry[1]] || (entry[2] != "enabled" && entry[2] != "disabled") {
+			return copilotStatusUnknown, true
+		}
+		seen[entry[1]] = true
+		const pathPrefix = "      from "
+		if !strings.HasPrefix(lines[index+1], pathPrefix) {
+			return copilotStatusUnknown, true
+		}
+		listedPath := strings.TrimPrefix(lines[index+1], pathPrefix)
+		if listedPath == "" || !filepath.IsAbs(listedPath) {
+			return copilotStatusUnknown, true
+		}
+		if entry[1] != expected {
+			continue
+		}
+		if entry[2] != "enabled" || filepath.Clean(listedPath) != filepath.Clean(expectedPath) {
+			return copilotStatusUnknown, true
+		}
+		matches++
+	}
+	if matches == 1 {
+		return copilotStatusInstalled, true
+	}
+	if matches > 1 {
+		return copilotStatusUnknown, true
+	}
+	return copilotStatusAbsent, true
+}
+
+func copilotPluginStatus(stdout []byte, expected, expectedPath string) copilotStatus {
+	if status, recognized := copilotLivePluginStatus(stdout, expected, expectedPath); recognized {
+		return status
+	}
 	inInstalledSection := false
 	recognizedSection := false
 	recognizedEntry := false

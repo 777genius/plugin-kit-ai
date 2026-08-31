@@ -437,6 +437,43 @@ func TestCopilotExactVersion1078OutputRemainsSupported(t *testing.T) {
 	}
 }
 
+func TestCopilotLivePluginListingBindsEnabledIdentityAndManagedPath(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	request.VerifyOnly = true
+	spec := "demo@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	live := func(status, path string) []byte {
+		return []byte(copilotLiveHeader + "\n  • " + spec + " (v1.7.0-uap.1) (" + status + ")\n      from " + path + "\n")
+	}
+
+	runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult {
+		return legacyports.CommandResult{Stdout: live("enabled", request.Delivery.ActivePath)}
+	}}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil || outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled {
+		t.Fatalf("live outcome=%+v err=%v", outcome, err)
+	}
+
+	for name, body := range map[string][]byte{
+		"disabled":     live("disabled", request.Delivery.ActivePath),
+		"wrong path":   live("enabled", filepath.Join(t.TempDir(), "other")),
+		"missing path": []byte(copilotLiveHeader + "\n  • " + spec + " (v1.7.0-uap.1) (enabled)\n"),
+		"extra suffix": append(live("enabled", request.Delivery.ActivePath), []byte("unexpected\n")...),
+		"ansi prefix":  append([]byte("\x1b[32m"), live("enabled", request.Delivery.ActivePath)...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult {
+				return legacyports.CommandResult{Stdout: body}
+			}}
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+			if err != nil || outcome.Activation != domain.ActivationManual || outcome.AuthoritativeObservation {
+				t.Fatalf("unknown outcome=%+v err=%v", outcome, err)
+			}
+		})
+	}
+}
+
 func TestActivationAttestationCannotBypassObservableVerifier(t *testing.T) {
 	t.Parallel()
 	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode, domain.ClientKiro} {
