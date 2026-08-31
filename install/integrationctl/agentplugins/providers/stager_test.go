@@ -389,6 +389,16 @@ func TestStagerBuildsManagedCopilotMarketplaceForCopilotAndVSCode(t *testing.T) 
 	}
 }
 
+func TestCopilotMarketplaceVersionDefaultsExactlyOnce(t *testing.T) {
+	t.Parallel()
+	if got := copilotMarketplaceVersion("  "); got != "0.0.0" {
+		t.Fatalf("empty projected version = %q", got)
+	}
+	if got := copilotMarketplaceVersion(" 1.7.0-uap.1 "); got != "1.7.0-uap.1" {
+		t.Fatalf("projected version = %q", got)
+	}
+}
+
 func TestStagerKeepsNativePackageAndSanitizesFailureBoundaries(t *testing.T) {
 	t.Parallel()
 	envelope := stagingEnvelope(t)

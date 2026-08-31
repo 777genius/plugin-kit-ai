@@ -68,6 +68,7 @@ func (planner Planner) Plan(
 		Verification:       domain.VerificationPackageValid,
 		PhysicalArtifactID: physicalArtifactID,
 		DeclaredName:       envelope.Manifest.Name,
+		DeclaredVersion:    envelope.Manifest.Version,
 	}
 	planner.setNativeRegistry(&plan, client)
 	if client.Status != domain.DetectionDetected && client.ClientID != domain.ClientChatGPT {

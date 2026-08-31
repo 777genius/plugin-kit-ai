@@ -407,6 +407,7 @@ func TestCopilotUnknownOutputContractRemainsManual(t *testing.T) {
 		"stderr only":     {Stderr: []byte("Installed plugins:\n  • " + spec + " (v1.0.0)")},
 		"outside section": {Stdout: []byte("• " + spec + " (v1.0.0)")},
 		"bad version":     {Stdout: []byte("Installed plugins:\n  • " + spec + " (latest)")},
+		"wrong version":   {Stdout: []byte("Installed plugins:\n  • " + spec + " (v1.0.1)")},
 		"duplicate":       {Stdout: []byte("Installed plugins:\n  • " + spec + " (v1.0.0)\n  • " + spec + " (v1.0.0)")},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -425,6 +426,7 @@ func TestCopilotUnknownOutputContractRemainsManual(t *testing.T) {
 func TestCopilotExactVersion1078OutputRemainsSupported(t *testing.T) {
 	t.Parallel()
 	request := activationRequest(t, domain.ClientCopilot)
+	request.Plan.DeclaredVersion = "1.0.78"
 	request.BackendExecutable = "/test/bin/copilot"
 	request.VerifyOnly = true
 	spec := "demo@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
@@ -434,6 +436,46 @@ func TestCopilotExactVersion1078OutputRemainsSupported(t *testing.T) {
 	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 	if err != nil || outcome.Activation != domain.ActivationActive {
 		t.Fatalf("outcome=%+v err=%v", outcome, err)
+	}
+}
+
+func TestCopilotLivePluginListingBindsEnabledIdentityAndManagedPath(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientCopilot)
+	request.Plan.DeclaredVersion = "1.7.0-uap.1"
+	request.BackendExecutable = "/test/bin/copilot"
+	request.VerifyOnly = true
+	spec := "demo@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	live := func(version, status, path string) []byte {
+		return []byte(copilotLiveHeader + "\n  • " + spec + " (v" + version + ") (" + status + ")\n      from " + path + "\n")
+	}
+
+	runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult {
+		return legacyports.CommandResult{Stdout: live("1.7.0-uap.1", "enabled", request.Delivery.ActivePath)}
+	}}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil || outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled {
+		t.Fatalf("live outcome=%+v err=%v", outcome, err)
+	}
+
+	for name, body := range map[string][]byte{
+		"disabled":      live("1.7.0-uap.1", "disabled", request.Delivery.ActivePath),
+		"wrong version": live("1.7.0-uap.0", "enabled", request.Delivery.ActivePath),
+		"wrong path":    live("1.7.0-uap.1", "enabled", filepath.Join(t.TempDir(), "other")),
+		"dot path":      live("1.7.0-uap.1", "enabled", filepath.Dir(request.Delivery.ActivePath)+string(filepath.Separator)+"alias"+string(filepath.Separator)+".."+string(filepath.Separator)+filepath.Base(request.Delivery.ActivePath)),
+		"missing path":  []byte(copilotLiveHeader + "\n  • " + spec + " (v1.7.0-uap.1) (enabled)\n"),
+		"extra suffix":  append(live("1.7.0-uap.1", "enabled", request.Delivery.ActivePath), []byte("unexpected\n")...),
+		"ansi prefix":   append([]byte("\x1b[32m"), live("1.7.0-uap.1", "enabled", request.Delivery.ActivePath)...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult {
+				return legacyports.CommandResult{Stdout: body}
+			}}
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+			if err != nil || outcome.Activation != domain.ActivationManual || outcome.AuthoritativeObservation {
+				t.Fatalf("unknown outcome=%+v err=%v", outcome, err)
+			}
+		})
 	}
 }
 
@@ -1040,7 +1082,7 @@ func activationRequest(t *testing.T, client domain.ClientID) domain.ActivationRe
 		DeclaredName: "demo",
 		Plan: domain.DeliveryPlan{
 			ClientID: client, ActivePath: active, PhysicalArtifactID: "demo-0123456789ab",
-			Authentication: domain.AuthenticationNotChecked,
+			DeclaredVersion: "1.0.0", Authentication: domain.AuthenticationNotChecked,
 		},
 		Delivery: domain.StagedDelivery{ClientID: client, OwnedBase: base, ActivePath: active},
 	}

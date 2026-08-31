@@ -332,7 +332,11 @@ func (observer NativeIdentityObserver) inspectCopilotCLI(ctx context.Context, pl
 	if result.ExitCode != 0 {
 		return registryIndeterminate, fmt.Errorf("Copilot plugin registry command failed with exit code %d", result.ExitCode)
 	}
-	return copilotRegistryFinding(result.Stdout, plan.DeclaredName, managedMarketplaceName(plan.PhysicalArtifactID), managed != nil), nil
+	expectedPath := plan.ActivePath
+	if managed != nil && strings.TrimSpace(managed.TargetLocator) != "" {
+		expectedPath = managed.TargetLocator
+	}
+	return copilotRegistryFindingAt(result.Stdout, plan.DeclaredName, managedMarketplaceName(plan.PhysicalArtifactID), copilotMarketplaceVersion(plan.DeclaredVersion), expectedPath, managed != nil), nil
 }
 
 func (observer NativeIdentityObserver) runNativeRegistry(ctx context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
@@ -342,7 +346,25 @@ func (observer NativeIdentityObserver) runNativeRegistry(ctx context.Context, co
 	return observer.Runner.Run(ctx, command)
 }
 
-func copilotRegistryFinding(stdout []byte, name, expectedMarketplace string, owned bool) registryFinding {
+func copilotRegistryFinding(stdout []byte, name, expectedMarketplace, expectedVersion string, owned bool) registryFinding {
+	return copilotRegistryFindingAt(stdout, name, expectedMarketplace, expectedVersion, "", owned)
+}
+
+func copilotRegistryFindingAt(stdout []byte, name, expectedMarketplace, expectedVersion, expectedPath string, owned bool) registryFinding {
+	expected := name + "@" + expectedMarketplace
+	if status, recognized := copilotLivePluginStatus(stdout, expected, expectedVersion, expectedPath); recognized {
+		switch status {
+		case copilotStatusInstalled:
+			if !owned {
+				return registryCollision
+			}
+			return registryExpected
+		case copilotStatusAbsent:
+			return registryClear
+		default:
+			return registryIndeterminate
+		}
+	}
 	normalized := strings.ReplaceAll(string(stdout), "\r\n", "\n")
 	document := strings.TrimSuffix(normalized, "\n")
 	if document == "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin." {
@@ -369,7 +391,7 @@ func copilotRegistryFinding(stdout []byte, name, expectedMarketplace string, own
 			return registryIndeterminate
 		}
 		match := copilotInstalledEntry.FindStringSubmatch(line)
-		if len(match) == 2 {
+		if len(match) == 3 {
 			if recognizedEmpty {
 				return registryIndeterminate
 			}
@@ -384,6 +406,9 @@ func copilotRegistryFinding(stdout []byte, name, expectedMarketplace string, own
 				return registryIndeterminate
 			}
 			if parts[0] == name && parts[1] == expectedMarketplace {
+				if match[2] != expectedVersion {
+					return registryIndeterminate
+				}
 				if !owned {
 					return registryCollision
 				}

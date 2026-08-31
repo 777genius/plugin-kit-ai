@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +146,7 @@ func TestCopilotRegistryFindingRequiresExactNativeIdentity(t *testing.T) {
 		want registryFinding
 	}{
 		{name: "exact", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n", want: registryExpected},
+		{name: "wrong_version", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.1)\n", want: registryIndeterminate},
 		{name: "unrelated", body: "Installed plugins:\n  • other@" + marketplace + " (v1.0.0)\n", want: registryClear},
 		{name: "duplicate", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n  • demo@" + marketplace + " (v1.0.0)\n", want: registryIndeterminate},
 		{name: "absent_short", body: "No plugins installed.\n", want: registryIndeterminate},
@@ -158,10 +160,68 @@ func TestCopilotRegistryFindingRequiresExactNativeIdentity(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := copilotRegistryFinding([]byte(test.body), "demo", marketplace, true); got != test.want {
+			if got := copilotRegistryFinding([]byte(test.body), "demo", marketplace, "1.0.0", true); got != test.want {
 				t.Fatalf("finding = %d, want %d", got, test.want)
 			}
 		})
+	}
+}
+
+func TestCopilotLiveRegistryFindingRequiresExactIdentityStatusAndPath(t *testing.T) {
+	t.Parallel()
+	marketplace := "agentplugins-demo-0123456789ab"
+	path := filepath.Join(t.TempDir(), "managed", "demo")
+	header := copilotLiveHeader + "\n"
+	entry := func(name, version, status, from string) string {
+		return header + "  • " + name + "@" + marketplace + " (v" + version + ") (" + status + ")\n      from " + from + "\n"
+	}
+	tests := []struct {
+		name  string
+		body  string
+		owned bool
+		want  registryFinding
+	}{
+		{name: "managed", body: entry("demo", "1.7.0-uap.1", "enabled", path), owned: true, want: registryExpected},
+		{name: "managed with unrelated", body: entry("other", "9.9.9", "enabled", path) + strings.TrimPrefix(entry("demo", "1.7.0-uap.1", "enabled", path), header), owned: true, want: registryExpected},
+		{name: "managed CRLF", body: strings.ReplaceAll(entry("demo", "1.7.0-uap.1", "enabled", path), "\n", "\r\n"), owned: true, want: registryExpected},
+		{name: "unowned collision", body: entry("demo", "1.7.0-uap.1", "enabled", path), want: registryCollision},
+		{name: "unrelated", body: entry("other", "9.9.9", "enabled", path), owned: true, want: registryClear},
+		{name: "disabled", body: entry("demo", "1.7.0-uap.1", "disabled", path), owned: true, want: registryIndeterminate},
+		{name: "wrong version", body: entry("demo", "1.7.0-uap.0", "enabled", path), owned: true, want: registryIndeterminate},
+		{name: "wrong path", body: entry("demo", "1.7.0-uap.1", "enabled", filepath.Join(t.TempDir(), "other")), owned: true, want: registryIndeterminate},
+		{name: "dot segment path", body: entry("demo", "1.7.0-uap.1", "enabled", filepath.Dir(path)+string(filepath.Separator)+"alias"+string(filepath.Separator)+".."+string(filepath.Separator)+filepath.Base(path)), owned: true, want: registryIndeterminate},
+		{name: "duplicate", body: entry("demo", "1.7.0-uap.1", "enabled", path) + strings.TrimPrefix(entry("demo", "1.7.0-uap.1", "enabled", path), header), owned: true, want: registryIndeterminate},
+		{name: "missing from", body: header + "  • demo@" + marketplace + " (v1.7.0-uap.1) (enabled)\n", owned: true, want: registryIndeterminate},
+		{name: "extra suffix", body: entry("demo", "1.7.0-uap.1", "enabled", path) + "unexpected\n", owned: true, want: registryIndeterminate},
+		{name: "ansi prefix", body: "\x1b[32m" + entry("demo", "1.7.0-uap.1", "enabled", path), owned: true, want: registryIndeterminate},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := copilotRegistryFindingAt([]byte(test.body), "demo", marketplace, "1.7.0-uap.1", path, test.owned); got != test.want {
+				t.Fatalf("finding=%d want=%d", got, test.want)
+			}
+		})
+	}
+}
+
+func TestNativeIdentityCopilotAcceptsExactLiveManagedRegistration(t *testing.T) {
+	t.Parallel()
+	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
+	plan.DeclaredVersion = "1.7.0-uap.1"
+	plan.NativeRegistryExecutable = "/test/bin/copilot"
+	if err := os.MkdirAll(plan.ActivePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeIdentityFile(t, filepath.Join(plan.ActivePath, "plugin.json"), `{"name":"demo"}`)
+	marketplace := managedMarketplaceName(plan.PhysicalArtifactID)
+	managed := &domain.ClientBinding{TargetLocator: plan.ActivePath, NativeObjects: []domain.NativeObjectOwnership{{Kind: "managed_package_directory", ManagedDigest: "sha256:owned"}}}
+	listing := copilotLiveHeader + "\n  • demo@" + marketplace + " (v1.7.0-uap.1) (enabled)\n      from " + plan.ActivePath + "\n"
+	runner := &identityRunner{result: legacyports.CommandResult{Stdout: []byte(listing)}}
+	observation, err := (NativeIdentityObserver{Runner: runner, Stager: acceptingPackageVerifier{}}).ObserveNativeIdentity(
+		context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, managed,
+	)
+	if err != nil || observation.State != domain.NativeIdentityManaged || !observation.NativeDiscoveryReconciled {
+		t.Fatalf("observation=%+v err=%v", observation, err)
 	}
 }
 
@@ -290,6 +350,7 @@ func identityPlan(root string) domain.DeliveryPlan {
 	artifact := "demo-0123456789ab"
 	return domain.DeliveryPlan{
 		DeclaredName:       "demo",
+		DeclaredVersion:    "1.0.0",
 		PhysicalArtifactID: artifact,
 		TargetRoot:         root,
 		ActivePath:         filepath.Join(root, artifact),
