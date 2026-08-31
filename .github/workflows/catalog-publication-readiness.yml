@@ -30,6 +30,8 @@ env:
   BASELINE_LEDGER_SHA: ${{ inputs.baseline_ledger_sha }}
   AGENTPLUGINS_VERSION: "0.1.25"
   AGENTPLUGINS_COMMIT: d168b28bcdeef0c558bee3935adab25abb9f6267
+  SOURCE_POLICY_AGENTPLUGINS_VERSION: "0.1.24"
+  SOURCE_POLICY_AGENTPLUGINS_COMMIT: c78c79e44efd5ad07083d63436d9170b107df6cb
   CLAUDE_CODE_VERSION: "2.1.251"
   CLAUDE_CODE_NPM_INTEGRITY: sha512-eG+ZPPpW2Dbmnntf1Fz9/T9ewS8I8SKfc1tcU2PqSwmftfjRPP7BXPaCyLuZ8kvgTdiPnJi/2/JnTvTRieneEQ==
   COPILOT_VERSION: "1.0.82"
@@ -72,7 +74,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: 777genius/plugin-kit-ai
-          ref: d168b28bcdeef0c558bee3935adab25abb9f6267
+          ref: c78c79e44efd5ad07083d63436d9170b107df6cb
           path: _plugin-kit-source
           fetch-depth: 0
           persist-credentials: false
@@ -208,14 +210,31 @@ jobs:
           for name, version in packages.items():
               assert json.loads((root / "node_modules" / name / "package.json").read_text())["version"] == version
           PY
+      - name: Download and authenticate the frozen source-policy release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/source-policy-release"
+          gh release download "agentplugins-v${SOURCE_POLICY_AGENTPLUGINS_VERSION}" \
+            --repo 777genius/plugin-kit-ai \
+            --pattern checksums.txt --pattern release-manifest.json \
+            --dir "$RUNNER_TEMP/source-policy-release"
+          cd "$RUNNER_TEMP/source-policy-release"
+          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = 623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3
+          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2
+          for asset in checksums.txt release-manifest.json; do
+            gh attestation verify "$asset" --repo 777genius/plugin-kit-ai \
+              --signer-workflow 777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml \
+              --source-digest "$SOURCE_POLICY_AGENTPLUGINS_COMMIT" --deny-self-hosted-runners
+          done
       - name: Require all eleven exact-source policy cases
         run: |
-          test "$(git -C _plugin-kit-source rev-parse HEAD)" = "$AGENTPLUGINS_COMMIT"
-          test "$(git -C _plugin-kit-source describe --tags --exact-match HEAD)" = "agentplugins-v${AGENTPLUGINS_VERSION}"
+          test "$(git -C _plugin-kit-source rev-parse HEAD)" = "$SOURCE_POLICY_AGENTPLUGINS_COMMIT"
+          test "$(git -C _plugin-kit-source describe --tags --exact-match HEAD)" = "agentplugins-v${SOURCE_POLICY_AGENTPLUGINS_VERSION}"
           python3 scripts/run_source_policy_conformance.py \
             --source _plugin-kit-source --schema-version 2 \
-            --release-manifest "$RUNNER_TEMP/release/release-manifest.json" \
-            --release-checksums "$RUNNER_TEMP/release/checksums.txt" \
+            --release-manifest "$RUNNER_TEMP/source-policy-release/release-manifest.json" \
+            --release-checksums "$RUNNER_TEMP/source-policy-release/checksums.txt" \
             --uap-sha "$WORKFLOW_SHA" --output evidence/source-policy-conformance.json
       - name: Prove the exact catalog matrix in fresh credential-free roots
         run: |
