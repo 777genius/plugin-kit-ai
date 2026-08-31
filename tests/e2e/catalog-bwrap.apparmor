@@ -1,0 +1,9 @@
+# Ephemeral GitHub-hosted jobs only; loaded and removed by the owning job.
+# Ubuntu's per-application user namespace allowance, without global sysctl changes:
+# https://discourse.ubuntu.com/t/ubuntu-24-04-lts-noble-numbat-release-notes/39890
+abi <abi/4.0>,
+include <tunables/global>
+
+profile uap-catalog-bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+}

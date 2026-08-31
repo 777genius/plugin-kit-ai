@@ -67,9 +67,11 @@ def credential_free_environment(
     return environment
 
 
-def materialize_inspector_config(plugin: str, sandbox: Path) -> tuple[Path, dict[str, str]]:
+def materialize_inspector_config(
+    plugin: str, sandbox: Path, *, plugin_root: Path | None = None,
+) -> tuple[Path, dict[str, str]]:
     """Bind client-provided plugin paths to one disposable Inspector sandbox."""
-    plugin_root = (ROOT / "plugins" / plugin).resolve()
+    plugin_root = (plugin_root or ROOT / "plugins" / plugin).resolve(strict=True)
     plugin_data = (sandbox / "plugin-data").resolve()
     plugin_data.mkdir(mode=0o700)
 
@@ -181,14 +183,16 @@ def inspector_check(
     tool_args: dict[str, Any] | None = None,
     stored_auth_only: bool = False,
     timeout: int = 90,
+    plugin_root: Path | None = None,
+    npx: str = "npx",
+    inspector: Path | None = None,
+    sandbox_parent: Path | None = None,
+    process_runner=None,
 ) -> dict[str, Any]:
     """Run one MCP Inspector check in a disposable client directory."""
-    with tempfile.TemporaryDirectory(prefix=f"uap-{plugin}-") as sandbox:
-        config, environment = materialize_inspector_config(plugin, Path(sandbox))
-        command = [
-            "npx",
-            "-y",
-            INSPECTOR,
+    with tempfile.TemporaryDirectory(prefix=f"uap-{plugin}-", dir=sandbox_parent) as sandbox:
+        config, environment = materialize_inspector_config(plugin, Path(sandbox), plugin_root=plugin_root)
+        command = ([str(inspector)] if inspector is not None else [npx, "-y", INSPECTOR]) + [
             "--cli",
             "--config",
             str(config),
@@ -209,7 +213,7 @@ def inspector_check(
             command.append("--stored-auth-only")
 
         try:
-            completed = subprocess.run(
+            completed = (process_runner or subprocess.run)(
                 command,
                 cwd=sandbox,
                 capture_output=True,

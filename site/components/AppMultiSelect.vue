@@ -62,7 +62,7 @@ function toggle(value: string) {
       <span class="app-multiselect__chevron" aria-hidden="true">⌄</span>
     </PopoverTrigger>
     <PopoverPortal>
-      <PopoverContent class="app-multiselect__content" align="start" :side-offset="7">
+      <PopoverContent class="app-multiselect__content" align="start" :side-offset="7" :collision-padding="14">
         <div class="app-multiselect__heading"><strong>{{ label }}</strong><span>{{ selected.length }} selected</span></div>
         <div class="app-multiselect__options" role="group" :aria-label="label">
           <button

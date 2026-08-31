@@ -159,9 +159,9 @@ class LaunchApprovalTransitionTests(unittest.TestCase):
         self.assertIn('--ledger-old "${EXPECTED_LEDGER_COMMIT}"', marker_commands)
         self.assertEqual(
             set(jobs["deploy"]["needs"]),
-            {"sign", "materialize_site", "gate_exact_staged_publication", "gate_launch_approval"},
+            {"sign", "materialize_site", "gate_exact_staged_publication", "required_catalog_readiness"},
         )
-        self.assertIn("needs.gate_launch_approval.result == 'success'", jobs["deploy"]["if"])
+        self.assertIn("needs.required_catalog_readiness.result == 'success'", jobs["deploy"]["if"])
         self.assertNotIn("required_stable_launch_evidence", jobs["deploy"]["if"])
 
 

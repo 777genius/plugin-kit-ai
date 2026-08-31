@@ -21,10 +21,18 @@ on:
       - "scripts/prepare_directory_publication.py"
       - "scripts/publication_trust_policy.py"
       - "scripts/sign_directory_publication.py"
+      - "scripts/catalog_publication_readiness.py"
+      - ".github/workflows/catalog-publication-readiness.yml"
   schedule:
     - cron: "17 4 * * 1"
   workflow_dispatch:
     inputs:
+      publication_mode:
+        description: Catalog publication, or evidence-only account runtime for an exact staged resume
+        required: true
+        default: catalog
+        type: choice
+        options: [catalog, account-runtime-evidence]
       initialize_ledger:
         description: Explicitly initialize schema 1 from ledger_seed_commit
         required: false
@@ -71,6 +79,28 @@ jobs:
     outputs:
       completed: ${{ steps.state.outputs.completed }}
     steps:
+      - name: Validate explicit evidence-only mode before any publication mutation
+        env:
+          PUBLICATION_MODE: ${{ inputs.publication_mode || 'catalog' }}
+          EVENT_NAME: ${{ github.event_name }}
+          RESUME_ID: ${{ inputs.resume_publication_id }}
+          RESUME_SEQUENCE: ${{ inputs.resume_sequence }}
+          INITIALIZE_LEDGER: ${{ inputs.initialize_ledger }}
+          SUPERSEDE_ID: ${{ inputs.supersede_publication_id }}
+          SUPERSEDE_SEQUENCE: ${{ inputs.supersede_sequence }}
+        run: |
+          case "$PUBLICATION_MODE" in
+            catalog) ;;
+            account-runtime-evidence)
+              test "$EVENT_NAME" = workflow_dispatch
+              test -n "$RESUME_ID"
+              test -n "$RESUME_SEQUENCE"
+              test "$INITIALIZE_LEDGER" != true
+              test -z "$SUPERSEDE_ID"
+              test -z "$SUPERSEDE_SEQUENCE"
+              ;;
+            *) exit 1 ;;
+          esac
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -953,6 +983,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    outputs:
+      baseline_ledger_commit: ${{ steps.baseline.outputs.commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -969,6 +1001,25 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Freeze the signed production baseline, never the staged predecessor
+        id: baseline
+        env:
+          SIGNED_LEDGER_COMMIT: ${{ needs.sign.outputs.ledger_commit }}
+        run: |
+          marker=trusted-source/registry/publication/production-marker.json
+          production_ref="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["marker_ref"])' "$marker")"
+          if ! production_refs="$(git -C staged-publication ls-remote --refs origin "$production_ref")"; then
+            echo "Cannot authenticate the current production baseline" >&2
+            exit 1
+          fi
+          baseline="$(printf '%s\n' "$production_refs" | awk '{print $1}')"
+          if test -z "$baseline"; then
+            baseline="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["bootstrap_materialized_commit"])' "$marker")"
+          fi
+          [[ "$baseline" =~ ^[0-9a-f]{40}$ ]]
+          git -C staged-publication fetch --no-tags origin "$baseline"
+          git -C staged-publication merge-base --is-ancestor "$baseline" "$SIGNED_LEDGER_COMMIT"
+          echo "commit=$baseline" >> "$GITHUB_OUTPUT"
       - name: Verify staged bytes and immutable identity before promotion
         env:
           EXPECTED_SEQUENCE: ${{ needs.sign.outputs.sequence }}
@@ -1073,10 +1124,30 @@ jobs:
             --product-id context7 \
             --cli-version "${AGENTPLUGINS_VERSION}"
 
+  required_catalog_readiness:
+    name: Require fresh catalog-only readiness for this publication
+    needs: [sign, materialize_site, gate_exact_staged_publication]
+    if: ${{ inputs.publication_mode != 'account-runtime-evidence' && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' }}
+    uses: ./.github/workflows/catalog-publication-readiness.yml
+    with:
+      publication_id: ${{ needs.sign.outputs.publication_id }}
+      sequence: ${{ needs.sign.outputs.sequence }}
+      snapshot_digest: ${{ needs.sign.outputs.snapshot_digest }}
+      source_sha: ${{ needs.sign.outputs.marker_commit }}
+      workflow_sha: ${{ github.sha }}
+      signed_ledger_sha: ${{ needs.sign.outputs.ledger_commit }}
+      materialized_ledger_sha: ${{ needs.materialize_site.outputs.publication_commit }}
+      baseline_ledger_sha: ${{ needs.gate_exact_staged_publication.outputs.baseline_ledger_commit }}
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+
   required_stable_launch_evidence:
-    name: Require stable launch evidence before initial production promotion
+    name: Collect explicit account-runtime evidence without deployment
     needs: [prepare, sign, materialize_site, gate_exact_staged_publication]
-    if: ${{ needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.prepare.outputs.launch_approved == 'false' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publication_mode == 'account-runtime-evidence' && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.prepare.outputs.launch_approved == 'false' }}
     uses: ./.github/workflows/live-e2e.yml
     with:
       consent: true
@@ -1097,7 +1168,7 @@ jobs:
   record_launch_approval:
     name: Persist evidence and record exact protected launch approval
     needs: [prepare, sign, materialize_site, gate_exact_staged_publication, required_stable_launch_evidence]
-    if: ${{ always() && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.prepare.outputs.launch_approved == 'false' && needs.required_stable_launch_evidence.result == 'success' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.publication_mode == 'account-runtime-evidence' && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.prepare.outputs.launch_approved == 'false' && needs.required_stable_launch_evidence.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: directory-publication
@@ -1266,7 +1337,7 @@ jobs:
   gate_launch_approval:
     name: Require protected launch approval for this ledger lineage
     needs: [prepare, sign, materialize_site, gate_exact_staged_publication, required_stable_launch_evidence, record_launch_approval]
-    if: ${{ always() && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && ((needs.prepare.outputs.launch_approved == 'false' && needs.required_stable_launch_evidence.result == 'success' && needs.record_launch_approval.result == 'success') || (needs.prepare.outputs.launch_approved == 'true' && needs.required_stable_launch_evidence.result == 'skipped' && needs.record_launch_approval.result == 'skipped')) }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.publication_mode == 'account-runtime-evidence' && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && ((needs.prepare.outputs.launch_approved == 'false' && needs.required_stable_launch_evidence.result == 'success' && needs.record_launch_approval.result == 'success') || (needs.prepare.outputs.launch_approved == 'true' && needs.required_stable_launch_evidence.result == 'skipped' && needs.record_launch_approval.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -1300,8 +1371,8 @@ jobs:
 
   deploy:
     name: Promote exact gated Pages tree
-    needs: [sign, materialize_site, gate_exact_staged_publication, gate_launch_approval]
-    if: ${{ always() && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.gate_launch_approval.result == 'success' }}
+    needs: [sign, materialize_site, gate_exact_staged_publication, required_catalog_readiness]
+    if: ${{ always() && inputs.publication_mode != 'account-runtime-evidence' && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.required_catalog_readiness.result == 'success' && needs.required_catalog_readiness.outputs.run_attempt == github.run_attempt }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

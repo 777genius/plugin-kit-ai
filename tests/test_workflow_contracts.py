@@ -21,6 +21,7 @@ LIVE = ROOT / ".github/workflows/live-e2e.yml"
 PAGES = ROOT / ".github/workflows/pages.yml"
 VALIDATE = ROOT / ".github/workflows/validate.yml"
 DIRECTORY_PUBLICATION = ROOT / ".github/workflows/directory-publication.yml"
+CATALOG_READINESS = ROOT / ".github/workflows/catalog-publication-readiness.yml"
 DISCOVERY_INDEX = ROOT / ".github/workflows/discovery-index.yml"
 UPSTREAM_PROMOTION = ROOT / ".github/workflows/upstream-promotion-readiness.yml"
 OBSERVER_RUNBOOK = ROOT / "docs/OBSERVER_OPERATIONS.md"
@@ -47,6 +48,367 @@ def pinned_requirements(body: str) -> set[str]:
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_catalog_gate_is_fresh_per_publication_and_has_no_skip_bypass(self) -> None:
+        workflow = load(DIRECTORY_PUBLICATION)
+        gate = workflow["jobs"]["required_catalog_readiness"]
+        deploy = workflow["jobs"]["deploy"]
+        self.assertEqual(gate["uses"], "./.github/workflows/catalog-publication-readiness.yml")
+        self.assertEqual(set(gate["needs"]), {"sign", "materialize_site", "gate_exact_staged_publication"})
+        self.assertEqual(gate["with"], {
+            "publication_id": "${{ needs.sign.outputs.publication_id }}",
+            "sequence": "${{ needs.sign.outputs.sequence }}",
+            "snapshot_digest": "${{ needs.sign.outputs.snapshot_digest }}",
+            "source_sha": "${{ needs.sign.outputs.marker_commit }}",
+            "workflow_sha": "${{ github.sha }}",
+            "signed_ledger_sha": "${{ needs.sign.outputs.ledger_commit }}",
+            "materialized_ledger_sha": "${{ needs.materialize_site.outputs.publication_commit }}",
+            "baseline_ledger_sha": "${{ needs.gate_exact_staged_publication.outputs.baseline_ledger_commit }}",
+        })
+        self.assertNotIn("launch_approved", gate["if"] + deploy["if"])
+        self.assertNotIn("gate_launch_approval", deploy["needs"])
+        self.assertNotIn("skipped", deploy["if"])
+        self.assertNotIn("||", deploy["if"])
+        self.assertIn("needs.required_catalog_readiness.outputs.run_attempt == github.run_attempt", deploy["if"])
+        for job in ("sign", "materialize_site", "gate_exact_staged_publication", "required_catalog_readiness"):
+            self.assertIn(f"needs.{job}.result == 'success'", deploy["if"])
+        exact = workflow["jobs"]["gate_exact_staged_publication"]
+        baseline = next(step for step in exact["steps"] if step.get("id") == "baseline")
+        self.assertIn("production-marker.json", baseline["run"])
+        self.assertIn("bootstrap_materialized_commit", baseline["run"])
+        self.assertIn('merge-base --is-ancestor "$baseline" "$SIGNED_LEDGER_COMMIT"', baseline["run"])
+        self.assertNotIn("HEAD^", baseline["run"])
+
+    def test_catalog_producer_and_attester_have_separate_credential_boundaries(self) -> None:
+        workflow = load(CATALOG_READINESS)
+        self.assertEqual(set(workflow["on"]), {"workflow_call"})
+        producer, attester, verifier = (workflow["jobs"][name] for name in ("produce", "attest", "verify"))
+        self.assertEqual(producer["permissions"], {"contents": "read", "attestations": "read"})
+        for job in (producer, attester, verifier):
+            self.assertNotIn("environment", job)
+            self.assertNotIn("secrets.", yaml.safe_dump(job))
+            self.assertNotIn("self-hosted", job["runs-on"])
+            for step in job["steps"]:
+                if step.get("uses", "").startswith("actions/checkout"):
+                    self.assertEqual(step["with"]["persist-credentials"], "false")
+        self.assertEqual(attester["permissions"]["id-token"], "write")
+        self.assertEqual(attester["permissions"]["attestations"], "write")
+        self.assertNotIn("id-token", verifier["permissions"])
+        for job in (attester, verifier):
+            body = commands(job)
+            self.assertIn("catalog_publication_readiness.py verify", body)
+            self.assertNotIn("catalog_publication_readiness.py produce", body)
+            self.assertNotIn("npm install", body)
+            self.assertNotIn("npx ", body)
+        for step in producer["steps"]:
+            if "GH_TOKEN" in step.get("env", {}):
+                self.assertIn("Download and authenticate", step["name"])
+                self.assertNotIn("catalog_publication_readiness.py", step["run"])
+                self.assertNotIn(" version", step["run"])
+        self.assertEqual(attester["needs"], "produce")
+        self.assertIn("needs.produce.result == 'success'", attester["if"])
+        self.assertEqual(set(verifier["needs"]), {"produce", "attest"})
+        self.assertIn("needs.produce.result == 'success'", verifier["if"])
+        self.assertIn("needs.attest.result == 'success'", verifier["if"])
+
+    def test_production_baseline_distinguishes_missing_marker_from_remote_failure(self) -> None:
+        job = load(DIRECTORY_PUBLICATION)["jobs"]["gate_exact_staged_publication"]
+        body = next(step["run"] for step in job["steps"] if step.get("id") == "baseline")
+        stub = '''git() {
+          if test "$3" = ls-remote; then
+            case "$REMOTE_CASE" in
+              absent) return 0 ;;
+              present) printf '%s\\t%s\\n' "$REMOTE_SHA" "$6"; return 0 ;;
+              failed) return 128 ;;
+              failed_with_output) printf '%s\\t%s\\n' "$REMOTE_SHA" "$6"; return 128 ;;
+            esac
+          fi
+          return 0
+        }
+        '''
+        for remote_case, expected in (("absent", "a" * 40), ("present", "b" * 40), ("failed", None), ("failed_with_output", None)):
+            with self.subTest(remote_case=remote_case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                marker_root = root / "trusted-source/registry/publication"
+                marker_root.mkdir(parents=True)
+                (marker_root / "production-marker.json").write_text(json.dumps({
+                    "marker_ref": "refs/tags/directory-publication-schema-1-production",
+                    "bootstrap_materialized_commit": "a" * 40,
+                }))
+                output = root / "output"
+                environment = {
+                    "PATH": os.environ["PATH"], "REMOTE_CASE": remote_case, "REMOTE_SHA": "b" * 40,
+                    "SIGNED_LEDGER_COMMIT": "c" * 40, "GITHUB_OUTPUT": str(output),
+                }
+                result = subprocess.run(["bash", "-e", "-c", stub + body], cwd=root, env=environment, capture_output=True)
+                if expected is None:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(output.exists())
+                    self.assertIn(b"Cannot authenticate", result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr.decode())
+                    self.assertEqual(output.read_text(), f"commit={expected}\n")
+
+    def test_catalog_isolation_is_required_on_matching_linux_ci_and_producer_runners(self) -> None:
+        producer = load(CATALOG_READINESS)["jobs"]["produce"]
+        portable = load(VALIDATE)["jobs"]["portable-catalog"]
+        self.assertEqual(producer["runs-on"], "ubuntu-24.04")
+        self.assertEqual(portable["runs-on"], producer["runs-on"])
+        for job in (producer, portable):
+            install = next(step for step in job["steps"] if step.get("name") == "Install the current stable Ubuntu bubblewrap package and record namespace policy")
+            preflight = next(step for step in job["steps"] if step.get("name", "").startswith("Require Linux child confinement"))
+            self.assertIn("sudo apt-get update", install["run"])
+            self.assertIn('"bubblewrap=$candidate"', install["run"])
+            self.assertIn("dpkg-query", install["run"])
+            self.assertIn("apparmor_restrict_unprivileged_userns", install["run"])
+            self.assertNotIn("sysctl -w", install["run"])
+            self.assertNotIn("systemctl", install["run"])
+            self.assertNotIn("chmod", install["run"])
+            self.assertNotIn("if", preflight)
+            self.assertNotIn("continue-on-error", preflight)
+            self.assertEqual(preflight["run"], "python3 -m unittest tests.test_catalog_process_isolation -v")
+            self.assertLess(job["steps"].index(install), job["steps"].index(preflight))
+        install_client = next(step for step in producer["steps"] if step.get("name") == "Install exact public clients without account credentials")
+        preflight = next(step for step in producer["steps"] if step.get("name", "").startswith("Require Linux child confinement"))
+        self.assertLess(producer["steps"].index(preflight), producer["steps"].index(install_client))
+        self.assertIn("from catalog_process_isolation import run_isolated", install_client["run"])
+        self.assertIn("writable_root=root.resolve()", install_client["run"])
+        self.assertIn("read_only_paths=(node_root,)", install_client["run"])
+        self.assertNotRegex(install_client["run"], r"(?m)^\s*npm (?:install|audit)")
+
+    def test_catalog_npm_install_and_audit_use_only_the_isolated_allowlisted_environment(self) -> None:
+        producer = load(CATALOG_READINESS)["jobs"]["produce"]
+        install = next(step for step in producer["steps"] if step.get("name") == "Install exact public clients without account credentials")
+        code = install["run"].split("python3 - <<'PY'\n", 1)[1].split("\nPY", 1)[0]
+        prelude = '''import json,os,shutil,subprocess,sys,types
+from pathlib import Path
+shutil.which=lambda name: '/usr/bin/true'
+module=types.ModuleType('catalog_process_isolation')
+def isolated(argv, **kwargs):
+    root=Path(os.environ['TOOLS_ROOT']).resolve()
+    assert kwargs['writable_root'] == kwargs['cwd'] == root
+    assert kwargs['timeout'] == 600
+    assert 'GITHUB_TOKEN' not in kwargs['env']
+    assert kwargs['env']['HOME'] == str(root/'home')
+    assert kwargs['env']['NPM_CONFIG_CACHE'] == str(root/'npm-cache')
+    assert kwargs['read_only_paths'] == (Path('/usr'),)
+    if argv[1] == 'install':
+        for name,key in (('@anthropic-ai/claude-code','CLAUDE_CODE_VERSION'),('@github/copilot','COPILOT_VERSION'),('@modelcontextprotocol/inspector','INSPECTOR_VERSION')):
+            path=root/'node_modules'/name/'package.json'
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_text(json.dumps({'version':os.environ[key]}))
+    with (root/'calls').open('a') as stream: stream.write(argv[1]+'\\n')
+    return subprocess.CompletedProcess(argv, 1 if os.environ['FAIL_PHASE']==argv[1] else 0, '', '')
+module.run_isolated=isolated
+sys.modules['catalog_process_isolation']=module
+'''
+        for phase, expected in (("none", True), ("install", False), ("audit", False)):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "tools"
+                environment = {
+                    "PATH": os.environ["PATH"], "TOOLS_ROOT": str(root), "FAIL_PHASE": phase,
+                    "GITHUB_TOKEN": "fixture-must-not-reach-child",
+                    "CLAUDE_CODE_VERSION": "2.1.251", "COPILOT_VERSION": "1.0.82", "INSPECTOR_VERSION": "2.1.0",
+                }
+                result = subprocess.run(["python3", "-c", prelude + code], cwd=directory, env=environment, capture_output=True)
+                self.assertEqual(result.returncode == 0, expected, result.stderr.decode())
+                self.assertEqual((root / "calls").read_text(), "install\n" if phase == "install" else "install\naudit\n")
+
+    def test_every_full_python_suite_consumer_prepares_mandatory_linux_isolation(self) -> None:
+        producer = load(CATALOG_READINESS)["jobs"]["produce"]
+        install_name = "Install the current stable Ubuntu bubblewrap package and record namespace policy"
+        required_install = next(step["run"] for step in producer["steps"] if step.get("name") == install_name)
+        consumers = set()
+        for path in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            for name, job in load(path).get("jobs", {}).items():
+                steps = job.get("steps", [])
+                for suite_index, step in enumerate(steps):
+                    if not re.search(r"\bunittest(?:\s+-[^\s]+)*\s+discover\b", step.get("run", "")):
+                        continue
+                    consumers.add((path.name, name))
+                    with self.subTest(workflow=path.name, job=name):
+                        self.assertEqual(job["runs-on"], "ubuntu-24.04")
+                        install = next((item for item in steps[:suite_index] if item.get("name") == install_name), None)
+                        self.assertIsNotNone(install, "full discovery requires bubblewrap setup before the suite")
+                        self.assertEqual(install["run"], required_install)
+                        self.assertNotIn("if", install)
+                        self.assertNotIn("continue-on-error", install)
+                        preflight = next((item for item in steps[:suite_index] if item.get("name", "").startswith("Require Linux child confinement")), None)
+                        self.assertIsNotNone(preflight, "full discovery must not silently skip Linux isolation")
+                        self.assertEqual(preflight["run"], "python3 -m unittest tests.test_catalog_process_isolation -v")
+                        self.assertNotIn("if", preflight)
+                        self.assertNotIn("continue-on-error", preflight)
+                        self.assertLess(steps.index(install), steps.index(preflight))
+                        profile = next((item for item in steps[:steps.index(preflight)] if item.get("id") == "isolation_profile"), None)
+                        self.assertIsNotNone(profile, "Linux isolation requires its per-executable AppArmor allowance")
+                        cleanup = next((item for item in steps[suite_index + 1:] if item.get("name") == "Remove only this job's ephemeral AppArmor allowance"), None)
+                        self.assertIsNotNone(cleanup, "every full-suite consumer must remove its own allowance")
+        self.assertTrue({("pages.yml", "build"), ("validate.yml", "portable-catalog")} <= consumers)
+
+    def test_catalog_apparmor_allowance_is_exact_root_owned_and_always_cleaned(self) -> None:
+        rules = [line.strip() for line in (ROOT / "tests/e2e/catalog-bwrap.apparmor").read_text().splitlines() if line.strip() and not line.lstrip().startswith("#")]
+        self.assertEqual(rules, [
+            "abi <abi/4.0>,", "include <tunables/global>",
+            "profile uap-catalog-bwrap /usr/bin/bwrap flags=(unconfined) {", "userns,", "}",
+        ])
+        jobs = (load(CATALOG_READINESS)["jobs"]["produce"], load(VALIDATE)["jobs"]["portable-catalog"], load(PAGES)["jobs"]["build"])
+        profiles, cleanups = [], []
+        for job in jobs:
+            steps = job["steps"]
+            profile = next(step for step in steps if step.get("id") == "isolation_profile")
+            cleanup = next(step for step in steps if step.get("name") == "Remove only this job's ephemeral AppArmor allowance")
+            preflight = next(step for step in steps if step.get("name", "").startswith("Require Linux child confinement"))
+            self.assertNotIn("if", profile)
+            self.assertNotIn("continue-on-error", profile)
+            self.assertLess(steps.index(profile), steps.index(preflight))
+            self.assertIs(steps[-1], cleanup)
+            self.assertEqual(cleanup["if"], "${{ always() && steps.isolation_profile.outputs.profile_owned == 'true' }}")
+            body = profile["run"]
+            for guard in (
+                'test "$GITHUB_ACTIONS" = true', 'test ! -e "$profile"', 'test ! -L "$profile"',
+                "root:root:755", "root:root:644", "sudo grep -R -q -F /usr/bin/bwrap /etc/apparmor.d",
+                "^uap-catalog-bwrap ", "--skip-kernel-load --skip-cache tests/e2e/catalog-bwrap.apparmor",
+                "sudo install -o root -g root -m 0644", '--add --skip-cache "$profile"',
+            ):
+                self.assertIn(guard, body)
+            self.assertLess(body.index("--skip-kernel-load"), body.index('echo "profile_owned=true"'))
+            self.assertLess(body.index('echo "profile_owned=true"'), body.index("sudo install"))
+            self.assertNotIn("--replace", body)
+            self.assertIn('--remove --skip-cache "$profile" || status=$?', cleanup["run"])
+            self.assertIn('sudo rm -- "$profile"', cleanup["run"])
+            self.assertIn('exit "$status"', cleanup["run"])
+            for forbidden in ("sysctl -w", "/etc/sysctl", "systemctl", "aa-disable", "rm -r", "sudo bwrap", "|| true"):
+                self.assertNotIn(forbidden, body + cleanup["run"])
+            profiles.append(body)
+            cleanups.append(cleanup["run"])
+        self.assertEqual(profiles, [profiles[0]] * 3)
+        self.assertEqual(cleanups, [cleanups[0]] * 3)
+
+    def test_catalog_gate_attests_both_canonical_subjects_and_exact_oidc_invocation(self) -> None:
+        workflow = load(CATALOG_READINESS)
+        producer, attester, verifier = (workflow["jobs"][name] for name in ("produce", "attest", "verify"))
+        policy = next(step for step in producer["steps"] if step.get("name") == "Require all eleven exact-source policy cases")
+        self.assertNotIn("if", policy)
+        self.assertNotIn("continue-on-error", policy)
+        self.assertIn("--schema-version 2", policy["run"])
+        self.assertIn("run_source_policy_conformance.py", policy["run"])
+        self.assertEqual(workflow["env"]["AGENTPLUGINS_COMMIT"], "c78c79e44efd5ad07083d63436d9170b107df6cb")
+        self.assertEqual(workflow["env"]["COPILOT_VERSION"], "1.0.82")
+        self.assertEqual(workflow["env"]["CLAUDE_CODE_VERSION"], "2.1.251")
+        self.assertEqual(workflow["env"]["INSPECTOR_VERSION"], "2.1.0")
+        self.assertIn('--inspector "$RUNNER_TEMP/catalog-tools/node_modules/.bin/mcp-inspector"', commands(producer))
+        failure = next(step for step in producer["steps"] if step.get("name") == "Preserve bounded sanitized failure diagnostics only")
+        self.assertEqual(failure["if"], "${{ failure() }}")
+        self.assertEqual(failure["with"]["path"], "evidence/catalog-readiness-failure.json")
+        self.assertNotIn("*", failure["with"]["path"])
+        attest_step = next(step for step in attester["steps"] if step.get("id") == "attestation")
+        self.assertEqual(set(attest_step["with"]["subject-path"].splitlines()), {
+            "evidence/catalog-readiness.json", "evidence/source-policy-conformance.json",
+        })
+        attest_index = attester["steps"].index(attest_step)
+        self.assertIn("catalog_publication_readiness.py verify", attester["steps"][attest_index - 1]["run"])
+        for job in (attester, verifier):
+            body = commands(job)
+            self.assertIn("validate_source_policy_evidence", body)
+            self.assertIn("expected_schema_version=2", body)
+            self.assertIn("canonical_json", body)
+            for argument in (
+                "--publication-id", "--sequence", "--snapshot-digest", "--source-sha", "--workflow-sha",
+                "--signed-ledger-sha", "--materialized-ledger-sha", "--run-id", "--run-attempt", "--baseline-feed",
+                "--directory-origin",
+            ):
+                self.assertIn(argument, body)
+        gate = commands(verifier)
+        for binding in (
+            '--signer-digest "$WORKFLOW_SHA"', '--source-digest "$WORKFLOW_SHA"', "--source-ref refs/heads/main",
+            "--deny-self-hosted-runners", "catalog-publication-readiness.yml", 'certificate["runInvocationURI"] == invocation',
+            'certificate["buildConfigURI"]', 'statement["predicate"]["runDetails"]["metadata"]["invocationId"] == invocation',
+        ):
+            self.assertIn(binding, gate)
+        self.assertIn("for subject in catalog-readiness.json source-policy-conformance.json", gate)
+        self.assertIn('echo "run_attempt=$GITHUB_RUN_ATTEMPT"', gate)
+        self.assertEqual(workflow["on"]["workflow_call"]["outputs"]["run_attempt"]["value"], "${{ jobs.verify.outputs.run_attempt }}")
+
+    def test_account_runtime_mode_is_explicit_dispatch_exact_resume_and_cannot_deploy(self) -> None:
+        workflow = load(DIRECTORY_PUBLICATION)
+        mode = workflow["on"]["workflow_dispatch"]["inputs"]["publication_mode"]
+        self.assertEqual(mode["default"], "catalog")
+        self.assertEqual(mode["options"], ["catalog", "account-runtime-evidence"])
+        for name in ("required_stable_launch_evidence", "record_launch_approval", "gate_launch_approval"):
+            self.assertIn("github.event_name == 'workflow_dispatch'", workflow["jobs"][name]["if"])
+            self.assertIn("inputs.publication_mode == 'account-runtime-evidence'", workflow["jobs"][name]["if"])
+        self.assertIn("inputs.publication_mode != 'account-runtime-evidence'", workflow["jobs"]["deploy"]["if"])
+        validator = workflow["jobs"]["authenticate-completed-state"]["steps"][0]
+        base_env = {
+            "PATH": os.environ["PATH"], "PUBLICATION_MODE": "account-runtime-evidence", "EVENT_NAME": "workflow_dispatch",
+            "RESUME_ID": "123", "RESUME_SEQUENCE": "19", "INITIALIZE_LEDGER": "false", "SUPERSEDE_ID": "", "SUPERSEDE_SEQUENCE": "",
+        }
+        cases = [({}, True), ({"PUBLICATION_MODE": "catalog", "RESUME_ID": "", "RESUME_SEQUENCE": ""}, True)]
+        cases.extend((changes, False) for changes in (
+            {"PUBLICATION_MODE": "unknown"}, {"EVENT_NAME": "push"}, {"EVENT_NAME": "schedule"},
+            {"RESUME_ID": ""}, {"RESUME_SEQUENCE": ""}, {"INITIALIZE_LEDGER": "true"},
+            {"SUPERSEDE_ID": "123"}, {"SUPERSEDE_SEQUENCE": "19"},
+        ))
+        for changes, expected in cases:
+            with self.subTest(changes=changes):
+                result = subprocess.run(["bash", "-e", "-c", validator["run"]], env={**base_env, **changes}, capture_output=True)
+                self.assertEqual(result.returncode == 0, expected)
+        # Existing post-promotion resume restriction is intentionally unchanged.
+        resume = next(step for step in workflow["jobs"]["prepare"]["steps"] if step.get("id") == "resume")
+        self.assertIn('test "${production_sequence}" -lt "${sequence}"', resume["run"])
+
+    def test_catalog_verified_provenance_rejects_stale_forged_and_ambiguous_invocations(self) -> None:
+        verifier = load(CATALOG_READINESS)["jobs"]["verify"]
+        gate = next(step for step in verifier["steps"] if step.get("id") == "gate")
+        code = gate["run"].split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        repository = "777genius/universal-agent-plugins"
+        invocation = f"https://github.com/{repository}/actions/runs/123/attempts/2"
+        result = [{"verificationResult": {
+            "signature": {"certificate": {
+                "runInvocationURI": invocation,
+                "buildConfigURI": f"https://github.com/{repository}/.github/workflows/directory-publication.yml@refs/heads/main",
+            }},
+            "statement": {
+                "predicateType": "https://slsa.dev/provenance/v1",
+                "predicate": {"runDetails": {"metadata": {"invocationId": invocation}}},
+            },
+        }}]
+        cases = [("valid", result, True)]
+        for label, mutation in (
+            ("stale-certificate-attempt", lambda item: item["signature"]["certificate"].update(runInvocationURI=invocation.replace("attempts/2", "attempts/1"))),
+            ("different-certificate-run", lambda item: item["signature"]["certificate"].update(runInvocationURI=invocation.replace("runs/123", "runs/456"))),
+            ("wrong-caller", lambda item: item["signature"]["certificate"].update(buildConfigURI=f"https://github.com/{repository}/.github/workflows/other.yml@refs/heads/main")),
+            ("wrong-predicate", lambda item: item["statement"].update(predicateType="https://example.invalid/predicate")),
+            ("forged-statement-attempt", lambda item: item["statement"]["predicate"]["runDetails"]["metadata"].update(invocationId=invocation.replace("attempts/2", "attempts/1"))),
+            ("missing-certificate-invocation", lambda item: item["signature"]["certificate"].pop("runInvocationURI")),
+        ):
+            changed = copy.deepcopy(result)
+            mutation(changed[0]["verificationResult"])
+            cases.append((label, changed, False))
+        cases.extend((("empty", [], False), ("ambiguous", result + result, False)))
+        # Isolate the provenance assertion block; policy validation has its own real validators/tests.
+        prelude = (
+            "import json,sys,types\n"
+            "module=types.ModuleType('two_lane_evidence')\n"
+            "module.canonical_json=lambda value: json.dumps(value).encode()\n"
+            "module.sha256_file=lambda path: 'unused-policy-fixture-digest'\n"
+            "module.validate_source_policy_evidence=lambda *args,**kwargs: None\n"
+            "sys.modules['two_lane_evidence']=module\n"
+        )
+        for name, verified, expected in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "evidence").mkdir()
+                (root / "evidence/source-policy-conformance.json").write_bytes(b"{}")
+                for subject in ("catalog-readiness.json", "source-policy-conformance.json"):
+                    (root / f"{subject}.verified.json").write_text(json.dumps(verified))
+                environment = {
+                    "PATH": os.environ["PATH"], "RUNNER_TEMP": directory,
+                    "GITHUB_REPOSITORY": repository, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2",
+                    "WORKFLOW_SHA": "a" * 40,
+                }
+                completed = subprocess.run(["python3", "-c", prelude + code], cwd=root, env=environment, capture_output=True)
+                self.assertEqual(completed.returncode == 0, expected, completed.stderr.decode())
+
     def test_every_launch_harness_invocation_supplies_the_explicit_uap_sha(self) -> None:
         command = re.compile(r"run_launch_evidence_e2e\.py(?:[^\n]*\\\n)*[^\n]*")
         observed = []
@@ -1816,7 +2178,7 @@ class WorkflowContractTests(unittest.TestCase):
         deploy_needs = workflow["jobs"]["deploy"]["needs"]
         self.assertIn("sign", deploy_needs)
         self.assertIn("gate_exact_staged_publication", deploy_needs)
-        self.assertIn("gate_launch_approval", deploy_needs)
+        self.assertIn("required_catalog_readiness", deploy_needs)
         production = workflow["jobs"]["observe_production_latest"]
         self.assertIn("deploy", production["needs"])
         self.assertIn("record_production_marker", production["needs"])
@@ -1832,7 +2194,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("production-marker.json", marker_body)
         self.assertIn('--production-new "${EXPECTED_PRODUCTION_COMMIT}"', marker_body)
 
-    def test_first_unapproved_publication_cannot_promote_without_launch_ceremony(self) -> None:
+    def test_account_runtime_ceremony_remains_separate_from_catalog_publication(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)
         prepare = workflow["jobs"]["prepare"]
         launch_if = workflow["jobs"]["required_stable_launch_evidence"]["if"]
@@ -1848,7 +2210,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.prepare.outputs.launch_approved == 'false'", marker_if)
         self.assertIn("needs.record_launch_approval.result == 'success'", marker_if)
         self.assertNotIn("needs.sign.outputs.sequence == '1'", launch_if + record_if + marker_if)
-        self.assertIn("needs.gate_launch_approval.result == 'success'", deploy_if)
+        self.assertIn("needs.required_catalog_readiness.result == 'success'", deploy_if)
+        self.assertNotIn("gate_launch_approval", deploy_if)
 
     def test_launch_evidence_is_attested_then_persisted_by_exact_two_ref_cas(self) -> None:
         launch = load(LAUNCH)
@@ -2086,7 +2449,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.required_stable_launch_evidence.result == 'skipped'", marker_if)
         self.assertIn("needs.record_launch_approval.result == 'skipped'", marker_if)
         self.assertIn("always()", deploy_if)
-        self.assertIn("needs.gate_launch_approval.result == 'success'", deploy_if)
+        self.assertIn("needs.required_catalog_readiness.result == 'success'", deploy_if)
         for required_result in (
             "needs.sign.result == 'success'",
             "needs.materialize_site.result == 'success'",
@@ -2122,9 +2485,9 @@ class WorkflowContractTests(unittest.TestCase):
         deploy = workflow["jobs"]["deploy"]
         self.assertEqual(
             set(deploy["needs"]),
-            {"sign", "materialize_site", "gate_exact_staged_publication", "gate_launch_approval"},
+            {"sign", "materialize_site", "gate_exact_staged_publication", "required_catalog_readiness"},
         )
-        self.assertIn("needs.gate_launch_approval.result == 'success'", deploy["if"])
+        self.assertIn("needs.required_catalog_readiness.result == 'success'", deploy["if"])
         self.assertIn("gate_exact_staged_publication", deploy["needs"])
 
     def test_untrusted_pull_request_bridge_reproduction_remains_secretless(self) -> None:

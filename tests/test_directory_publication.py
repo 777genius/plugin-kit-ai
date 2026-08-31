@@ -1753,7 +1753,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn('--snapshot-digest "${EXPECTED_SNAPSHOT_DIGEST}"', cli_step["run"])
         self.assertIn("--product-id context7", cli_step["run"])
         self.assertNotIn('result["revision"] == expected_source["revision"]', cli_step["run"])
-        self.assertIn("gate_launch_approval", workflow["jobs"]["deploy"]["needs"])
+        self.assertIn("required_catalog_readiness", workflow["jobs"]["deploy"]["needs"])
         self.assertIn("gate_exact_staged_publication", workflow["jobs"]["deploy"]["needs"])
         self.assertIn("sign", workflow["jobs"]["deploy"]["needs"])
         self.assertEqual(
@@ -1770,7 +1770,7 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("needs.required_stable_launch_evidence.result == 'skipped'", marker_gate["if"])
         deploy_if = workflow["jobs"]["deploy"]["if"]
         self.assertIn("always()", deploy_if)
-        self.assertIn("needs.gate_launch_approval.result == 'success'", deploy_if)
+        self.assertIn("needs.required_catalog_readiness.result == 'success'", deploy_if)
         production_observation = workflow["jobs"]["observe_production_latest"]
         self.assertIn("deploy", production_observation["needs"])
         self.assertEqual(production_observation["permissions"], {"contents": "read"})
@@ -1779,7 +1779,10 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn('--materialized-output ../materialized-ledger.commit', signer_commands)
         for match in __import__("re").findall(r"uses:\s+([^\s]+)", text):
             if match.startswith("./"):
-                self.assertEqual(match, "./.github/workflows/live-e2e.yml")
+                self.assertIn(match, {
+                    "./.github/workflows/live-e2e.yml",
+                    "./.github/workflows/catalog-publication-readiness.yml",
+                })
             else:
                 self.assertRegex(match, r"@[0-9a-f]{40}$")
 

@@ -45,7 +45,7 @@ jobs:
         run: scripts/build-bridges check
 
   portable-catalog:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,6 +55,51 @@ jobs:
         with:
           python-version: "3.13"
       - run: python3 -m pip install check-jsonschema==0.37.4 cryptography==46.0.3 jsonschema==4.25.1 skills-ref==0.1.1 PyYAML==6.0.3
+      - name: Install the current stable Ubuntu bubblewrap package and record namespace policy
+        run: |
+          test "$RUNNER_OS" = Linux
+          sudo apt-get update
+          candidate="$(apt-cache policy bubblewrap | awk '$1 == "Candidate:" {print $2}')"
+          test -n "$candidate"
+          test "$candidate" != '(none)'
+          sudo apt-get install --yes --no-install-recommends "bubblewrap=$candidate"
+          test "$(dpkg-query -W -f='${Version}' bubblewrap)" = "$candidate"
+          /usr/bin/bwrap --version
+          uname -r
+          for setting in /proc/sys/kernel/unprivileged_userns_clone /proc/sys/kernel/apparmor_restrict_unprivileged_userns /proc/sys/user/max_user_namespaces; do
+            if test -r "$setting"; then printf '%s=' "$setting"; cat "$setting"; fi
+          done
+      - name: Allow user namespaces only for the root-owned bubblewrap executable
+        id: isolation_profile
+        run: |
+          test "$RUNNER_OS" = Linux
+          test "$GITHUB_ACTIONS" = true
+          test -f /usr/bin/bwrap
+          test ! -L /usr/bin/bwrap
+          test "$(stat -c '%U:%G:%a' /usr/bin/bwrap)" = root:root:755
+          test "$(cat /sys/module/apparmor/parameters/enabled)" = Y
+          profile=/etc/apparmor.d/uap-catalog-bwrap
+          test ! -e "$profile"
+          test ! -L "$profile"
+          if sudo grep -R -q -F /usr/bin/bwrap /etc/apparmor.d; then
+            echo "An existing bubblewrap AppArmor policy requires review" >&2
+            exit 1
+          else
+            test "$?" -eq 1
+          fi
+          if sudo grep -q '^uap-catalog-bwrap ' /sys/kernel/security/apparmor/profiles; then
+            echo "The catalog AppArmor profile is already loaded" >&2
+            exit 1
+          else
+            test "$?" -eq 1
+          fi
+          sudo /usr/sbin/apparmor_parser --skip-kernel-load --skip-cache tests/e2e/catalog-bwrap.apparmor
+          echo "profile_owned=true" >> "$GITHUB_OUTPUT"
+          sudo install -o root -g root -m 0644 tests/e2e/catalog-bwrap.apparmor "$profile"
+          test "$(stat -c '%U:%G:%a' "$profile")" = root:root:644
+          sudo /usr/sbin/apparmor_parser --add --skip-cache "$profile"
+      - name: Require Linux child confinement before catalog validation
+        run: python3 -m unittest tests.test_catalog_process_isolation -v
       - run: check-jsonschema --schemafile schemas/1.0.0/plugin.schema.json plugins/*/plugin.json
       - run: check-jsonschema --schemafile schemas/1.0.0/mcp.schema.json plugins/*/mcp.json
       - run: check-jsonschema --schemafile schemas/openai-app-bindings.schema.json compat/openai/app-bindings.json
@@ -83,6 +128,17 @@ jobs:
       - run: python3 -m unittest discover -s tests
       - name: Run portable observer tests
         run: python3 -m unittest observer.tests.portable
+      - name: Remove only this job's ephemeral AppArmor allowance
+        if: ${{ always() && steps.isolation_profile.outputs.profile_owned == 'true' }}
+        run: |
+          profile=/etc/apparmor.d/uap-catalog-bwrap
+          if test ! -e "$profile" && test ! -L "$profile"; then exit 0; fi
+          test -f "$profile"
+          test ! -L "$profile"
+          status=0
+          sudo /usr/sbin/apparmor_parser --remove --skip-cache "$profile" || status=$?
+          sudo rm -- "$profile"
+          exit "$status"
 
   agentplugins-chatgpt-catalog-v2:
     runs-on: ubuntu-latest

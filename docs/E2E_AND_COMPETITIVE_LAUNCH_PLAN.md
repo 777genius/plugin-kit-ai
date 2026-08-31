@@ -10,17 +10,17 @@ Finish the existing Universal Agent Plugins implementation without another
 rewrite, prove its public promises against the current stable release, and make
 the product competitive with `plugins.sh`.
 
-The release is complete when:
+The catalog release is complete when:
 
 1. The current public CLI has one exact release, npm provenance, and disposable
    lifecycle evidence set. The separately protected hero matrix remains bound
    to its approved release tuple until all consent-bound rows pass.
-2. The five hero packages pass runtime E2E in Codex, Cursor, and Kiro: 15/15
-   client/package results.
-3. The named Cloudflare Docs ChatGPT binding retains its separately scoped
-   personal-app activation evidence. Assistant output is not treated as proof
-   of a tool call; the public MCP read remains separate. No broader ChatGPT
-   package claim is inferred.
+2. The exact signed candidate passes credential-free installation lifecycle,
+   source-policy, and public MCP checks in disposable GitHub-hosted runners.
+   Every deployment requires this candidate-bound evidence, including retries.
+3. Account-runtime, OAuth, and ChatGPT UI results remain separate, explicitly
+   scoped evidence. Missing results stay `not_tested`; catalog readiness must
+   never be interpreted as 15/15 hero runtime or successful vendor consent.
 4. The signed Directory is publicly reachable and the CLI proves cold, cached,
    offline, tampered, expired, and rollback behavior against it.
 5. Three real upstream Agent Plugins 1.0 packaging PRs are open with isolated
@@ -31,6 +31,45 @@ The release is complete when:
 This plan replaces the previous universal architecture plan. Decisions already
 implemented in the code remain valid unless this document explicitly changes
 them.
+
+### Accepted scope change: no-VM publication (2026-08-31)
+
+The owner approved separating catalog publication from account-runtime
+acceptance. This replaces the earlier VM and one-time runtime-ceremony
+prerequisites for publication, not their evidence validators. No new VM,
+observer service, account key, approval tag, database, or ledger is needed.
+
+- Keep signed snapshots, immutable source identity, publisher/main/ledger CAS,
+  production-marker checks, and exact Pages readback unchanged.
+- Run the released CLI against the actual signed candidate in disposable
+  GitHub Actions homes. Validate the entire required matrix fixed before the
+  run, not only whichever rows happened to succeed. Include the 26 short aliases
+  across Codex/Cursor/Kiro and all ten advertised Chrome clients. Preparation,
+  native registration, and model runtime are different outcomes.
+- Compare eligibility changes with signed production, not an unpromoted stage.
+  New client coverage needs matching preparation proof; stricter auth metadata
+  does not manufacture OAuth proof. ChatGPT app metadata checks do not prove UI
+  activation. Keep unsupported or untested outcomes explicit.
+- Bind canonical `catalog-publication-readiness-v1` evidence to the publication
+  ID, sequence, snapshot digest, source/workflow SHAs, signed and materialized
+  ledger commits, run/attempt, and authenticated CLI release. Reject missing,
+  duplicate, mismatched, or failed required cases.
+- Execute packages without signing, publisher, account, or OIDC credentials.
+  On GitHub-hosted Linux, each CLI/MCP subprocess uses a small process sandbox:
+  only its disposable case directory is writable, producer code/evidence/tools
+  are read-only, and parent processes are hidden. Missing isolation fails closed.
+  This is not a VM or an additional hosted service.
+  A separate job validates and attests the artifact. Deployment requires an
+  independently verified attestation from the exact trusted workflow and tuple.
+- Keep the 11 source-policy conformance cases required. Public MCP probes use
+  the acquired candidate package, not an unrelated checkout's plugin files.
+- Retain the strict account-runtime workflow as an explicit evidence-only
+  operation. It does not deploy the catalog or count skipped rows as passed.
+  Its existing exact-stage/consent restrictions are not silently relaxed.
+
+The historical 15/15 hero and scoped ChatGPT goals remain open follow-up work.
+They are no longer blockers for an honestly labeled catalog release. A green
+catalog gate must not update their statuses or create a runtime approval tag.
 
 ## 2. Product boundary
 
@@ -107,13 +146,16 @@ them.
   matches the current app. Supersede it through the existing append-only path
   with sequence **20**, then prove and promote that same candidate. The current
   registered app is `plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b`.
-- Production **Discovery** is independently at sequence **19**, with **2,523**
-  records, generated from catalog `302579f89569845fe2805798cbe2cc94b1430382` in
-  [run 33365869709](https://github.com/777genius/universal-agent-plugins/actions/runs/33365869709).
-  Public pointer, snapshot, signature, and search projection were reacquired
-  and verified on 2026-08-31. Snapshot digest:
-  `sha256:7d2f6da0598cb52a019d06cfe95889a4d3fe0f6f33bd16681c7c448457c2cab6`.
-  Discovery sequence 19 is **not** the staged reviewed Directory sequence 19.
+- Production **Discovery** independently advanced to sequence **20**, with
+  **2,546** records, generated from catalog
+  `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204` in
+  [run 33385424418](https://github.com/777genius/universal-agent-plugins/actions/runs/33385424418).
+  Its public pointer, snapshot, signature, and search projection passed the
+  workflow's exact production readback at `2026-08-31T12:07:55Z`. Snapshot digest:
+  `sha256:7aea022e6778f80c616cfefa71da1312d43a5bc9a47742dfa43e4ec07d9ee7c2`.
+  The consumer proof below used the preceding Discovery 19 with 2,523 records;
+  it is not relabeled as sequence-20 consumer evidence.
+  Discovery sequence 20 is **not** the pending reviewed Directory sequence 20.
   Scheduled refreshes are functioning; do not dispatch a duplicate scan.
 - The historical 2026-08-30 Chrome upstream PR candidate
   `ChromeDevTools/chrome-devtools-mcp@7e193aed8baa23c692355237a55237540b36cb2f`
@@ -158,41 +200,39 @@ them.
 
 ### 3.3 Remaining execution order
 
-1. Use the merged implementation from
-   [same-VM reset PR #153](https://github.com/777genius/universal-agent-plugins/pull/153).
-   Reviewed head `9bd602a35986f3a82433b1f1de3f855f7c4ae4d2` passed all CI and two technical reviews; it merged normally, without administrator bypass, as `d8818c82a5345130e4a0c37e713b1422c48cf796` on 2026-08-31.
-   Main's verified solo-owner policy removes second-account approval, while retaining required PRs, strict portable-catalog CI, resolved conversations, and unchanged bypass/immutability and publication protections.
-   The actual same-VM reset has not run. Green fixtures prove recovery logic, not a completed VM reset.
-2. Preserve frozen main `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204`: [validation 33385424414](https://github.com/777genius/universal-agent-plugins/actions/runs/33385424414) and [credential-free Live E2E 33385478850](https://github.com/777genius/universal-agent-plugins/actions/runs/33385478850) passed on that exact SHA.
-   The separate consumer proof remains bound to diagnostic `03cf3e15c4ea65499236f16da22d9853c7b46e29`; coordinate its scoped workflow/docs PR before any merge or new freeze. No publication or main update was dispatched by that proof. CLI/npm remain `0.1.24`.
-3. Confirm old-host machine identity, disk budget below 80%, memory and swap.
-   Reuse only the one existing test VM. Prepare and validate exact `0.1.24`
-   inputs, then follow the reviewed same-VM reset runbook. No real project,
-   new VM, snapshot, or hidden authentication fallback is permitted.
-4. Supersede reviewed Directory stage 19 with sequence 20. Build the exact
-   candidate while its protected gate waits; bind the observer to that actual
-   publication ID, digest, source, and release. Never predict those values.
-5. Prove one fresh external fork submission against frozen catalog main and
-   the sequence-20/current-CLI tuple. Close the test PR without merging its
-   test package. Older external PRs remain historical, not exact-main proof.
-6. Complete 12 non-Notion hero rows plus 3 separately authenticated Notion
-   rows, with repair, runtime, cleanup, and sanitized evidence as specified
-   below. Complete only the separately scoped ChatGPT gate. Reuse prior
-   evidence only where the consumer explicitly validates the same tuple.
-7. Promote the same proved sequence 20, then verify its public assets, site,
+1. Keep the merged public-consumer proof from [PR #160](https://github.com/777genius/universal-agent-plugins/pull/160), merged as `58725099e68caa0cd2f8fd87beb636b79bb02f0d`.
+   Its real `0.1.24` lifecycle artifacts remain bound to diagnostic
+   `03cf3e15c4ea65499236f16da22d9853c7b46e29`, not relabeled as merged-head proof.
+   The five jobs passed in run `33387563994` without a VM or user accounts.
+2. Implement the accepted per-publication catalog gate, review its exact head,
+   and pass CI. Preserve strict account-runtime validators in their separate
+   lane. Freeze the resulting merged main for publication.
+3. Wait for any existing Discovery publication to finish; do not start a
+   duplicate scan or conflict with the shared ledger. Re-read current production,
+   staged identity, ledger head, and immutable tags before publication.
+4. Supersede reviewed stage 19 through the existing material-change guard,
+   creating sequence 20. Bind tests to its actual signed identity. A workflow-only
+   change must not be used to force a new sequence.
+5. Pass candidate-bound catalog readiness in GitHub Actions, then promote that
+   same immutable materialization. Failure leaves production unchanged; retry
+   the smallest missing phase without creating another signed candidate.
+6. Verify public assets, site,
    CLI search, and one reviewed short-name plus discovered-package
    add/info/update/remove lifecycle on explicit `codex,cursor,kiro` targets.
-8. Remove owned temporary staging and transient test resources; retain the
-   single test environment and required authentication material. Record final
-   artifacts without silently changing the catalog SHA bound by the proof.
+7. Prove the external contributor path when its implementation changes; retain
+   earlier exact-base fork evidence as historical otherwise. Never merge the
+   test package into the live catalog or relabel an old PR as current-main proof.
+8. Record final evidence and cleanup disposable jobs/artifacts. Leave the stopped
+   UAP VM and preserved authentication archives untouched. No real user project
+   may be used for any test.
 
 If another code change is required after the freeze, rebind only the affected
 proofs to the new exact SHA. Do not relabel old artifacts or restart already
 proved independent release/platform checks.
 
-After proof, protected `materialize_launch_evidence` mechanically changes main only in `registry/directory.json`, changing its whole-file digest.
-After successful persistence, review a scoped refresh of the three current source pins (production config, validator, expected test digest) before claiming current-main CI green.
-Keep the original publication evidence SHA and proved tuple unchanged; the refreshed current tuple does not authorize rerunning or relabeling historical evidence. Existing code guards remain intact.
+Catalog readiness does not call `materialize_launch_evidence` or mutate runtime
+evidence/source pins. If that separate account-runtime lane is used later, its
+existing exact-source and reviewed pin-refresh requirements still apply.
 
 ### 3.4 Historical launch checkpoint (superseded)
 
@@ -508,6 +548,10 @@ Make CI report product truth instead of dependency setup failures.
 
 ## 7. Phase 2 - Complete current-release runtime E2E
 
+This remains separate follow-up work after the accepted no-VM publication
+decision in section 1. Do not count its missing results as passed or make them
+implicit requirements of the catalog-only gate.
+
 ### Summary
 
 Prove behavior in disposable environments, never in a real user project.
@@ -584,14 +628,15 @@ Promote the already staged design into a publicly consumable product.
 
 ### Steps
 
-1. Restore observer verification inputs only in the protected
-   `stable-launch-e2e` environment.
+1. Merge and verify the credential-free per-publication gate. It must not need
+   observer keys, account sessions, or a hosted test environment.
 2. Supersede staged sequence 19 with the materially corrected, signed sequence
    20 using the existing publication workflow; production stays on 13 meanwhile.
-3. Run the exact protected launch gate against `0.1.24` and this real
-   sequence-20 candidate. Promote only that same proved tuple.
-4. Materialize the static site from that exact signed snapshot.
-5. Deploy only after snapshot identity, source commit, and ledger commit match.
+3. Materialize the static site from that exact signed snapshot as commit `M`.
+4. Run catalog readiness against `0.1.24` and this real sequence-20 candidate,
+   binding its evidence and attestation to `M` and the signed snapshot.
+5. Promote only that proved tuple after snapshot identity, source commit,
+   ledger commit, and attestation match.
 6. Verify the public `latest.json`, envelope, snapshot, and site assets.
 7. Leave signing and publisher credentials restricted to protected
    environments; never expose them to pull-request jobs.
@@ -954,7 +999,8 @@ tests in `plugin-kit-ai`, followed by the six-platform release workflow.
 
 - current-main validation workflow green;
 - scheduled Live E2E green;
-- protected launch evidence green for exact `0.1.24` tuple;
+- exact candidate catalog-readiness gate green for `0.1.24`, with runtime/OAuth
+  explicitly not claimed;
 - signed Directory production endpoint returns and verifies;
 - site loads the same signed sequence;
 - npm clean install resolves the matching binary and checksum;
@@ -967,7 +1013,7 @@ tests in `plugin-kit-ai`, followed by the six-platform release workflow.
 
 ## 14. Rollout and kill switches
 
-1. Fix CI and complete runtime evidence before changing public discovery.
+1. Fix CI and complete candidate-bound catalog checks before promotion.
 2. Publish the signed reviewed Directory.
 3. Ship CLI discovery commands behind read-only behavior first.
 4. Publish Discovery Index in shadow mode and compare site/CLI results.
@@ -988,17 +1034,16 @@ Kill switches:
 - [x] Public stable `0.1.24`, npm provenance, and six native release platforms
       are verified against one source commit.
 - [x] Protected workflow/schema/configuration pins target `0.1.24`.
-- [x] Final frozen-main validation and credential-free Live E2E are green at `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204` (runs 33385424414/33385478850).
-- [ ] Same-VM reset is reviewed, merged, and tested in the existing isolated
-      environment within the host disk budget.
-- [ ] Protected v5 E2E passes for the exact final publication/release tuple.
-- [ ] Five heroes pass 15/15 across Codex, Cursor, and Kiro; the three Notion
-      rows have separately bound, sanitized consent and runtime evidence.
-- [ ] Exact-run ChatGPT gate records only the evidence actually observed.
+- [x] Historical pre-gate main validation and credential-free Live E2E are green at `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204` (runs 33385424414/33385478850).
+- [ ] New merged catalog-gate main is frozen and its exact-head CI is green.
+- [x] Owner approved catalog publication without VM/account-runtime ceremony;
+      missing OAuth/model/UI outcomes remain untested, not waived as passed.
+- [ ] Required candidate-bound catalog gate and independent attestation pass
+      before promotion, with fixed complete coverage and source-policy checks.
 - [x] Reviewed production Directory sequence 13 remains publicly reachable.
 - [ ] Staged reviewed sequence 19 is superseded, never promoted; sequence 20
       is proved, promoted, and read back from production.
-- [x] Signed Discovery sequence 19 has 2,523 conformant records with verified
+- [x] Signed Discovery sequence 20 has 2,546 conformant records with verified
       public snapshot, signature, and search projection. Refresh is automated.
 - [x] `install`, `search`, `validate`, `outdated`, and `update --all` ship.
 - [x] Reviewed and unreviewed results remain visibly distinct; exact-SHA
@@ -1008,14 +1053,23 @@ Kill switches:
       The discovered Context7 portion passed in run 33387563994; the combined gate stays open until the reviewed short-name/sequence 20 proof succeeds.
 - [ ] Final production website/search/copy flow reads the published candidate;
       earlier desktop/mobile evidence is retained without changing its tuple.
-- [ ] Fresh external fork submission matches frozen main and publication20;
-      close the test PR without adding its package to the live Directory.
+- [x] Real fork submissions have recorded exact-base/head checks and were closed
+      without merging test packages; they are not claimed as final-main evidence.
 - [x] All three upstream packaging PRs remain open and passed historical
       exact-head `0.1.24` add/info/remove checks; Chrome has separately scoped
       evidence for five additional clients.
 - [x] No install telemetry or implicit source switching is introduced.
 - [ ] Final privacy and cleanup audit passes; no real user project is used,
       and required profile/authentication archives remain recoverable.
+
+### Separate account-runtime follow-up (not catalog-release acceptance)
+
+- [ ] Protected v5 E2E passes for the exact final publication/release tuple.
+- [ ] Five heroes pass 15/15 across Codex, Cursor, and Kiro, including separately
+      bound Notion consent and runtime evidence.
+- [ ] Exact-run ChatGPT UI evidence records only what was actually observed.
+- [ ] If hosted runtime is resumed, use only the existing isolated environment
+      after confirming capacity below 80%; same-VM reset is merged but unexecuted.
 
 ## 16. Original estimate (historical)
 
@@ -1044,18 +1098,17 @@ rewrite and no database service.
 ## 17. Implementation order
 
 ```text
-Reviewed same-VM reset + current evidence plan + atomic PR159 Chrome policy/source-pin cutover
-  -> frozen catalog main / verified public CLI 0.1.24
-  -> current-main validation and credential-free Live E2E
-  -> capacity check and reuse existing isolated VM
+Verified public CLI 0.1.24 + merged PR159/160
+  -> reviewed credential-free per-publication gate
+  -> exact merged-main CI and publication freeze
   -> supersede Directory19 with signed candidate20
-  -> fresh exact-main external fork proof
-  -> protected 15/15 + scoped ChatGPT + privacy/cleanup
+  -> candidate-bound install/source-policy/public-MCP checks
+  -> separately validated GitHub attestation
   -> promote that same Directory20
   -> public assets, website, CLI and lifecycle readback
 ```
 
 CLI discovery, automatic index refresh, website integration, and the first
 upstream PR cohort are already implemented. Do not rebuild them or replay
-independent release proofs. Broad promotion still waits for the exact protected
-runtime and production checks above.
+independent release proofs. Catalog promotion waits for the exact catalog and
+production checks above; 15/15 account-runtime and ChatGPT UI remain separate.

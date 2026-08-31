@@ -114,8 +114,11 @@ Before enabling `.github/workflows/directory-publication.yml`:
    patch, and a disposable-App test is intentionally deferred.
 4. Create the `directory-publication` and
    `directory-publication-materialization` environments. Require trusted
-   maintainer approval, prevent administrator bypass/self-review, and restrict
-   both to protected `main`. Put `DIRECTORY_PUBLISHER_APP_ID` and
+   maintainer approval, prevent administrator bypass, and restrict both to
+   protected `main`. With multiple maintainers prevent self-review; a solo
+   maintainer may approve their own explicitly authorized deployment, as in
+   this repository. This does not remove environment protection or grant
+   direct publication access to ordinary workflows. Put `DIRECTORY_PUBLISHER_APP_ID` and
    `DIRECTORY_PUBLISHER_APP_PRIVATE_KEY` in both as environment secrets. Put the
    base64 32-byte `DIRECTORY_ED25519_PRIVATE_KEY` seed only in
    `directory-publication`, and set its environment variable
@@ -193,12 +196,50 @@ moved tag, or different rebuilt tree is terminal.
 Pushing `M` is staging, not production promotion. The gate reads `latest.json`
 and both versioned artifacts from the immutable raw-commit origin for `M` and
 requires the exact run publication ID, sequence, snapshot digest, `Q` tag, and
-ledger identity. While no immutable launch marker exists, the current exact
-publication additionally requires the complete stable-launch runtime, OAuth,
-and external-PR ceremony before Pages may promote `M`. This remains true when
-an earlier prelaunch sequence was signed but could not be promoted.
+ledger identity.
 
-Only after that ceremony succeeds, a job in the protected
+### Required catalog readiness
+
+Every catalog deployment, including a resumed stage, requires the exact
+`catalog-publication-readiness-v1` artifact and its verified GitHub attestation.
+The credential-free producer exercises the released CLI in disposable
+GitHub-hosted homes against the signed candidate, checks the required complete
+client matrix, and runs bounded public MCP reads from acquired packages.
+The eleven source-policy conformance cases remain required. Installation
+eligibility changes are compared with signed production, never with an
+unpromoted staging snapshot.
+
+The artifact binds source and workflow commits, run/attempt, publication ID,
+sequence, snapshot digest, `Q`, `M`, and the authenticated released CLI.
+A separate job validates the canonical artifact before obtaining an OIDC
+attestation; the producer has no OIDC, signing, publisher, or account secrets.
+CLI/MCP children also have a read-only filesystem outside their disposable
+case, isolated process visibility, and no access to producer control files.
+This Linux process sandbox is required; environment scrubbing alone is not a
+fallback and no VM is provisioned.
+The final gate verifies provenance and identity again. A failed, skipped,
+incomplete, or wrong-tuple gate cannot deploy. No new persistent approval tag
+or independent approval service is introduced.
+
+Catalog evidence explicitly sets `runtime_claims=false`. Native preparation,
+registration, public MCP calls, authenticated model runtime, OAuth, and ChatGPT
+UI are distinct outcomes. The owner's 2026-08-31 decision removed the account
+ceremony as a publication prerequisite, not the signature or source-safety
+checks. Missing account results remain untested and must not update the hero
+matrix or runtime approval marker.
+
+A failed deployment or gate leaves the prior GitHub Pages production pointer
+in place and is retried from the already signed `Q` and authenticated `M`;
+it never allocates a new sequence merely to repeat a test.
+
+### Separate account-runtime evidence
+
+The explicit dispatch-only `account-runtime-evidence` mode retains the strict
+legacy observer and consent checks. It requires an exact staged resume and
+does not deploy Pages. Its existing restrictions are unchanged: it is not a
+general post-production runtime runner.
+
+Only after that separate ceremony succeeds, a job in the protected
 `directory-publication` environment creates the absent, immutable
 `directory-publication-schema-1-launch-approved` tag at that exact `M`. It
 first reacquires protected `main` and the ledger branch, requires both exact
@@ -206,25 +247,20 @@ ceremony heads, and validates the state contract in
 `launch-approved-marker.json`. An exact rerun accepts only the existing tag at
 the same commit.
 
-Every deployment separately reacquires and validates that protected marker.
+The account-runtime lane reacquires and validates that protected marker.
 Its target must be the single-parent materialization child of its matching
 immutable sequence tag, must leave signed `registry/` bytes unchanged, and must
 be an ancestor of the current materialized ledger head. The repository
 identity, schema, bootstrap seed contract, sequence-tag namespace, launch
 signing key, snapshot paths, and initial sequence floor must match the
-code-owned marker contract. A failed prelaunch sequence stays blocked until a
-later exact sequence completes the same full ceremony; a higher sequence alone
-cannot skip it. Replayed, moved, rollback, cross-repository, unrelated-lineage,
+code-owned marker contract. A failed account-runtime sequence has no accepted
+runtime result; a higher sequence alone cannot supply one. Replayed, moved,
+rollback, cross-repository, unrelated-lineage,
 and stale-head markers fail closed, and pull-request artifacts are not consumed
 by either marker job.
 
-After approval, weekly expiry refreshes, evidence-only snapshots, suspensions,
-and emergency revocations remain independent of the launch-only runtime. They
-still require signing, materialization, exact staging, and a marker whose
-approved lineage is an ancestor of the current CAS/ledger head. A failed
-deployment or gate leaves the prior GitHub Pages production pointer in place
-and is retried from the already signed `Q` and authenticated `M`; it never
-allocates a new sequence.
+Weekly expiry refreshes, evidence-only snapshots, suspensions, and revocations
+use the required catalog-readiness path, not this account-runtime marker.
 
 The scheduled production observer resolves
 `directory-publication-schema-1-production`, derives the signed identity from
