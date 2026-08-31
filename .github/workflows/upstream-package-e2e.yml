@@ -8,9 +8,9 @@ permissions:
   contents: read
 
 env:
-  AGENTPLUGINS_VERSION: "0.1.24"
-  AGENTPLUGINS_COMMIT: c78c79e44efd5ad07083d63436d9170b107df6cb
-  AGENTPLUGINS_NPM_INTEGRITY: sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==
+  AGENTPLUGINS_VERSION: "0.1.25"
+  AGENTPLUGINS_COMMIT: d168b28bcdeef0c558bee3935adab25abb9f6267
+  AGENTPLUGINS_NPM_INTEGRITY: sha512-gvyfd0nIgNZ4wx0Beoae7OhdfsUGyDiiHotIdwHkwDR+KZ6CIBFelbGBHMpO4rZ5StbJ1XF+SSpdnQF/ilUmQQ==
   CLAUDE_CODE_VERSION: "2.1.251"
   CLAUDE_CODE_NPM_INTEGRITY: sha512-eG+ZPPpW2Dbmnntf1Fz9/T9ewS8I8SKfc1tcU2PqSwmftfjRPP7BXPaCyLuZ8kvgTdiPnJi/2/JnTvTRieneEQ==
   CHROME_UPSTREAM_HEAD: 02372c4d47ad257773b2b80c7d7fd056d7067be0
@@ -115,9 +115,9 @@ jobs:
             --dir "$RUNNER_TEMP/release"
           chmod +x "$RUNNER_TEMP/release/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
           cd "$RUNNER_TEMP/release"
-          test "$(sha256sum agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 | cut -d ' ' -f 1)" = e79125f7ffabd11c6e211d6b049c2eb2b36eb1aba3a76ce27cac819aeba1e6ca
-          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = 623fb73d0e2f59da8b01399842b0d82b8f6456c6e43db2251c0ea5f9e32f37e3
-          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = eb834da8237b13ed36061aeafb4fbb6f4aadeb5a6fbd4a31d43781f456f3d1e2
+          test "$(sha256sum agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 | cut -d ' ' -f 1)" = 83f7785383a47b82523ff610893df51ee979d6f444f7de6723b07fbc80cec2e4
+          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = af3b08a34fcf8a24c307ffb252cc5144edadbc6be3345ef2e008caef7e471f85
+          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = 26a99c47b6571bd3af52124529e2d57f983e6690c5082dbaae47f955259a20be
           sha256sum --check checksums.txt --ignore-missing
           python3 - <<'PY'
           import hashlib

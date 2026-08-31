@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import shutil
@@ -73,7 +74,7 @@ class CatalogContractTests(unittest.TestCase):
             lambda value: value["rows"].append(value["rows"][0]),
             lambda value: value.update(runtime_claims=True),
             lambda value: value.update(runtime_claims=0),
-            lambda value: value["cli"].update(version="0.1.25"),
+            lambda value: value["cli"].update(version="0.1.26"),
             lambda value: value["context"].update(run_attempt=2),
             lambda value: value["mcp_probes"].pop(),
             lambda value: value["rows"][0]["proof"].update(acquisition_count=True),
@@ -144,7 +145,7 @@ class CatalogContractTests(unittest.TestCase):
         selected = gate.selected(self.snapshot, "chrome-devtools", gate.CHROME)
         distribution = next(item for item in self.snapshot["distributions"] if item["id"] == selected["distribution_id"])
         for policy in distribution["release_policies"]:
-            policy["minimum_installer_version"] = "0.1.25"
+            policy["minimum_installer_version"] = "0.1.26"
         with self.assertRaisesRegex(ValueError, "newer CLI"):
             gate.plan(self.snapshot)
         self.snapshot = catalog()
@@ -309,7 +310,9 @@ class CatalogContractTests(unittest.TestCase):
                     self.assertEqual(child.call_args.args[0], ["copilot", "plugin", "list"])
                     self.assertEqual(child.call_args.kwargs["root"], root)
                     with self.assertRaisesRegex(ValueError, "unexpectedly empty"):
-                        gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", True, root=root, readonly=())
+                        gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", True, root=root, readonly=(),
+                                            expected_marketplace="agentplugins-123456789abc", expected_version="1.0.0",
+                                            expected_path=root / "managed")
 
     def test_copilot_empty_registry_rejects_truncation_prefix_suffix_and_failed_process(self):
         # Mirrors c78c79 native_identity_test.go's absent_short/prefix/suffix
@@ -328,6 +331,162 @@ class CatalogContractTests(unittest.TestCase):
             with patch.object(gate, "child", return_value=subprocess.CompletedProcess([], 1, official, "not persisted")):
                 with self.assertRaisesRegex(ValueError, "listing failed"):
                     gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", False, root=root, readonly=())
+
+    def check_native_diagnostic(self, client, output, expected_stage, *, installed=True, returncode=0,
+                                expected_marketplace="agentplugins-123456789abc", expected_version="1.0.0",
+                                expected_path=None):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args = argparse.Namespace()
+            completed = subprocess.CompletedProcess([], returncode, output, "private stderr must not escape")
+            callback = lambda phase: gate.lifecycle_step(args, "chrome-devtools", phase)
+            expected_path = expected_path or root / "managed"
+            with patch.object(gate, "child", return_value=completed) as child:
+                with self.assertRaises(ValueError):
+                    gate.native_listing(Path(client), {}, root, "chrome-devtools", installed,
+                                        root=root, readonly=(), expected_marketplace=expected_marketplace,
+                                        expected_version=expected_version, expected_path=expected_path, diagnostic=callback)
+                self.assertEqual(child.call_count, 1)
+            state = "installed" if installed else "removed"
+            self.assertEqual(args.failure_phase, f"lifecycle:chrome-devtools:native_list_{client}_{state}_{expected_stage}")
+            self.assertNotIn("private", args.failure_phase)
+
+    def test_claude_native_json_shape_fails_cleanly_with_bounded_diagnostics(self):
+        self.check_native_diagnostic("claude", '{"private raw value":', "json_decode")
+        for value in ({}, None, True, [None], [42], ["private raw value"], [{}],
+                      [{"id": None}], [{"id": 9}], [{"id": []}], [{"id": ""}]):
+            with self.subTest(value=value):
+                self.check_native_diagnostic("claude", json.dumps(value), "json_shape")
+
+    def test_claude_native_diagnostics_distinguish_exit_matching_scope_and_enabled(self):
+        good = {"id": "chrome-devtools@skills-dir", "scope": "user", "enabled": True}
+        self.check_native_diagnostic("claude", json.dumps([good]), "exit", returncode=7)
+        self.check_native_diagnostic("claude", "[]", "matching")
+        self.check_native_diagnostic("claude", json.dumps([good, good]), "matching")
+        self.check_native_diagnostic("claude", json.dumps([good]), "matching", installed=False)
+        for scope in (None, "project", True, {}):
+            self.check_native_diagnostic("claude", json.dumps([{**good, "scope": scope}]), "scope")
+        for enabled in (None, False, 1, "true", {}):
+            self.check_native_diagnostic("claude", json.dumps([{**good, "enabled": enabled}]), "enabled")
+
+    def test_copilot_native_diagnostics_distinguish_exit_section_format_count(self):
+        good = "Installed plugins:\n  • chrome-devtools@agentplugins-123456789abc (v1.0.0)\n"
+        self.check_native_diagnostic("copilot", good, "exit", returncode=1)
+        self.check_native_diagnostic("copilot", "private unexpected response", "section")
+        self.check_native_diagnostic("copilot", "Installed plugins:\n  invalid entry\n", "format")
+        self.check_native_diagnostic("copilot", "Installed plugins:\n", "count")
+        self.check_native_diagnostic("copilot", good + "Installed plugins:\n", "section")
+        self.check_native_diagnostic("copilot", good, "count", installed=False)
+
+    def test_copilot_exact_live_plugin_contract_binds_identity_version_status_and_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            managed = root / "state/managed/copilot/chrome-devtools-fixture"
+            marketplace = gate.managed_marketplace("chrome-devtools-fixture")
+            body = ("Live Plugins (loaded from a local marketplace directory, never copied):\n"
+                    f"  • chrome-devtools@{marketplace} (v1.7.0-uap.1) (enabled)\n"
+                    f"      from {managed}")
+            for output in (body, body + "\n", body.replace("\n", "\r\n"), (body + "\n").replace("\n", "\r\n")):
+                seen = []
+                with self.subTest(output=output), patch.object(
+                    gate, "child", return_value=subprocess.CompletedProcess([], 0, output, "")
+                ):
+                    gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", True,
+                                        root=root, readonly=(), expected_marketplace=marketplace,
+                                        expected_version="1.7.0-uap.1", expected_path=managed,
+                                        diagnostic=seen.append)
+                self.assertEqual(seen[-1], "native_list_copilot_installed_count")
+
+    def test_copilot_live_plugin_rejects_malformed_or_unbound_fields(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            managed = root / "state/managed/copilot/chrome-devtools-fixture"
+            marketplace = gate.managed_marketplace("chrome-devtools-fixture")
+            header = "Live Plugins (loaded from a local marketplace directory, never copied):"
+            valid_entry = f"  • chrome-devtools@{marketplace} (v1.7.0-uap.1) (enabled)"
+            valid_path = f"      from {managed}"
+            cases = {
+                "section": "Live plugins:\n" + valid_entry + "\n" + valid_path,
+                "format": header + "\n" + valid_entry,
+                "format_extra": header + "\n" + valid_entry + "\n" + valid_path + "\nextra",
+                "identity": header + "\n" + valid_entry.replace("chrome-devtools@", "other@") + "\n" + valid_path,
+                "marketplace": header + "\n" + valid_entry.replace(marketplace, "agentplugins-deadbeefcafe") + "\n" + valid_path,
+                "version": header + "\n" + valid_entry.replace("1.7.0-uap.1", "1.7.0-uap.2") + "\n" + valid_path,
+                "status": header + "\n" + valid_entry.replace("enabled", "disabled") + "\n" + valid_path,
+                "at_literal": header + "\n" + valid_entry + "\n      at " + str(managed),
+                "path": header + "\n" + valid_entry + "\n      from " + str(root / "other"),
+                "relative_path": header + "\n" + valid_entry + "\n      from relative/path",
+                "duplicate": header + "\n" + valid_entry + "\n" + valid_path + "\n" + valid_entry + "\n" + valid_path,
+            }
+            for name, output in cases.items():
+                expected_stage = ("identity" if name == "marketplace" else "format" if name in ("format_extra", "duplicate", "at_literal")
+                                  else "path" if name == "relative_path" else name)
+                with self.subTest(name=name):
+                    self.check_native_diagnostic("copilot", output, expected_stage,
+                                                 expected_marketplace=marketplace, expected_version="1.7.0-uap.1")
+
+    def test_claude_installed_path_is_absolute_exact_binding_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            managed = root / "state/managed/claude/chrome-devtools-fixture"
+            base = {"id": "chrome-devtools@skills-dir", "scope": "user", "enabled": True}
+            for install_path in (None, 7, [], {}, "relative/path", str(root / "other")):
+                with self.subTest(install_path=install_path):
+                    output = json.dumps([{**base, "installPath": install_path}])
+                    expected_stage = "path"
+                    self.check_native_diagnostic("claude", output, expected_stage)
+
+    def test_marketplace_identity_matches_released_sha256_prefix_contract(self):
+        physical = "chrome-devtools-123456789abc"
+        self.assertEqual(gate.managed_marketplace(physical),
+                         "agentplugins-" + hashlib.sha256(physical.encode()).hexdigest()[:12])
+        for invalid in (None, 7, "", "  "):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                gate.managed_marketplace(invalid)
+
+    def test_shared_copilot_binding_can_be_owned_by_vscode(self):
+        shared = {"client_id": "vscode", "affected_surfaces": ["copilot", "vscode"],
+                  "target_locator": "/isolated/shared"}
+        claude = {"client_id": "claude", "affected_surfaces": ["claude"],
+                  "target_locator": "/isolated/claude"}
+        self.assertIs(gate.native_binding([shared, claude], "copilot"), shared)
+        self.assertIs(gate.native_binding([shared, claude], "claude"), claude)
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            gate.native_binding([shared, {**shared, "client_id": "copilot"}], "copilot")
+        with self.assertRaisesRegex(ValueError, "missing"):
+            gate.native_binding([claude], "copilot")
+
+    def test_installed_marketplace_requires_exact_lowercase_twelve_hex(self):
+        output = "Installed plugins:\n  • chrome-devtools@agentplugins-123456789abc (v1.0.0)\n"
+        for marketplace in ("agentplugins-fixture", "agentplugins-123", "agentplugins-123456789abcd",
+                            "agentplugins-123456789abG", "prefix-agentplugins-123456789abc"):
+            with self.subTest(marketplace=marketplace), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with patch.object(gate, "child", return_value=subprocess.CompletedProcess([], 0, output, "")):
+                    with self.assertRaisesRegex(ValueError, "identity is incomplete"):
+                        gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", True,
+                                            root=root, readonly=(), expected_marketplace=marketplace,
+                                            expected_version="1.0.0", expected_path=root / "managed")
+
+    def test_successful_native_diagnostics_only_emit_fixed_client_stage_enums(self):
+        cases = (("claude", json.dumps([{"id": "chrome-devtools@skills-dir", "scope": "user", "enabled": True,
+                                          "installPath": None}]), "path"),
+                 ("copilot", "Installed plugins:\n  • chrome-devtools@agentplugins-123456789abc (v1.0.0)\n", "version"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for client, output, last in cases:
+                seen = []
+                managed = root / "managed"
+                if client == "claude":
+                    output = json.dumps([{"id": "chrome-devtools@skills-dir", "scope": "user",
+                                          "enabled": True, "installPath": str(managed)}])
+                with patch.object(gate, "child", return_value=subprocess.CompletedProcess([], 0, output, "")):
+                    gate.native_listing(Path(client), {}, root, "chrome-devtools", True,
+                                        root=root, readonly=(), expected_marketplace="agentplugins-123456789abc",
+                                        expected_version="1.0.0", expected_path=managed, diagnostic=seen.append)
+                self.assertTrue(set(seen).issubset(gate.LIFECYCLE_STEPS))
+                self.assertEqual(seen[0], f"native_list_{client}_installed_probe")
+                self.assertEqual(seen[-1], f"native_list_{client}_installed_{last}")
 
     def run_first_package_fixture(self, parent: Path, mutation: str | None = None):
         """Only the process boundary is fake; state, files and lifecycle checks are real.
@@ -357,9 +516,11 @@ class CatalogContractTests(unittest.TestCase):
         calls = []
 
         def targets():
+            physical_id = None if mutation == "missing_physical_id" else "agent-code-navigator-fixture"
             return {"succeeded": 3, "failed": 0, "targets": [
                 {"target": client, "status": "external_completed", "output": {"result": {
-                    "installation_id": "fixture-installation", "no_change": True, "mutated": False}}}
+                    "installation_id": "fixture-installation", "no_change": True, "mutated": False,
+                        "plan": {"physical_artifact_id": physical_id}}}}
                 for client in gate.CORE]}
 
         def child(argv, **kwargs):
@@ -459,6 +620,14 @@ class CatalogContractTests(unittest.TestCase):
             self.assertIsInstance(error, gate.EvidenceError)
             self.assertEqual(calls, ["add", "info"])
             self.assertEqual(args.failure_phase, "lifecycle:agent-code-navigator:snapshot_before_update")
+
+    def test_missing_physical_artifact_id_fails_before_identity_hashing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args, calls, error = self.run_first_package_fixture(Path(temporary).resolve(), "missing_physical_id")
+            self.assertIsInstance(error, ValueError)
+            self.assertIn("valid physical artifact", str(error))
+            self.assertEqual(calls, ["add"])
+            self.assertEqual(args.failure_phase, "lifecycle:agent-code-navigator:validate_add")
 
     def test_doctor_wrong_command_findings_mutation_and_open_operation_fail_precisely(self):
         for mutation, phase in (("wrong_command", "doctor"), ("doctor_findings", "validate_doctor"),
