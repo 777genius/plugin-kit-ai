@@ -1,3 +1,6 @@
+import ast
+import base64
+import copy
 import json
 import hashlib
 import importlib.util
@@ -1462,6 +1465,127 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('mkdir -p "$run_root/home"/{.codex,.cursor,.kiro}', body)
         self.assertIn('{item["status"] for item in data["targets"]} == {"external_completed"}', body)
         self.assertNotIn("kiro-cli", body)
+
+    def upstream_inline_contract(self):
+        workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
+        step = next(step for step in workflow["jobs"]["install-lifecycle"]["steps"]
+                    if step.get("name", "").startswith("Prove isolated preparation"))
+        source = step["run"].split("<<'PY'\n", 1)[1].split("\nPY", 1)[0]
+        parsed = ast.parse(source)
+        spec = importlib.util.spec_from_file_location("upstream_test_helpers", ROOT / "scripts/run_chrome_five_client_lifecycle.py")
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        namespace = {"json": json, "hashlib": hashlib, "base64": base64,
+                     "require_success": helper.require_success, "validate_doctor": helper.validate_doctor}
+        definitions = ast.Module(body=[node for node in parsed.body if isinstance(node, ast.FunctionDef)], type_ignores=[])
+        exec(compile(definitions, "upstream-package-e2e.yml", "exec"), namespace)
+        return namespace
+
+    def test_upstream_update_distinguishes_immutable_rejection_from_no_change(self) -> None:
+        validate = self.upstream_inline_contract()["validate_update"]
+        blocked = {"command": "update", "result": "failure", "data": {
+            "status": "preflight_failed", "succeeded": 0, "failed": 3, "targets": [],
+        }}
+        reason = "direct full-SHA installations require explicit switch"
+        validate(blocked, reason, False)
+        for field, changed in (("failed", 2), ("succeeded", False), ("targets", [{}])):
+            forged = copy.deepcopy(blocked)
+            forged["data"][field] = changed
+            with self.subTest(field=field), self.assertRaises(AssertionError):
+                validate(forged, reason, False)
+        with self.assertRaises(AssertionError):
+            validate(blocked, "unrelated failure", False)
+        unchanged = {"command": "update", "result": "success", "data": {
+            "status": "completed", "succeeded": 3, "failed": 0, "targets": [
+                {"target": client, "status": "external_completed", "output": {
+                    "result": {"no_change": True, "mutated": False}}}
+                for client in ("codex", "cursor", "kiro")],
+        }}
+        validate(unchanged, "", True)
+        for field, changed in (("no_change", False), ("mutated", True)):
+            forged = copy.deepcopy(unchanged)
+            forged["data"]["targets"][0]["output"]["result"][field] = changed
+            with self.subTest(field=field), self.assertRaises(AssertionError):
+                validate(forged, "", True)
+        forged = copy.deepcopy(unchanged)
+        forged["data"]["targets"][2]["target"] = "cursor"
+        with self.assertRaises(AssertionError):
+            validate(forged, "", True)
+
+    def test_upstream_cleanup_rejects_open_operations_and_owned_residue(self) -> None:
+        validate = self.upstream_inline_contract()["validate_cleanup"]
+        listed = {"command": "list", "result": "success", "data": {"installations": []}}
+        doctor = {"command": "doctor", "result": "success", "data": {
+            "read_only": True, "installation_count": 0, "open_operation_count": 0,
+            "findings": [{"status": "healthy", "code": "no_degradation_detected",
+                          "message": "no tracked degradation was detected"}],
+        }}
+        with tempfile.TemporaryDirectory() as temporary:
+            sandbox = Path(temporary)
+            (sandbox / "state").mkdir()
+            (sandbox / "state/state-v2.json").write_text(json.dumps({"schema_version": 4, "installations": []}))
+            owned = sandbox / "owned-package"
+            validate(sandbox, [owned], listed, doctor)
+            for field, changed in (("open_operation_count", 1), ("installation_count", False), ("read_only", False)):
+                forged = copy.deepcopy(doctor)
+                forged["data"][field] = changed
+                with self.subTest(field=field), self.assertRaises((AssertionError, RuntimeError)):
+                    validate(sandbox, [owned], listed, forged)
+            owned.symlink_to(sandbox / "missing")
+            with self.assertRaises(AssertionError):
+                validate(sandbox, [owned], listed, doctor)
+            owned.unlink()
+            residue = sandbox / "state/managed/residue"
+            residue.parent.mkdir()
+            residue.write_text("must not survive removal")
+            with self.assertRaises(AssertionError):
+                validate(sandbox, [owned], listed, doctor)
+
+    def test_upstream_discovery_records_observed_sequence_without_repinning_source(self) -> None:
+        validate = self.upstream_inline_contract()["discovery_identity"]
+        selector = "discovery:upstash/context7//plugins/agent-plugins/context7"
+        data = {"revision": "4e980f6b494d6f970cc5ec1df417ba684b2f6e0b",
+                "tree_digest": "sha256:" + "a" * 64, "manifest_digest": "sha256:" + "b" * 64}
+        record = {**data, "slug": selector, "repository": "upstash/context7", "package_path": "plugins/agent-plugins/context7"}
+        encode = lambda value: base64.b64encode(json.dumps(value).encode()).decode()
+        with tempfile.TemporaryDirectory() as temporary:
+            sandbox = Path(temporary)
+            (sandbox / "state").mkdir()
+            for sequence in (19, 20):
+                snapshot = {"sequence": sequence}
+                digest = "sha256:" + hashlib.sha256(json.dumps(snapshot).encode()).hexdigest()
+                cache = {"sequence": sequence, "pointer": encode(snapshot), "snapshot": encode(snapshot),
+                         "envelope": encode({"sequence": sequence, "snapshot_digest": digest, "key_id": "test-key"}),
+                         "search": encode({"records": [record]})}
+                path = sandbox / "state/discovery-v1-cache.json"
+                path.write_text(json.dumps(cache))
+                self.assertEqual(validate(sandbox, selector, data)["sequence"], sequence)
+                cache["search"] = encode({"records": [{**record, "revision": "f" * 40}]})
+                path.write_text(json.dumps(cache))
+                with self.assertRaises(AssertionError):
+                    validate(sandbox, selector, data)
+
+    def test_upstream_proof_is_credential_free_and_uploads_only_sanitized_summary(self) -> None:
+        workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
+        job = workflow["jobs"]["install-lifecycle"]
+        packages = job["strategy"]["matrix"]["package"]
+        self.assertEqual(len(packages), 4)
+        self.assertEqual(packages[-1], {"id": "discovered-context7",
+            "source": "discovery:upstash/context7//plugins/agent-plugins/context7", "repository": "upstash/context7",
+            "revision": "4e980f6b494d6f970cc5ec1df417ba684b2f6e0b", "plugin": "context7", "version": "1.0.0"})
+        step = next(step for step in job["steps"] if step.get("name", "").startswith("Prove isolated preparation"))
+        body = step["run"]
+        self.assertNotIn("GH_TOKEN", json.dumps(step))
+        self.assertIn('env = {"PATH": os.environ["PATH"]', body)
+        self.assertIn('state_file.read_bytes() == state_before', body)
+        self.assertIn('snapshot_roots(roots) == final_before', body)
+        self.assertIn('ensure_sanitized(evidence, sandbox)', body)
+        for claim in ("activation_executed", "runtime_executed", "authentication_executed", "version_upgrade_executed"):
+            self.assertIn(f'"{claim}": False', body)
+        self.assertEqual(job["steps"][-1]["with"]["path"].splitlines(), [
+            "${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence/evidence.json",
+            "${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence/evidence.sha256",
+        ])
 
     def test_nested_launch_workflow_permissions_never_escalate(self) -> None:
         publication = load(DIRECTORY_PUBLICATION)

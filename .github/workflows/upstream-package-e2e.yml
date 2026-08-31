@@ -13,7 +13,7 @@ env:
   AGENTPLUGINS_NPM_INTEGRITY: sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==
   CLAUDE_CODE_VERSION: "2.1.251"
   CLAUDE_CODE_NPM_INTEGRITY: sha512-eG+ZPPpW2Dbmnntf1Fz9/T9ewS8I8SKfc1tcU2PqSwmftfjRPP7BXPaCyLuZ8kvgTdiPnJi/2/JnTvTRieneEQ==
-  CHROME_UPSTREAM_HEAD: 7e193aed8baa23c692355237a55237540b36cb2f
+  CHROME_UPSTREAM_HEAD: 02372c4d47ad257773b2b80c7d7fd056d7067be0
 
 jobs:
   install-lifecycle:
@@ -25,9 +25,9 @@ jobs:
       matrix:
         package:
           - id: chrome-devtools
-            source: ChromeDevTools/chrome-devtools-mcp@7e193aed8baa23c692355237a55237540b36cb2f
+            source: ChromeDevTools/chrome-devtools-mcp@02372c4d47ad257773b2b80c7d7fd056d7067be0
             repository: ChromeDevTools/chrome-devtools-mcp
-            revision: 7e193aed8baa23c692355237a55237540b36cb2f
+            revision: 02372c4d47ad257773b2b80c7d7fd056d7067be0
             plugin: chrome-devtools
             version: 1.8.0
           - id: cloudflare-docs
@@ -42,6 +42,12 @@ jobs:
             revision: 14092de9940741511d224e0d7071ac02910bda11
             plugin: github
             version: ""
+          - id: discovered-context7
+            source: discovery:upstash/context7//plugins/agent-plugins/context7
+            repository: upstash/context7
+            revision: 4e980f6b494d6f970cc5ec1df417ba684b2f6e0b
+            plugin: context7
+            version: 1.0.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,7 +96,7 @@ jobs:
               --source-digest "$AGENTPLUGINS_COMMIT"
           done
           test "$(./agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 version)" = "agentplugins ${AGENTPLUGINS_VERSION}"
-      - name: Install, inspect, and remove from three disposable client homes
+      - name: Prove isolated preparation, immutable update, and owned cleanup
         env:
           SOURCE: ${{ matrix.package.source }}
           EXPECTED_REPOSITORY: ${{ matrix.package.repository }}
@@ -102,28 +108,91 @@ jobs:
           mkdir -p "$run_root"/{home,state,workspace,config,cache,tmp,evidence}
           mkdir -p "$run_root/home"/{.codex,.cursor,.kiro}
           binary="$RUNNER_TEMP/release/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
-          isolated=(env -i PATH="$PATH" LANG=C.UTF-8 HOME="$run_root/home" USERPROFILE="$run_root/home" \
-            XDG_CONFIG_HOME="$run_root/config" XDG_CACHE_HOME="$run_root/cache" \
-            AGENTPLUGINS_HOME="$run_root/state" TMPDIR="$run_root/tmp" \
-            GIT_CONFIG_GLOBAL="$run_root/home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 \
-            GIT_TERMINAL_PROMPT=0 CI=true)
-          cd "$run_root/workspace"
-          "${isolated[@]}" "$binary" add "$SOURCE" --target codex,cursor,kiro --format json > "$run_root/evidence/add.json"
-          "${isolated[@]}" "$binary" info "$EXPECTED_PLUGIN" --target codex,cursor,kiro --format json > "$run_root/evidence/info.json"
-          "${isolated[@]}" "$binary" remove "$EXPECTED_PLUGIN" --target codex,cursor,kiro --external-uninstalled --format json > "$run_root/evidence/remove.json"
-          python3 - "$run_root/evidence" <<'PY'
+          python3 -B - "$run_root" "$binary" "$GITHUB_WORKSPACE/scripts" <<'PY'
+          import base64
           import hashlib
           import json
           import os
           import sys
           from pathlib import Path
 
-          root = Path(sys.argv[1])
-          add = json.loads((root / "add.json").read_text())
-          info = json.loads((root / "info.json").read_text())
-          remove = json.loads((root / "remove.json").read_text())
-          assert add["result"] == info["result"] == remove["result"] == "success"
-          data = add["data"]
+          sys.path.insert(0, sys.argv[3])
+          from run_chrome_five_client_lifecycle import checked_json, ensure_sanitized, require_success, snapshot_roots, validate_doctor
+
+          def exact_targets(data):
+              assert type(data["succeeded"]) is int and data["succeeded"] == 3
+              assert type(data["failed"]) is int and data["failed"] == 0
+              assert len(data["targets"]) == 3
+              assert {item["target"] for item in data["targets"]} == {"codex", "cursor", "kiro"}
+              assert {item["status"] for item in data["targets"]} == {"external_completed"}
+
+          def validate_update(value, stderr, discovered):
+              data = value["data"]
+              if discovered:
+                  require_success(value, "update")
+                  exact_targets(data)
+                  assert data["status"] == "completed"
+                  for target in data["targets"]:
+                      assert target["output"]["result"]["no_change"] is True
+                      assert target["output"]["result"]["mutated"] is False
+              else:
+                  assert value["command"] == "update" and value["result"] == "failure"
+                  assert data["status"] == "preflight_failed"
+                  assert type(data["succeeded"]) is int and data["succeeded"] == 0
+                  assert type(data["failed"]) is int and data["failed"] == 3
+                  assert data["targets"] == []
+                  assert "direct full-SHA installations require explicit switch" in stderr
+
+          def validate_cleanup(sandbox, owned_paths, listed, doctor):
+              assert require_success(listed, "list")["installations"] == []
+              validate_doctor(doctor, post_remove=True)
+              report = doctor["data"]
+              for field in ("installation_count", "open_operation_count"):
+                  assert type(report[field]) is int and report[field] == 0
+              state = json.loads((sandbox / "state/state-v2.json").read_text())
+              assert state["schema_version"] == 4 and state["installations"] in (None, [])
+              assert owned_paths and all(not path.exists() and not path.is_symlink() for path in owned_paths)
+              managed = sandbox / "state/managed"
+              assert not any(path.is_file() or path.is_symlink() for path in managed.rglob("*"))
+              plugin_data = sandbox / "state/plugin-data"
+              assert not plugin_data.exists() or not any(plugin_data.iterdir())
+
+          def discovery_identity(sandbox, source, data):
+              cache = json.loads((sandbox / "state/discovery-v1-cache.json").read_text())
+              snapshot = base64.b64decode(cache["snapshot"], validate=True)
+              pointer = json.loads(base64.b64decode(cache["pointer"], validate=True))
+              envelope = json.loads(base64.b64decode(cache["envelope"], validate=True))
+              search = json.loads(base64.b64decode(cache["search"], validate=True))
+              digest = "sha256:" + hashlib.sha256(snapshot).hexdigest()
+              assert cache["sequence"] == pointer["sequence"] == envelope["sequence"] == json.loads(snapshot)["sequence"]
+              assert digest == envelope["snapshot_digest"]
+              records = [record for record in search["records"] if record["slug"] == source]
+              assert len(records) == 1
+              record = records[0]
+              assert record["repository"] == "upstash/context7" and record["package_path"] == "plugins/agent-plugins/context7"
+              for field in ("revision", "tree_digest", "manifest_digest"):
+                  assert record[field] == data[field]
+              return {"sequence": cache["sequence"], "snapshot_digest": digest, "key_id": envelope["key_id"]}
+
+          sandbox = Path(sys.argv[1])
+          root = sandbox / "evidence"
+          roots = {name: sandbox / name for name in ("home", "state", "workspace", "config", "cache", "tmp")}
+          env = {"PATH": os.environ["PATH"], "LANG": "C.UTF-8", "HOME": str(roots["home"]),
+                 "USERPROFILE": str(roots["home"]), "XDG_CONFIG_HOME": str(roots["config"]),
+                 "XDG_CACHE_HOME": str(roots["cache"]), "AGENTPLUGINS_HOME": str(roots["state"]),
+                 "TMPDIR": str(roots["tmp"]), "GIT_CONFIG_GLOBAL": str(roots["home"] / ".gitconfig"),
+                 "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "CI": "true"}
+          def run(command, *args, success=True):
+              return checked_json([sys.argv[2], command, *args, "--format", "json"],
+                                  env=env, cwd=roots["workspace"], expect_success=success)
+
+          source, plugin = os.environ["SOURCE"], os.environ["EXPECTED_PLUGIN"]
+          discovered = source.startswith("discovery:")
+          common = ["--target", "codex,cursor,kiro"]
+          add, _, _ = run("add", source, *common)
+          info, _, _ = run("info", plugin, *common)
+          data = require_success(add, "add")
+          inspected = require_success(info, "info")
           assert data["plugin"] == os.environ["EXPECTED_PLUGIN"]
           expected_version = os.environ["EXPECTED_VERSION"]
           if expected_version:
@@ -131,10 +200,55 @@ jobs:
           else:
               assert not data.get("version")
           assert data["revision"] == os.environ["EXPECTED_REVISION"]
-          assert data["succeeded"] == 3 and data["failed"] == 0
-          assert {item["target"] for item in data["targets"]} == {"codex", "cursor", "kiro"}
-          assert {item["status"] for item in data["targets"]} == {"external_completed"}
-          assert remove["data"]["succeeded"] == 3 and remove["data"]["failed"] == 0
+          exact_targets(data)
+          acquisition = data["acquisition"]
+          assert type(acquisition["acquisition_count"]) is int and acquisition["acquisition_count"] == 1
+          assert acquisition["fetched"] is True and acquisition["validated"] is True
+          assert set(data["target_outcomes"]) == {"codex", "cursor", "kiro"}
+          for outcome in data["target_outcomes"].values():
+              assert outcome["outcome"] == "passed"
+              for field in ("acquisition_id", "tree_digest", "manifest_digest", "closure_digest"):
+                  assert outcome[field] == acquisition[field]
+          state_file = roots["state"] / "state-v2.json"
+          installed = json.loads(state_file.read_text())["installations"]
+          assert len(installed) == 1
+          installation = installed[0]
+          assert installation["installation_id"] == inspected["installation_id"]
+          assert {item["output"]["result"]["installation_id"] for item in data["targets"]} == {installation["installation_id"]}
+          assert installation["source"]["repository"] == os.environ["EXPECTED_REPOSITORY"]
+          assert installation["source"]["resolved_revision"] == data["revision"]
+          for field in ("tree_digest", "manifest_digest"):
+              assert acquisition[field] == data[field]
+          bindings = list(installation["clients"].values())
+          assert len(bindings) == 3 and {item["client_id"] for item in bindings} == {"codex", "cursor", "kiro"}
+          owned_paths = [Path(item["target_locator"]) for item in bindings]
+          assert all(path.is_relative_to(sandbox) and path != sandbox and path.exists() for path in owned_paths)
+          discovery_before = discovery_identity(sandbox, source, data) if discovered else None
+          if discovered:
+              assert installation["origin_mode"] == "direct" and not installation.get("directory")
+              assert installation["source"]["requested_source"] == installation["source"]["canonical_source"] == source
+          # Discovery may refresh its verified cache; installed state and client artifacts must not change.
+          immutable_roots = roots if not discovered else {name: path for name, path in roots.items() if name != "state"}
+          if discovered:
+              immutable_roots.update({f"owned_{index}": path for index, path in enumerate(owned_paths)})
+              plugin_data = roots["state"] / "plugin-data"
+              if plugin_data.is_dir():
+                  immutable_roots["plugin_data"] = plugin_data
+          state_before = state_file.read_bytes()
+          before = snapshot_roots(immutable_roots)
+          update, update_stderr, _ = run("update", plugin, *common, success=discovered)
+          validate_update(update, update_stderr, discovered)
+          assert state_file.read_bytes() == state_before and snapshot_roots(immutable_roots) == before
+          discovery_after = discovery_identity(sandbox, source, data) if discovered else None
+          remove, _, _ = run("remove", plugin, *common, "--external-uninstalled", "--purge-data")
+          removed = require_success(remove, "remove")
+          exact_targets(removed)
+          assert removed["plugin_data_preserved"] is False and removed["data_retained"] is False
+          listed, _, _ = run("list")
+          final_before = snapshot_roots(roots)
+          doctor, _, _ = run("doctor")
+          assert snapshot_roots(roots) == final_before
+          validate_cleanup(sandbox, owned_paths, listed, doctor)
           evidence = {
               "schema_version": 1,
               "cli_version": os.environ["AGENTPLUGINS_VERSION"],
@@ -146,8 +260,22 @@ jobs:
               "manifest_digest": data["manifest_digest"],
               "clients": sorted(item["target"] for item in data["targets"]),
               "install": "passed",
-              "discovery": "passed",
+              "package_preparation": "passed",
+              "manager_inspection": "passed",
+              "signed_discovery_selector_resolution": discovered,
+              "discovery_before_update": discovery_before,
+              "discovery_after_update": discovery_after,
+              "update": "passed_no_change" if discovered else "blocked_immutable_full_sha_no_mutation",
+              "version_upgrade_executed": False,
+              "single_acquisition": True,
+              "shared_installation_identity": True,
+              "installation_state_unchanged_by_update": True,
               "remove": "passed",
+              "owned_artifacts_removed": True,
+              "owned_plugin_data_purged": True,
+              "final_doctor_read_only": True,
+              "managed_installations_remaining": 0,
+              "open_operations_remaining": 0,
               "client_detection": "empty_disposable_config_roots",
               "activation_executed": False,
               "runtime_executed": False,
@@ -159,6 +287,7 @@ jobs:
                   "source_commit": os.environ["GITHUB_SHA"],
               },
           }
+          ensure_sanitized(evidence, sandbox)
           body = json.dumps(evidence, indent=2, sort_keys=True) + "\n"
           (root / "evidence.json").write_text(body)
           (root / "evidence.sha256").write_text(hashlib.sha256(body.encode()).hexdigest() + "  evidence.json\n")
@@ -166,7 +295,9 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: upstream-package-${{ matrix.package.id }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence
+          path: |
+            ${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence/evidence.json
+            ${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence/evidence.sha256
           if-no-files-found: error
           retention-days: 90
           overwrite: false

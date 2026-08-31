@@ -131,11 +131,26 @@ them.
 - Chrome #2623 now targets `02372c4d47ad257773b2b80c7d7fd056d7067be0`; the old eight-client matrix does not transfer to this head.
   PR #159 records OpenCode `1.18.25` real `new_page`/`take_snapshot` success for the fixed root package and exact Directory bridge bytes in `tests/e2e/results/chrome-devtools-live-clients-2026-08-31.json`, not public short-alias proof.
   Gemini `0.57.0` connected for MCP discovery only; model execution returned `UNSUPPORTED_CLIENT`, so no Gemini runtime is claimed.
+- Credential-free consumer [run 33387563994](https://github.com/777genius/universal-agent-plugins/actions/runs/33387563994) passed **5/5 jobs on attempt 1** with public CLI `0.1.24`, at diagnostic SHA `03cf3e15c4ea65499236f16da22d9853c7b46e29`, based on frozen main `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204`.
+  Four packages across `codex,cursor,kiro` prove **12 preparation/lifecycle cases**: Chrome `02372c4d47ad257773b2b80c7d7fd056d7067be0`, Cloudflare `3897acdb389b453205c559e2b79acc8bd5909bfa`, GitHub `14092de9940741511d224e0d7071ac02910bda11`, and Discovery Context7 `4e980f6b494d6f970cc5ec1df417ba684b2f6e0b` (`1.0.0`).
+  Discovery selector `discovery:upstash/context7//plugins/agent-plugins/context7` resolved through signed Discovery sequence 19; its successful no-change update preserved installation-state bytes. Direct full-SHA updates correctly rejected without mutation. All four jobs removed owned artifacts/data and reported read-only final doctor with zero installations/open operations.
+  The fifth job separately passed Chrome's five-client lifecycle: real Claude `2.1.251` plugin-list discovery/removal, with Gemini, OpenCode, Cline, and Windsurf limited to configuration/projection checks. This run proves no OAuth, model invocation, native hero activation, version upgrade, or protected 15/15 runtime.
+  The new `02372c4` consumer lifecycle supersedes the historical `7e193` lifecycle for new claims without changing its artifact tuple. Reviewed Directory remains at sequence 13; staged 19 was not promoted, and this run dispatched no publication or main update.
+  All five downloaded artifact checksums were verified. SHA-256 of each artifact's `evidence.json` (names below share suffix `-03cf3e15c4ea65499236f16da22d9853c7b46e29-33387563994-1`):
+
+  | Artifact prefix | SHA-256 |
+  | --- | --- |
+  | `upstream-package-chrome-devtools` | `23e440d81338b130e3d3b1cbe3859e03edb295e52474b45067ed209005833e84` |
+  | `upstream-package-cloudflare-docs` | `885efc9ed1755854cd52ce23506671342a6e4066d8f62b2c5d927e38db9d3667` |
+  | `upstream-package-github` | `9b3a9f7fb24323d2aae8f332d7f22dea97ecdd3473bfb8a3432e328aabf8b0e8` |
+  | `upstream-package-discovered-context7` | `c99960be1305c76860234b4b7de0344bde8262cffe455e0b83df69f9e1ad5795` |
+  | `chrome-five-client-lifecycle` | `56c0c0ad46f3609243491546b08b45af09049b49348a4eadfe5bc3d4ab5471bd` |
+
 - ChatGPT's current evidence is visible app activation plus an assistant
   response. Tool attribution is inconclusive. The separate public MCP read is
   authoritative for that endpoint, not proof that ChatGPT invoked it. Keep
   these claims separate and bind any new human attestation to its exact run.
-- The old host was at 88% disk usage on 2026-08-31. Its sole UAP instance,
+- The old host was at 90% disk usage on 2026-08-31, with approximately 47 GiB free (an observation, not a test-space requirement). Its sole UAP instance,
   `uap-observer-e2e-e352fcbf`, was STOPPED; total LXD usage was 7.8 GB. Remaining owned cleanup cannot bring the host below 80%.
   Hosted E2E stays blocked until usage is below 80%. No new VM, container, or snapshot is authorized.
   Do not delete preserved profile/authentication archives or other projects
@@ -148,10 +163,8 @@ them.
    Reviewed head `9bd602a35986f3a82433b1f1de3f855f7c4ae4d2` passed all CI and two technical reviews; it merged normally, without administrator bypass, as `d8818c82a5345130e4a0c37e713b1422c48cf796` on 2026-08-31.
    Main's verified solo-owner policy removes second-account approval, while retaining required PRs, strict portable-catalog CI, resolved conversations, and unchanged bypass/immutability and publication protections.
    The actual same-VM reset has not run. Green fixtures prove recovery logic, not a completed VM reset.
-2. Merge code, this checkpoint, and atomic PR #159 Chrome policy plus its three current Directory source pins before freezing the final
-   catalog SHA. Coordinate that boundary explicitly; do not freeze while an
-   accepted policy/pin change is still pending. CLI/npm remain `0.1.24`; no new CLI release is needed. Run current-main validation and
-   the credential-free Live E2E.
+2. Preserve frozen main `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204`: [validation 33385424414](https://github.com/777genius/universal-agent-plugins/actions/runs/33385424414) and [credential-free Live E2E 33385478850](https://github.com/777genius/universal-agent-plugins/actions/runs/33385478850) passed on that exact SHA.
+   The separate consumer proof remains bound to diagnostic `03cf3e15c4ea65499236f16da22d9853c7b46e29`; coordinate its scoped workflow/docs PR before any merge or new freeze. No publication or main update was dispatched by that proof. CLI/npm remain `0.1.24`.
 3. Confirm old-host machine identity, disk budget below 80%, memory and swap.
    Reuse only the one existing test VM. Prepare and validate exact `0.1.24`
    inputs, then follow the reviewed same-VM reset runbook. No real project,
@@ -975,7 +988,7 @@ Kill switches:
 - [x] Public stable `0.1.24`, npm provenance, and six native release platforms
       are verified against one source commit.
 - [x] Protected workflow/schema/configuration pins target `0.1.24`.
-- [ ] Final frozen-main validation and credential-free Live E2E are green.
+- [x] Final frozen-main validation and credential-free Live E2E are green at `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204` (runs 33385424414/33385478850).
 - [ ] Same-VM reset is reviewed, merged, and tested in the existing isolated
       environment within the host disk budget.
 - [ ] Protected v5 E2E passes for the exact final publication/release tuple.
@@ -992,6 +1005,7 @@ Kill switches:
       installation and multi-target lifecycle have recorded historical proof.
 - [ ] Fresh `0.1.24` production short-name and discovered-package
       add/info/update/remove checks pass for explicit `codex,cursor,kiro`.
+      The discovered Context7 portion passed in run 33387563994; the combined gate stays open until the reviewed short-name/sequence 20 proof succeeds.
 - [ ] Final production website/search/copy flow reads the published candidate;
       earlier desktop/mobile evidence is retained without changing its tuple.
 - [ ] Fresh external fork submission matches frozen main and publication20;
