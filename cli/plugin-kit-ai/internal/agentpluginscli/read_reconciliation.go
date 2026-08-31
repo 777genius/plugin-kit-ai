@@ -144,12 +144,17 @@ func reconcileClientIdentity(ctx context.Context, app App, installation domain.I
 	if !hasReconciledOwnershipReceipt(binding, expectedArtifact, installation.DeclaredName) {
 		return result
 	}
+	declaredVersion := installation.Package.Version
+	if binding.PackageRevision != nil {
+		declaredVersion = binding.PackageRevision.Version
+	}
 	target, err := app.Lifecycle.Targets.ResolveTarget(ctx, bindingClient, domain.InstallScope(binding.Scope), expectedArtifact)
 	if err != nil || filepath.Clean(target.ActivePath) != filepath.Clean(binding.TargetLocator) {
 		return result
 	}
 	plan := domain.DeliveryPlan{
 		ClientID: bindingClient.ClientID, Scope: domain.InstallScope(binding.Scope), DeclaredName: installation.DeclaredName,
+		DeclaredVersion:    declaredVersion,
 		PhysicalArtifactID: expectedArtifact, TargetAnchor: target.TargetAnchor, TargetRoot: target.TargetRoot, ActivePath: target.ActivePath,
 		NativeRegistryRoot: observerClient.ConfigRoot, NativeRegistryExecutable: observerClient.ExecutablePath,
 	}

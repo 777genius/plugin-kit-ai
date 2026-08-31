@@ -21,7 +21,9 @@ func TestInfoReconcilesExactCopilotIdentityWithoutMutationOrPathLeak(t *testing.
 		Version: "1.0.80", ExecutablePath: "/test/bin/copilot", ConfigRoot: filepath.Join(fixture.root, "home", ".copilot")}
 	detector := &observedProbingDetector{clients: []domain.DetectedClient{client}}
 	fixture.app.Detector = detector
-	fixture.app.Lifecycle.NativeObserver = reconciledNativeObserver{}
+	observer := &capturingNativeObserver{observation: domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, ReceiptReconciled: true,
+		NativeDiscoveryReconciled: true, NativeDiscoveryState: domain.NativeIdentityManaged, NativeDiscoveryAttempted: true}}
+	fixture.app.Lifecycle.NativeObserver = observer
 
 	installationID := "00000000-0000-4000-8000-000000000001"
 	physical := domain.ComputePhysicalArtifactID("demo", installationID)
@@ -35,13 +37,14 @@ func TestInfoReconcilesExactCopilotIdentityWithoutMutationOrPathLeak(t *testing.
 		ClientBindingID: bindingID, ClientID: string(domain.ClientCopilot), Scope: string(domain.ScopeUser), TargetLocator: target.ActivePath,
 		PhysicalArtifact: physical, Materialization: domain.MaterializationMaterialized, Activation: domain.ActivationActive,
 		Authentication: domain.AuthenticationNotRequired, Policy: domain.PolicyAllowed, Verification: domain.VerificationInstalled,
-		NativeObjects: []domain.NativeObjectOwnership{{ObjectID: "package:copilot:" + physical, Kind: "managed_package_directory", LogicalName: "demo", ManagedDigest: digest}},
-		Receipts:      []domain.MutationReceipt{{OperationID: "op-0000000000000001", Sequence: 1, ClientBindingID: bindingID, AfterDigest: digest, Phase: "committed"}},
+		PackageRevision: &domain.ClientPackageRevision{Version: "1.7.0-uap.1", TreeDigest: "sha256:tree", ManifestDigest: "sha256:manifest"},
+		NativeObjects:   []domain.NativeObjectOwnership{{ObjectID: "package:copilot:" + physical, Kind: "managed_package_directory", LogicalName: "demo", ManagedDigest: digest}},
+		Receipts:        []domain.MutationReceipt{{OperationID: "op-0000000000000001", Sequence: 1, ClientBindingID: bindingID, AfterDigest: digest, Phase: "committed"}},
 	}
 	state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{{
 		InstallationID: installationID, DeclaredName: "demo",
 		Source:  domain.SourceBinding{SourceBindingID: "src_demo", RequestedSource: "demo", CanonicalSource: "https://example.test/demo", ResolvedRevision: strings.Repeat("a", 40), TreeDigest: "sha256:tree"},
-		Package: domain.PackageBinding{LoaderKind: domain.LoaderKindAgentPlugins, FormatID: domain.FormatIDAgentPluginsV1, SchemaURI: domain.PluginSchemaV1, DeclaredName: "demo", ManifestDigest: "sha256:manifest"},
+		Package: domain.PackageBinding{LoaderKind: domain.LoaderKindAgentPlugins, FormatID: domain.FormatIDAgentPluginsV1, SchemaURI: domain.PluginSchemaV1, DeclaredName: "demo", Version: "9.9.9", ManifestDigest: "sha256:manifest"},
 		Clients: map[string]domain.ClientBinding{bindingID: binding},
 	}}}
 	if err := fixture.store.Save(state); err != nil {
@@ -104,12 +107,39 @@ func TestInfoReconcilesExactCopilotIdentityWithoutMutationOrPathLeak(t *testing.
 	if detector.targetedCalls != 1 || detector.probeCalls != 0 || detector.readOnlyCalls != 0 || len(detector.targets) != 1 || detector.targets[0] != domain.ClientCopilot {
 		t.Fatalf("detector calls = read-only:%d probe:%d targeted:%d targets:%v", detector.readOnlyCalls, detector.probeCalls, detector.targetedCalls, detector.targets)
 	}
+	if len(observer.plans) != 1 || observer.plans[0].DeclaredVersion != "1.7.0-uap.1" {
+		t.Fatalf("observer plan did not use binding revision: %+v", observer.plans)
+	}
 }
 
 func TestInfoInvalidOwnershipReceiptIsInconclusive(t *testing.T) {
 	binding := domain.ClientBinding{ClientBindingID: "binding", ClientID: "copilot", PhysicalArtifact: "demo-0123456789ab"}
 	if hasReconciledOwnershipReceipt(binding, binding.PhysicalArtifact, "demo") {
 		t.Fatal("missing ownership receipt reconciled")
+	}
+}
+
+func TestInfoLegacyBindingFallsBackToInstallationVersion(t *testing.T) {
+	installationID := "00000000-0000-4000-8000-000000000002"
+	physical := domain.ComputePhysicalArtifactID("demo", installationID)
+	target := filepath.Join(t.TempDir(), "copilot", physical)
+	binding := validReconciliationBinding(installationID, domain.ClientCopilot, domain.ScopeUser, target, physical)
+	binding.PackageRevision = nil
+	installation := domain.Installation{InstallationID: installationID, DeclaredName: "demo",
+		Package: domain.PackageBinding{Version: "0.9.0"}, Clients: map[string]domain.ClientBinding{binding.ClientBindingID: binding}}
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{{
+		ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, Version: "1.0.82", ExecutablePath: "/test/bin/copilot",
+	}}}
+	observer := &capturingNativeObserver{observation: domain.NativeIdentityObservation{State: domain.NativeIdentityManaged}}
+	app := App{Detector: detector, Lifecycle: usecase.Service{
+		Targets: scopeTargetResolver{targets: map[domain.InstallScope]string{domain.ScopeUser: target}}, NativeObserver: observer,
+	}}
+	public := publicInstallationView(installation, true)
+	if err := reconcileInstalledInfo(context.Background(), app, installation, "copilot", &public); err != nil {
+		t.Fatal(err)
+	}
+	if len(observer.plans) != 1 || observer.plans[0].DeclaredVersion != "0.9.0" {
+		t.Fatalf("legacy observer plan = %+v", observer.plans)
 	}
 }
 
@@ -346,6 +376,7 @@ func validReconciliationBinding(installationID string, client domain.ClientID, s
 	return domain.ClientBinding{
 		ClientBindingID: bindingID, ClientID: string(client), Scope: string(scope), TargetLocator: target, PhysicalArtifact: physical,
 		Materialization: domain.MaterializationMaterialized,
+		PackageRevision: &domain.ClientPackageRevision{Version: "1.0.0", TreeDigest: "sha256:tree", ManifestDigest: "sha256:manifest"},
 		NativeObjects:   []domain.NativeObjectOwnership{{ObjectID: "package:" + string(client) + ":" + physical, Kind: "managed_package_directory", LogicalName: "demo", ManagedDigest: digest}},
 		Receipts:        []domain.MutationReceipt{{OperationID: "op-" + bindingID[:12], Sequence: 1, ClientBindingID: bindingID, AfterDigest: digest, Phase: "committed"}},
 	}
@@ -363,11 +394,13 @@ func (resolver scopeTargetResolver) ResolveTarget(_ context.Context, client doma
 type capturingNativeObserver struct {
 	observation domain.NativeIdentityObservation
 	clients     []domain.DetectedClient
+	plans       []domain.DeliveryPlan
 	err         error
 }
 
-func (observer *capturingNativeObserver) ObserveNativeIdentity(_ context.Context, client domain.DetectedClient, _ domain.DeliveryPlan, _ *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+func (observer *capturingNativeObserver) ObserveNativeIdentity(_ context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, _ *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
 	observer.clients = append(observer.clients, client)
+	observer.plans = append(observer.plans, plan)
 	return observer.observation, observer.err
 }
 
