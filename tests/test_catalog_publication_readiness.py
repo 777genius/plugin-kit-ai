@@ -5,6 +5,7 @@ import argparse
 import copy
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 import sys
@@ -238,7 +239,7 @@ class CatalogContractTests(unittest.TestCase):
         self.assertEqual(run.call_count, 1)
 
     def test_cli_and_native_inspection_use_required_isolated_child(self):
-        completed = subprocess.CompletedProcess([], 0, '{"result":"success","data":{}}', "")
+        completed = subprocess.CompletedProcess([], 0, '{"command":"list","result":"success","data":{}}', "")
         with tempfile.TemporaryDirectory() as temporary, patch.object(gate, "child", return_value=completed) as child:
             root = Path(temporary)
             gate.command(root / "agentplugins", ["list"], {}, root, root=root, readonly=(root / "tools",))
@@ -247,6 +248,151 @@ class CatalogContractTests(unittest.TestCase):
             child.return_value = subprocess.CompletedProcess([], 0, '[]', "")
             gate.native_listing(Path("claude"), {}, root, "chrome-devtools", False, root=root, readonly=())
             self.assertEqual(child.call_args.args[0], ["claude", "plugin", "list", "--json"])
+
+    def run_first_package_fixture(self, parent: Path, mutation: str | None = None):
+        """Only the process boundary is fake; state, files and lifecycle checks are real.
+
+        Released c78c79 service.go stores plan.ActivePath as TargetLocator;
+        planner.go joins the physical artifact ID and stager.go materializes a
+        managed_package_directory, including for skills-only agent-code-navigator.
+        """
+        tools = parent / "tools"
+        tools.mkdir()
+        for name in ("agentplugins", "claude", "copilot", "npx"):
+            (tools / name).write_bytes(b"fixture only; never executed")
+        args = argparse.Namespace(binary=tools / "agentplugins", claude=tools / "claude",
+                                  copilot=tools / "copilot", npx=tools / "npx", inspector=None)
+        root = parent / "case"
+        selection = gate.selected(self.snapshot, "agent-code-navigator", gate.CORE)
+        package_revision = {key: selection[key] for key in ("tree_digest", "manifest_digest")}
+        owned = {client: root / "state" / "managed" / client / "agent-code-navigator-fixture" for client in gate.CORE}
+        clients = {client: {"client_id": client, "target_locator": str(path),
+                            "affected_surfaces": [client], "package_revision": package_revision}
+                   for client, path in owned.items()}
+        state = {"installations": [{"installation_id": "fixture-installation", "origin_mode": "directory",
+                                   "source": {"repository": selection["package_source"]["repository"],
+                                              "resolved_revision": selection["package_source"]["revision"],
+                                              "tree_digest": selection["tree_digest"]}, "clients": clients}]}
+        state_path = root / "state" / "state-v2.json"
+        calls = []
+
+        def targets():
+            return {"succeeded": 3, "failed": 0, "targets": [
+                {"target": client, "status": "external_completed", "output": {"result": {
+                    "installation_id": "fixture-installation", "no_change": True, "mutated": False}}}
+                for client in gate.CORE]}
+
+        def child(argv, **kwargs):
+            self.assertEqual(kwargs["root"], root)
+            phase = argv[1]
+            calls.append(phase)
+            if phase == "add":
+                for client, path in owned.items():
+                    path.parent.mkdir(parents=True)
+                    if mutation == "file_locator" and client == "kiro":
+                        path.write_bytes(b"not a managed package directory")
+                    else:
+                        path.mkdir()
+                        (path / "SKILL.md").write_bytes(b"# Fixture skill\n")
+                        (path / "SKILL.md").chmod(0o640)
+                        (path / "linked-skill").symlink_to("SKILL.md")
+                state_path.write_bytes(publication.canonical_json(state))
+                acquisition = {**package_revision, "acquisition_id": "fixture-acquisition",
+                               "closure_digest": "sha256:" + "1" * 64, "acquisition_count": 1,
+                               "fetched": True, "validated": True}
+                data = {**targets(), **package_revision, "plugin": selection["product_id"],
+                        "version": selection["package_version"],
+                        "source": selection["package_source"]["repository"] + "//" + selection["package_source"]["path"],
+                        "revision": selection["package_source"]["revision"], "acquisition": acquisition,
+                        "target_outcomes": {client: {**acquisition, "outcome": "passed"} for client in gate.CORE},
+                        "directory": {"product_id": selection["product_id"], "distribution_id": selection["distribution_id"],
+                                      "distribution_kind": selection["distribution_kind"],
+                                      "desired_release_sequence": selection["release_sequence"],
+                                      "snapshot_schema": 1, "snapshot_sequence": self.args.sequence,
+                                      "snapshot_digest": self.args.snapshot_digest}}
+            elif phase == "info":
+                data = {"installation_id": "fixture-installation", "clients": list(clients.values())}
+            elif phase == "update":
+                path = owned["codex"] / "SKILL.md"
+                if mutation == "file_bytes":
+                    path.write_bytes(b"changed skill")
+                elif mutation == "file_mode":
+                    path.chmod(0o600)
+                elif mutation == "topology":
+                    (owned["codex"] / "unexpected-file").write_bytes(b"new artifact")
+                elif mutation == "symlink_target":
+                    link = owned["codex"] / "linked-skill"
+                    link.unlink()
+                    link.symlink_to("different-target")
+                data = {**targets(), "status": "completed"}
+            elif phase == "remove":
+                for path in owned.values():
+                    shutil.rmtree(path)
+                state_path.write_bytes(publication.canonical_json({"installations": []}))
+                data = {**targets(), "plugin_data_preserved": False, "data_retained": False}
+            elif phase == "list":
+                data = {"installations": []}
+            elif phase == "doctor":
+                data = {"read_only": True, "installation_count": 0, "open_operation_count": 0,
+                        "findings": [{"status": "healthy", "code": "no_degradation_detected",
+                                      "message": "no tracked degradation was detected"}]}
+                if mutation == "doctor_findings":
+                    data["findings"] = []
+                elif mutation == "doctor_mutation":
+                    (root / "home" / "unexpected-write").write_bytes(b"doctor must be read-only")
+                elif mutation == "doctor_open_operation":
+                    data["open_operation_count"] = 1
+            else:
+                self.fail(f"unexpected fixture phase: {phase}")
+            reported = "list" if phase == "doctor" and mutation == "wrong_command" else phase
+            body = json.dumps({"command": reported, "result": "success", "data": data})
+            return subprocess.CompletedProcess(argv, 0, body, "")
+
+        try:
+            with patch.object(gate, "child", side_effect=child):
+                gate.run_lifecycle(args, root, selection, gate.CORE, vars(self.args))
+        except (ValueError, gate.EvidenceError) as error:
+            return args, calls, error
+        return args, calls, None
+
+    def test_first_package_full_lifecycle_accepts_exact_doctor_envelope(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            args, calls, error = self.run_first_package_fixture(root)
+            self.assertIsNone(error)
+            self.assertEqual(calls, ["add", "info", "update", "remove", "list", "doctor"])
+            self.assertEqual(args.failure_phase, "lifecycle:agent-code-navigator:complete")
+            self.assertEqual(gate.read_json(root / "case/state/state-v2.json")["installations"], [])
+            self.assertFalse(any(path.is_file() or path.is_symlink() for path in (root / "case/state/managed").rglob("*")))
+
+    def test_first_package_real_files_modes_and_symlink_targets_are_not_ignored(self):
+        for mutation in ("file_bytes", "file_mode", "topology", "symlink_target"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                args, calls, error = self.run_first_package_fixture(Path(temporary).resolve(), mutation)
+                self.assertIsInstance(error, ValueError)
+                self.assertEqual(calls, ["add", "info", "update"])
+                self.assertEqual(args.failure_phase, "lifecycle:agent-code-navigator:snapshot_after_update")
+
+    def test_file_locator_is_rejected_not_silently_dropped_from_snapshot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args, calls, error = self.run_first_package_fixture(Path(temporary).resolve(), "file_locator")
+            self.assertIsInstance(error, gate.EvidenceError)
+            self.assertEqual(calls, ["add", "info"])
+            self.assertEqual(args.failure_phase, "lifecycle:agent-code-navigator:snapshot_before_update")
+
+    def test_doctor_wrong_command_findings_mutation_and_open_operation_fail_precisely(self):
+        for mutation, phase in (("wrong_command", "doctor"), ("doctor_findings", "validate_doctor"),
+                                ("doctor_mutation", "snapshot_after_doctor"), ("doctor_open_operation", "validate_cleanup")):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                args, calls, error = self.run_first_package_fixture(Path(temporary).resolve(), mutation)
+                self.assertIsNotNone(error)
+                self.assertEqual(calls[-1], "doctor")
+                self.assertEqual(args.failure_phase, "lifecycle:agent-code-navigator:" + phase)
+
+    def test_diagnostic_steps_reject_unbounded_input(self):
+        for selector, step in (("/private/path", "add"), ("agent-code-navigator", "raw log secret")):
+            with self.assertRaisesRegex(ValueError, "unknown lifecycle"):
+                gate.lifecycle_step(argparse.Namespace(), selector, step)
 
     def test_inspector_runner_receives_fresh_bounded_sandbox(self):
         with tempfile.TemporaryDirectory() as temporary:

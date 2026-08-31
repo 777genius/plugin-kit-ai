@@ -44,11 +44,23 @@ CLI = {"version": "0.1.24", "tag": PLUGIN_KIT_TAG, "commit": PLUGIN_KIT_COMMIT,
        "native_clients": {"claude": "2.1.251", "copilot": "1.0.82"},
        "mcp_inspector": "2.1.0"}
 LIMIT = 4 * 1024 * 1024
+LIFECYCLE_STEPS = frozenset({
+    "prepare", "native_versions", "add", "validate_add", "info", "validate_info",
+    "native_list_installed", "snapshot_before_update", "update", "validate_update",
+    "snapshot_after_update", "remove_native", "native_list_removed", "remove_remaining",
+    "list", "snapshot_before_doctor", "doctor", "validate_doctor", "snapshot_after_doctor",
+    "validate_cleanup", "complete",
+})
 
 
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def lifecycle_step(args: argparse.Namespace, selector: str, step: str) -> None:
+    require(selector in ALIASES and step in LIFECYCLE_STEPS, "unknown lifecycle diagnostic step")
+    args.failure_phase = f"lifecycle:{selector}:{step}"
 
 
 def digest(body: bytes) -> str:
@@ -242,7 +254,8 @@ def command(binary: Path, args: list[str], env: dict, cwd: Path, *, root: Path, 
     completed = child([str(binary), *args, "--format", "json"], root=root, readonly=readonly, env=env, cwd=cwd, timeout=240)
     require(completed.returncode == 0, f"released CLI {args[0]} failed (exit {completed.returncode})")
     value = publication.parse_json_bytes(completed.stdout.encode(), "CLI response", max_bytes=LIMIT)
-    require(value.get("result") == "success" and isinstance(value.get("data"), dict), f"released CLI {args[0]} failed")
+    require(value.get("command") == args[0] and value.get("result") == "success"
+            and isinstance(value.get("data"), dict), f"released CLI {args[0]} failed")
     return value["data"]
 
 
@@ -337,17 +350,26 @@ def remove_targets(run, plugin: str, clients: tuple, verify_native_absent) -> di
 
 
 def run_lifecycle(args: argparse.Namespace, root: Path, selection: dict, clients: tuple, ctx: dict) -> None:
+    step = lambda name: lifecycle_step(args, selection["selector"], name)
+    step("prepare")
     root.mkdir(mode=0o700)
     roots, env = isolated_environment(root, ctx["directory_origin"], (args.claude, args.copilot))
     readonly = tool_paths(args)
     if "claude" in clients:
+        step("native_versions")
         for tool in (args.claude, args.copilot):
             result = child([str(tool), "--version"], root=root, readonly=readonly, env=env, cwd=roots["workspace"], timeout=30)
             require(result.returncode == 0, "native CLI version command failed")
             require(CLI["native_clients"][tool.name] in result.stdout.split(), "native CLI version mismatch")
     common = ["--target", ",".join(clients)]
-    run = lambda phase, *tail: command(args.binary, [phase, *tail], env, roots["workspace"], root=root, readonly=readonly)
+    def run(phase, *tail):
+        if phase == "remove":
+            step("remove_remaining" if "--external-uninstalled" in tail else "remove_native")
+        else:
+            step(phase)
+        return command(args.binary, [phase, *tail], env, roots["workspace"], root=root, readonly=readonly)
     data = run("add", selection["selector"], *common)
+    step("validate_add")
     check_identity(data, selection, ctx)
     targets = exact_targets(data, clients)
     acquisition = data.get("acquisition", {})
@@ -362,6 +384,7 @@ def run_lifecycle(args: argparse.Namespace, root: Path, selection: dict, clients
     for field in ("tree_digest", "manifest_digest"):
         require(acquisition[field] == selection[field], "acquired digest mismatch")
     info = run("info", selection["product_id"], *common)
+    step("validate_info")
     state_file = roots["state"] / "state-v2.json"
     installations = read_json(state_file)["installations"]
     require(len(installations) == 1, "not exactly one installation")
@@ -386,31 +409,44 @@ def run_lifecycle(args: argparse.Namespace, root: Path, selection: dict, clients
     owned = [Path(binding["target_locator"]) for binding in bindings]
     require(all(path.resolve().is_relative_to(root.resolve()) and path.exists() for path in owned), "owned path escaped or missing")
     if "claude" in clients:
+        step("native_list_installed")
         for tool in (args.claude, args.copilot):
             native_listing(tool, env, roots["workspace"], selection["product_id"], True, root=root, readonly=readonly)
     immutable = {name: path for name, path in roots.items() if name != "state"}
     immutable.update({f"owned{index}": path for index, path in enumerate(owned)})
+    step("snapshot_before_update")
     before, state_before = snapshot_roots(immutable), state_file.read_bytes()
     updated = run("update", selection["product_id"], *common)
+    step("validate_update")
     require(updated.get("status") == "completed", "no-change update failed")
     for target in exact_targets(updated, clients):
         result = target.get("output", {}).get("result", {})
         require(result.get("no_change") is True and result.get("mutated") is False, "update changed package")
+    step("snapshot_after_update")
     require(state_file.read_bytes() == state_before and snapshot_roots(immutable) == before, "no-change update mutated state or artifacts")
-    remove_targets(run, selection["product_id"], clients, lambda: native_listing(
-        args.copilot, env, roots["workspace"], selection["product_id"], False, root=root, readonly=readonly))
+    def verify_native_absent():
+        step("native_list_removed")
+        native_listing(args.copilot, env, roots["workspace"], selection["product_id"], False, root=root, readonly=readonly)
+    remove_targets(run, selection["product_id"], clients, verify_native_absent)
     require(run("list").get("installations") == [], "installations remain")
+    step("snapshot_before_doctor")
     before = snapshot_roots(roots)
     doctor = run("doctor")
-    validate_doctor({"result": "success", "data": doctor}, post_remove=True)
+    step("validate_doctor")
+    # command() has authenticated the full envelope before returning only data.
+    validate_doctor({"command": "doctor", "result": "success", "data": doctor}, post_remove=True)
+    step("snapshot_after_doctor")
     require(snapshot_roots(roots) == before, "doctor mutated roots")
+    step("validate_cleanup")
     require(doctor.get("read_only") is True and doctor.get("installation_count") == 0 and doctor.get("open_operation_count") == 0, "doctor not clean/read-only")
     require(all(not path.exists() and not path.is_symlink() for path in owned), "owned artifact remains")
     for directory in (roots["state"] / "managed", roots["state"] / "plugin-data"):
         require(not directory.exists() or not any(path.is_file() or path.is_symlink() for path in directory.rglob("*")), "managed residue remains")
     if "claude" in clients:
+        step("native_list_removed")
         for tool in (args.claude, args.copilot):
             native_listing(tool, env, roots["workspace"], selection["product_id"], False, root=root, readonly=readonly)
+    step("complete")
 
 
 def acquired_package(root: Path, selection: dict) -> Path:
