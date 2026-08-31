@@ -181,6 +181,8 @@ func TestCopilotLiveRegistryFindingRequiresExactIdentityStatusAndPath(t *testing
 		want  registryFinding
 	}{
 		{name: "managed", body: entry("demo", "enabled", path), owned: true, want: registryExpected},
+		{name: "managed with unrelated", body: entry("other", "enabled", path) + strings.TrimPrefix(entry("demo", "enabled", path), header), owned: true, want: registryExpected},
+		{name: "managed CRLF", body: strings.ReplaceAll(entry("demo", "enabled", path), "\n", "\r\n"), owned: true, want: registryExpected},
 		{name: "unowned collision", body: entry("demo", "enabled", path), want: registryCollision},
 		{name: "unrelated", body: entry("other", "enabled", path), owned: true, want: registryClear},
 		{name: "disabled", body: entry("demo", "disabled", path), owned: true, want: registryIndeterminate},
