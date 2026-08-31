@@ -2064,6 +2064,8 @@ sys.modules['catalog_process_isolation']=module
                          'discovery.records.length >= 2000', 'navigator.clipboard.readText()',
                          'assert.deepEqual(errors, [])', 'width: 390', 'width: 1440',
                          "hasText: /^Install candidate/",
+                         "failure === 'net::ERR_ABORTED'",
+                         "pathname === '/universal-agent-plugins/discovery/latest.json'",
                          'discovery:upstash/context7//plugins/agent-plugins/context7'):
             self.assertIn(required, source)
         for forbidden in ('.route(', 'route.fulfill', 'addInitScript', 'executablePath', 'child_process'):

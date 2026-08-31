@@ -20,7 +20,14 @@ try {
       const errors = []
       page.on('pageerror', error => errors.push(error.message))
       page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
-      page.on('requestfailed', request => errors.push(`${request.url()}: ${request.failure()?.errorText}`))
+      page.on('requestfailed', request => {
+        const failure = request.failure()?.errorText
+        // Navigating from Home to Plugins can cancel the previous page's redundant
+        // background refresh after its signed last-known-good cache is already visible.
+        const expectedNavigationAbort = failure === 'net::ERR_ABORTED' &&
+          new URL(request.url()).pathname === '/universal-agent-plugins/discovery/latest.json'
+        if (!expectedNavigationAbort) errors.push(`${request.url()}: ${failure}`)
+      })
       page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()}: ${response.url()}`) })
       const fit = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'horizontal overflow')
       for (const path of ['', 'plugins']) {
