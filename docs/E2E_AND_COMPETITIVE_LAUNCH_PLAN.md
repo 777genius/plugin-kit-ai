@@ -1,6 +1,8 @@
 # E2E and Competitive Launch Plan
 
-Status: implementation plan and evidence record, updated 2026-08-29
+Status: implementation and evidence record, updated 2026-08-31.
+The current continuation is in sections 3.2-3.3 and 15-17. Older evidence is
+retained explicitly as history, not reused as current-release acceptance.
 
 ## 1. Goal
 
@@ -16,7 +18,8 @@ The release is complete when:
 2. The five hero packages pass runtime E2E in Codex, Cursor, and Kiro: 15/15
    client/package results.
 3. The named Cloudflare Docs ChatGPT binding retains its separately scoped
-   personal-app activation and read-only runtime evidence. No broader ChatGPT
+   personal-app activation evidence. Assistant output is not treated as proof
+   of a tool call; the public MCP read remains separate. No broader ChatGPT
    package claim is inferred.
 4. The signed Directory is publicly reachable and the CLI proves cold, cached,
    offline, tampered, expired, and rollback behavior against it.
@@ -83,11 +86,106 @@ them.
 - signed snapshot generation, verification, cache, expiry, and sequence floor;
 - static website and Git-native external submission flow;
 - public-release-only evidence outside the protected hero contract:
-  six-platform `0.1.21` binaries and npm facade, with public provenance and a
-  clean-registry lifecycle proof;
+  six-platform `0.1.24` binaries and npm facade, with public provenance;
+  clean-registry lifecycle proof has the separately recorded historical scope;
 - contributor fork-PR E2E.
 
-### 3.2 Launch status and remaining blockers
+### 3.2 Current operational checkpoint (2026-08-31)
+
+- Public stable CLI is `universal-agent-plugins@0.1.24`, binary `agentplugins`,
+  from release source `c78c79e44efd5ad07083d63436d9170b107df6cb`.
+  [Release run 33312895819](https://github.com/777genius/plugin-kit-ai/actions/runs/33312895819)
+  and [npm run 33314310584](https://github.com/777genius/plugin-kit-ai/actions/runs/33314310584)
+  passed for this exact source, including the six native platforms. Its npm
+  integrity is
+  `sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==`.
+- The protected v5 workflow, adapter schema, and observer configuration already
+  pin `0.1.24`. There is **no accepted final 15/15 result for this tuple**.
+  The historical `0.1.18` 11/15 result below must not be carried forward.
+- Reviewed production Directory remains sequence **13**. Staged sequence
+  **19** (`33222000093-1`) must not be promoted: its ChatGPT binding no longer
+  matches the current app. Supersede it through the existing append-only path
+  with sequence **20**, then prove and promote that same candidate. The current
+  registered app is `plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b`.
+- Production **Discovery** is independently at sequence **19**, with **2,523**
+  records, generated from catalog `302579f89569845fe2805798cbe2cc94b1430382` in
+  [run 33365869709](https://github.com/777genius/universal-agent-plugins/actions/runs/33365869709).
+  Public pointer, snapshot, signature, and search projection were reacquired
+  and verified on 2026-08-31. Snapshot digest:
+  `sha256:7d2f6da0598cb52a019d06cfe95889a4d3fe0f6f33bd16681c7c448457c2cab6`.
+  Discovery sequence 19 is **not** the staged reviewed Directory sequence 19.
+  Scheduled refreshes are functioning; do not dispatch a duplicate scan.
+- The historical 2026-08-30 Chrome upstream PR candidate
+  `ChromeDevTools/chrome-devtools-mcp@7e193aed8baa23c692355237a55237540b36cb2f`
+  passed the public `0.1.24` consumer checks in
+  [run 33331394696](https://github.com/777genius/universal-agent-plugins/actions/runs/33331394696),
+  catalog `bec7f643e50fee5f2bbebad045f107d81ab7a867`.
+  Claude Code has native CLI evidence; Gemini CLI, OpenCode, Cline, and Windsurf
+  have projection/configuration evidence. Codex, Cursor, and Kiro have isolated
+  add/info/remove evidence. Do not describe all eight as live tool runtime.
+  The same run rechecked the Cloudflare and GitHub upstream PR packages in
+  Codex, Cursor, and Kiro. The immutable Chrome result is committed by
+  [PR #155](https://github.com/777genius/universal-agent-plugins/pull/155):
+  `tests/e2e/results/agentplugins-chrome-devtools-multiclient-2026-08-30.json`,
+  SHA-256 `3b12546767ae1a8453516e1689031599f9f09d96bf54ad6d46c63d90a111bf77`.
+- Chrome #2623 now targets `02372c4d47ad257773b2b80c7d7fd056d7067be0`; the old eight-client matrix does not transfer to this head.
+  PR #159 records OpenCode `1.18.25` real `new_page`/`take_snapshot` success for the fixed root package and exact Directory bridge bytes in `tests/e2e/results/chrome-devtools-live-clients-2026-08-31.json`, not public short-alias proof.
+  Gemini `0.57.0` connected for MCP discovery only; model execution returned `UNSUPPORTED_CLIENT`, so no Gemini runtime is claimed.
+- ChatGPT's current evidence is visible app activation plus an assistant
+  response. Tool attribution is inconclusive. The separate public MCP read is
+  authoritative for that endpoint, not proof that ChatGPT invoked it. Keep
+  these claims separate and bind any new human attestation to its exact run.
+- The old host was at 88% disk usage on 2026-08-31. Its sole UAP instance,
+  `uap-observer-e2e-e352fcbf`, was STOPPED; total LXD usage was 7.8 GB. Remaining owned cleanup cannot bring the host below 80%.
+  Hosted E2E stays blocked until usage is below 80%. No new VM, container, or snapshot is authorized.
+  Do not delete preserved profile/authentication archives or other projects
+  to make room; only remove independently identified disposable UAP data.
+
+### 3.3 Remaining execution order
+
+1. Use the merged implementation from
+   [same-VM reset PR #153](https://github.com/777genius/universal-agent-plugins/pull/153).
+   Reviewed head `9bd602a35986f3a82433b1f1de3f855f7c4ae4d2` passed all CI and two technical reviews; it merged normally, without administrator bypass, as `d8818c82a5345130e4a0c37e713b1422c48cf796` on 2026-08-31.
+   Main's verified solo-owner policy removes second-account approval, while retaining required PRs, strict portable-catalog CI, resolved conversations, and unchanged bypass/immutability and publication protections.
+   The actual same-VM reset has not run. Green fixtures prove recovery logic, not a completed VM reset.
+2. Merge code, this checkpoint, and atomic PR #159 Chrome policy plus its three current Directory source pins before freezing the final
+   catalog SHA. Coordinate that boundary explicitly; do not freeze while an
+   accepted policy/pin change is still pending. CLI/npm remain `0.1.24`; no new CLI release is needed. Run current-main validation and
+   the credential-free Live E2E.
+3. Confirm old-host machine identity, disk budget below 80%, memory and swap.
+   Reuse only the one existing test VM. Prepare and validate exact `0.1.24`
+   inputs, then follow the reviewed same-VM reset runbook. No real project,
+   new VM, snapshot, or hidden authentication fallback is permitted.
+4. Supersede reviewed Directory stage 19 with sequence 20. Build the exact
+   candidate while its protected gate waits; bind the observer to that actual
+   publication ID, digest, source, and release. Never predict those values.
+5. Prove one fresh external fork submission against frozen catalog main and
+   the sequence-20/current-CLI tuple. Close the test PR without merging its
+   test package. Older external PRs remain historical, not exact-main proof.
+6. Complete 12 non-Notion hero rows plus 3 separately authenticated Notion
+   rows, with repair, runtime, cleanup, and sanitized evidence as specified
+   below. Complete only the separately scoped ChatGPT gate. Reuse prior
+   evidence only where the consumer explicitly validates the same tuple.
+7. Promote the same proved sequence 20, then verify its public assets, site,
+   CLI search, and one reviewed short-name plus discovered-package
+   add/info/update/remove lifecycle on explicit `codex,cursor,kiro` targets.
+8. Remove owned temporary staging and transient test resources; retain the
+   single test environment and required authentication material. Record final
+   artifacts without silently changing the catalog SHA bound by the proof.
+
+If another code change is required after the freeze, rebind only the affected
+proofs to the new exact SHA. Do not relabel old artifacts or restart already
+proved independent release/platform checks.
+
+After proof, protected `materialize_launch_evidence` mechanically changes main only in `registry/directory.json`, changing its whole-file digest.
+After successful persistence, review a scoped refresh of the three current source pins (production config, validator, expected test digest) before claiming current-main CI green.
+Keep the original publication evidence SHA and proved tuple unchanged; the refreshed current tuple does not authorize rerunning or relabeling historical evidence. Existing code guards remain intact.
+
+### 3.4 Historical launch checkpoint (superseded)
+
+The following 2026-08-29 observations are retained for traceability. Statements
+about then-current versions, pending approvals, and sequence 19 are historical;
+sections 3.2-3.3 above govern all new execution.
 
 1. The accepted exact-tuple matrix is currently 11/15: Codex 5/5, Cursor 3/5,
    and Kiro 3/5. The selected upstream Context7 package uses
@@ -196,7 +294,7 @@ them.
     local state root. Stable `0.1.22` publication remains gated on explicit
     owner approval for that exact version.
 
-### 3.3 Implementation checkpoint
+### 3.5 Historical implementation checkpoint
 
 - Exact `0.1.18` release tuple: complete.
 - Latest public CLI release `0.1.21`: public-release evidence only, outside the
@@ -339,14 +437,14 @@ Make every following result refer to the same repository and release identity.
 2. Freeze the launch tuple:
    - catalog repository commit;
    - CLI repository commit;
-   - `agentplugins-v0.1.18` tag;
+   - `agentplugins-v0.1.24` tag;
    - npm package version and integrity;
    - release manifest and checksum digest;
    - Directory source digest;
    - scenario contract digest.
-3. Replace stable-launch pins and fixtures with `0.1.18` only after verifying
-   its released assets. Do not predict checksums or npm integrity before the
-   release exists.
+3. The stable-launch pins and fixtures now target `0.1.24`. Verify the released
+   assets before executing; do not reuse the historical `0.1.18` evidence or
+   predict checksums and npm integrity.
 4. Do not regenerate historical evidence in place. New evidence gets a new
    immutable identity.
 
@@ -358,7 +456,7 @@ Make every following result refer to the same repository and release identity.
 
 ### Acceptance criteria
 
-- One machine-readable launch tuple identifies only `0.1.18`.
+- One machine-readable launch tuple identifies only `0.1.24`.
 - Docs, fixture directories, workflow inputs, and npm assertions agree.
 
 ## 6. Phase 1 - Repair the scheduled and protected gates
@@ -436,12 +534,13 @@ artifact bound to the same package and client result.
 
 ### ChatGPT boundary
 
-Retain the separately scoped Cloudflare Docs result:
+Retain the separately scoped Cloudflare Docs observations:
 
 - exact registered development binding;
 - Plugins UI discovery;
 - user-attested personal-app activation;
-- one read-only runtime call;
+- assistant response with tool attribution explicitly marked inconclusive;
+- a separately proved public MCP read, not attributed to that response;
 - exact `.app.json` linkage.
 
 Do not claim general ChatGPT installation, ChatGPT Work package activation, or
@@ -458,7 +557,7 @@ package-routed runtime until separately proved.
 
 ### Acceptance criteria
 
-- 15/15 results pass for the `0.1.18` launch tuple.
+- 15/15 results pass for the `0.1.24` launch tuple.
 - Notion has three separately bound authentication/runtime results.
 - Cleanup proves no artifacts remain outside owned test roots.
 - The public evidence bundle contains no credentials, home paths, account IDs,
@@ -474,8 +573,10 @@ Promote the already staged design into a publicly consumable product.
 
 1. Restore observer verification inputs only in the protected
    `stable-launch-e2e` environment.
-2. Run the exact protected launch gate against `0.1.18` evidence.
-3. Sign and append the next Directory sequence.
+2. Supersede staged sequence 19 with the materially corrected, signed sequence
+   20 using the existing publication workflow; production stays on 13 meanwhile.
+3. Run the exact protected launch gate against `0.1.24` and this real
+   sequence-20 candidate. Promote only that same proved tuple.
 4. Materialize the static site from that exact signed snapshot.
 5. Deploy only after snapshot identity, source commit, and ledger commit match.
 6. Verify the public `latest.json`, envelope, snapshot, and site assets.
@@ -504,7 +605,7 @@ Promote the already staged design into a publicly consumable product.
 ### Acceptance criteria
 
 - The production Directory endpoint returns `200` with a valid signature.
-- A clean `0.1.18` CLI resolves a reviewed short name from production.
+- A clean `0.1.24` CLI resolves a reviewed short name from production.
 - Offline/tampered tests prove fail-closed behavior without losing installed
   state.
 
@@ -800,16 +901,17 @@ Start with the three existing bridges:
 Current cohort:
 
 - [Chrome DevTools #2623](https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623)
-  at fork head `4ff0c06eab3c2e7af216b24a9350867d5dccb4c8`;
+  at current PR head `02372c4d47ad257773b2b80c7d7fd056d7067be0`;
 - [Cloudflare #465](https://github.com/cloudflare/mcp-server-cloudflare/pull/465)
   at fork head `3897acdb389b453205c559e2b79acc8bd5909bfa`;
 - [GitHub MCP Server #3169](https://github.com/github/github-mcp-server/pull/3169)
   at fork head `14092de9940741511d224e0d7071ac02910bda11`.
 
-All three exact heads passed schema validation plus isolated add, info, and
-remove lifecycle checks for Codex, Cursor, and Kiro in
-[run 33115759932](https://github.com/777genius/universal-agent-plugins/actions/runs/33115759932).
-That evidence does not claim tool runtime or authentication.
+The historical Chrome `7e193aed8baa23c692355237a55237540b36cb2f` and the listed Cloudflare/GitHub heads passed isolated `0.1.24` add, info, and remove checks
+for Codex, Cursor, and Kiro in
+[run 33331394696](https://github.com/777genius/universal-agent-plugins/actions/runs/33331394696).
+That matrix does not claim tool runtime or authentication. The separately
+scoped current-head Chrome lifecycle, OpenCode runtime, and Gemini discovery evidence is described in section 3.2; the historical matrix is not current-head proof.
 
 ## 13. Verification gates
 
@@ -839,7 +941,7 @@ tests in `plugin-kit-ai`, followed by the six-platform release workflow.
 
 - current-main validation workflow green;
 - scheduled Live E2E green;
-- protected launch evidence green for exact `0.1.18` tuple;
+- protected launch evidence green for exact `0.1.24` tuple;
 - signed Directory production endpoint returns and verifies;
 - site loads the same signed sequence;
 - npm clean install resolves the matching binary and checksum;
@@ -870,44 +972,42 @@ Kill switches:
 
 ## 15. Final acceptance checklist
 
-- [x] Stable launch tuple is entirely `0.1.18`.
-- [x] Scheduled credential-free E2E is green on the recorded checkpoint.
-- [ ] Protected E2E is green for the exact final evidence tuple.
-- [ ] Five heroes pass 15/15 across Codex, Cursor, and Kiro.
-- [ ] Notion evidence is separately authenticated and sanitized.
-- [x] Cloudflare Docs ChatGPT claim stays within the proved personal-app scope.
-- [x] Signed production Directory sequence 13 is publicly reachable and
-      fail-closed.
-- [ ] The current staged sequence 19 is promoted only after protected evidence
-      passes.
-- [x] `install`, `search`, `validate`, `outdated`, and `update --all` are
-      shipped.
-- [x] Reviewed Directory and unreviewed Discovery Index are visibly distinct
-      in labels, provenance text, commands, and browser-tested cards.
-- [x] Production Discovery sequence 8 covers 2,461 reproducibly found,
-      conformant package paths without padding and verifies from public assets.
-- [x] Public `0.1.21` installs one exact-SHA discovered package across explicit
-      Codex, Cursor, and Kiro targets from one acquisition.
-- [x] Public `0.1.21` passes add, info, no-change update, external Codex remove,
-      manager remove, and final doctor in a disposable sandbox.
-- [x] Malformed unreviewed packages fail before mutation.
-- [x] Website search and client multi-select pass 16 desktop/mobile browser E2E
-      cases in isolated profiles.
-- [x] The production site consumes sequence 8 and finds the tested external
-      selector. Mobile emitted no browser errors; desktop functional and visual
-      checks passed, while one later asset retry was interrupted by host network
-      churn and is recorded separately above.
-- [x] No install telemetry, analytics, or tracking scripts are introduced.
-- [x] Three upstream Agent Plugins 1.0 PRs are open with exact-SHA lifecycle
-      evidence.
-- [x] Existing installs never change source implicitly. The focused
-      `agentpluginscli` Directory/source suite proves alias rotation and default
-      distribution changes retain the recorded source; only explicit `switch`
-      changes it.
-- [x] No real user project or identity was used for the public Discovery and
-      lifecycle E2E recorded above.
+- [x] Public stable `0.1.24`, npm provenance, and six native release platforms
+      are verified against one source commit.
+- [x] Protected workflow/schema/configuration pins target `0.1.24`.
+- [ ] Final frozen-main validation and credential-free Live E2E are green.
+- [ ] Same-VM reset is reviewed, merged, and tested in the existing isolated
+      environment within the host disk budget.
+- [ ] Protected v5 E2E passes for the exact final publication/release tuple.
+- [ ] Five heroes pass 15/15 across Codex, Cursor, and Kiro; the three Notion
+      rows have separately bound, sanitized consent and runtime evidence.
+- [ ] Exact-run ChatGPT gate records only the evidence actually observed.
+- [x] Reviewed production Directory sequence 13 remains publicly reachable.
+- [ ] Staged reviewed sequence 19 is superseded, never promoted; sequence 20
+      is proved, promoted, and read back from production.
+- [x] Signed Discovery sequence 19 has 2,523 conformant records with verified
+      public snapshot, signature, and search projection. Refresh is automated.
+- [x] `install`, `search`, `validate`, `outdated`, and `update --all` ship.
+- [x] Reviewed and unreviewed results remain visibly distinct; exact-SHA
+      installation and multi-target lifecycle have recorded historical proof.
+- [ ] Fresh `0.1.24` production short-name and discovered-package
+      add/info/update/remove checks pass for explicit `codex,cursor,kiro`.
+- [ ] Final production website/search/copy flow reads the published candidate;
+      earlier desktop/mobile evidence is retained without changing its tuple.
+- [ ] Fresh external fork submission matches frozen main and publication20;
+      close the test PR without adding its package to the live Directory.
+- [x] All three upstream packaging PRs remain open and passed historical
+      exact-head `0.1.24` add/info/remove checks; Chrome has separately scoped
+      evidence for five additional clients.
+- [x] No install telemetry or implicit source switching is introduced.
+- [ ] Final privacy and cleanup audit passes; no real user project is used,
+      and required profile/authentication archives remain recoverable.
 
-## 16. Estimate
+## 16. Original estimate (historical)
+
+The ranges below describe the initial implementation scope, not work remaining.
+The remaining critical path is verification and safe publication in section
+3.3; do not infer a completion percentage from changed lines of code.
 
 ```text
 Confidence: 9/10
@@ -930,17 +1030,18 @@ rewrite and no database service.
 ## 17. Implementation order
 
 ```text
-Protected 0.1.18 evidence baseline + public CLI 0.1.19
-  -> scheduled CI repair
-  -> 15/15 runtime evidence
-  -> signed production Directory
-  -> install/search/validate/outdated/update-all CLI UX
-  -> signed static Discovery Index
-  -> website integration
-  -> three upstream packaging PRs
-  -> first manual bridge-to-upstream promotion
+Reviewed same-VM reset + current evidence plan + atomic PR159 Chrome policy/source-pin cutover
+  -> frozen catalog main / verified public CLI 0.1.24
+  -> current-main validation and credential-free Live E2E
+  -> capacity check and reuse existing isolated VM
+  -> supersede Directory19 with signed candidate20
+  -> fresh exact-main external fork proof
+  -> protected 15/15 + scoped ChatGPT + privacy/cleanup
+  -> promote that same Directory20
+  -> public assets, website, CLI and lifecycle readback
 ```
 
-The first four steps are the launch blocker. Discovery and upstream PR work may
-be prepared in parallel, but broad promotion begins only after the public badge,
-Directory endpoint, and exact current-release evidence are green.
+CLI discovery, automatic index refresh, website integration, and the first
+upstream PR cohort are already implemented. Do not rebuild them or replay
+independent release proofs. Broad promotion still waits for the exact protected
+runtime and production checks above.

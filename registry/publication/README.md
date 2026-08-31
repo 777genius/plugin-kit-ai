@@ -95,9 +95,12 @@ Before enabling `.github/workflows/directory-publication.yml`:
    launch-approval tags, this marker is intentionally advanced after each
    successful Pages deployment and never before it.
    In addition, split `main` protection into two rulesets before enabling
-   publication. The `main` update/review gate must retain required review and
-   required status checks for everyone except the installed dedicated
+   publication. The `main` update/review gate must retain required PRs, strict
+   portable-catalog status checks, and resolved conversations for everyone except the installed dedicated
    `uap-directory-publisher` App, which is its only always-allowed bypass actor.
+   For a solo owner, set `required_approving_review_count=0`,
+   `require_last_push_approval=false`, and `require_extra_approval_for_unattributed_changes=false`.
+   These settings remove an unavailable second-account approval, not PR/CI gates or any bypass/immutability protection.
    In a solo-maintainer repository, the Repository administrators role may also
    receive `pull_request`-only bypass so an explicitly approved green PR remains
    mergeable. It must never receive always-allowed bypass or permission to push
@@ -128,9 +131,9 @@ Before enabling `.github/workflows/directory-publication.yml`:
    sequence below the highest tag then fails closed. Never delete or recreate
    the initialization marker or publication tags. Initialization alone does
    not approve launch and must not create the launch-approval tag.
-6. Require CODEOWNER review for the publication scripts, schemas, workflow, and
-   this configuration; dismiss stale approvals and require conversation
-   resolution and status checks. Configure the split `main` rulesets from step
+6. With two or more maintainers, require separate CODEOWNER approval for the
+   publication scripts, schemas, workflow, and this configuration. While solo,
+   use step 3's main policy; retain stale-approval dismissal, conversation resolution, and status checks. Configure the split `main` rulesets from step
    3 rather than a single rule that would reject the marker fast-forward.
 7. Configure GitHub Pages for GitHub Actions. Grant the workflow its declared
    permissions. After signing, the no-secret site job generates production from
