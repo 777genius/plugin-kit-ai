@@ -1,8 +1,8 @@
 # E2E and Competitive Launch Plan
 
 Status: implementation and evidence record, updated 2026-08-31.
-The current continuation is in sections 3.2-3.3 and 15-17. Older evidence is
-retained explicitly as history, not reused as current-release acceptance.
+The completed catalog result is in sections 3.2-3.3 and 15-17. Older evidence
+is retained explicitly as history, not reused as current-release acceptance.
 
 ## 1. Goal
 
@@ -125,113 +125,101 @@ catalog gate must not update their statuses or create a runtime approval tag.
 - signed snapshot generation, verification, cache, expiry, and sequence floor;
 - static website and Git-native external submission flow;
 - public-release-only evidence outside the protected hero contract:
-  six-platform `0.1.24` binaries and npm facade, with public provenance;
+  six-platform `0.1.25` binaries and npm facade, with public provenance;
   clean-registry lifecycle proof has the separately recorded historical scope;
 - contributor fork-PR E2E.
 
 ### 3.2 Current operational checkpoint (2026-08-31)
 
-- Public stable CLI is `universal-agent-plugins@0.1.24`, binary `agentplugins`,
-  from release source `c78c79e44efd5ad07083d63436d9170b107df6cb`.
-  [Release run 33312895819](https://github.com/777genius/plugin-kit-ai/actions/runs/33312895819)
-  and [npm run 33314310584](https://github.com/777genius/plugin-kit-ai/actions/runs/33314310584)
-  passed for this exact source, including the six native platforms. Its npm
-  integrity is
-  `sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==`.
-- The protected v5 workflow, adapter schema, and observer configuration already
-  pin `0.1.24`. There is **no accepted final 15/15 result for this tuple**.
-  The historical `0.1.18` 11/15 result below must not be carried forward.
-- Reviewed production Directory remains sequence **13**. Staged sequence
-  **19** (`33222000093-1`) must not be promoted: its ChatGPT binding no longer
-  matches the current app. Supersede it through the existing append-only path
-  with sequence **20**, then prove and promote that same candidate. The current
-  registered app is `plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b`.
-- Production **Discovery** independently advanced to sequence **20**, with
-  **2,546** records, generated from catalog
-  `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204` in
-  [run 33385424418](https://github.com/777genius/universal-agent-plugins/actions/runs/33385424418).
-  Its public pointer, snapshot, signature, and search projection passed the
-  workflow's exact production readback at `2026-08-31T12:07:55Z`. Snapshot digest:
+- Public stable CLI is `universal-agent-plugins@0.1.25`, binary `agentplugins`,
+  from source `d168b28bcdeef0c558bee3935adab25abb9f6267`.
+  [Release run 33406149758](https://github.com/777genius/plugin-kit-ai/actions/runs/33406149758)
+  passed on six native platforms and
+  [npm run 33406856309](https://github.com/777genius/plugin-kit-ai/actions/runs/33406856309)
+  passed the public install/update/remove canary. npm integrity is
+  `sha512-gvyfd0nIgNZ4wx0Beoae7OhdfsUGyDiiHotIdwHkwDR+KZ6CIBFelbGBHMpO4rZ5StbJ1XF+SSpdnQF/ilUmQQ==`;
+  the Linux amd64 binary digest is
+  `sha256:83f7785383a47b82523ff610893df51ee979d6f444f7de6723b07fbc80cec2e4`.
+- Reviewed production Directory is sequence **20**. The exact immutable tuple is
+  publication `33392897962`, source
+  `240b01d0e7686f3b15c7612ed5b188483e39fd7b`, workflow
+  `7190f18fe8181560f3db358772c0f6eb6c081585`, signed ledger
+  `561c4b9544fe335142b5c9dd6cee35b0eaad1b95`, materialized/production ledger
+  `001863a6b76738f68eca9bb76c0a000b08a55125`, and snapshot digest
+  `sha256:4fd545da5139a9701ee5de07c54927982d19624318aee899ea9d74b0a254b4db`.
+  [Publication run 33410797707](https://github.com/777genius/universal-agent-plugins/actions/runs/33410797707)
+  authenticated the already signed candidate, passed the exact candidate gate,
+  promoted it, and read back the same identity from production.
+- Canonical catalog-readiness evidence passed **85/85 rows** for 26 products and
+  ten clients (`claude`, `cline`, `codex`, `copilot`, `cursor`, `gemini`,
+  `kiro`, `opencode`, `vscode`, `windsurf`), plus four package-bound public MCP
+  probes and all eleven source-policy cases. It used per-child bubblewrap in
+  disposable GitHub-hosted runners. `account_runtime` and `oauth` are
+  `not_tested`; `runtime_claims` is `false`. Evidence digests are:
+  `catalog-readiness.json` `sha256:2a019541f7508b3573af150eff1eead9c8831aaf4dc08ef38fcc5ddb9045ca71`,
+  `source-policy-conformance.json` `sha256:ae6a8b52f9ecc4c9792b27b695f6a28183d56a3de60bcd4e7b89bb3903b77cb1`,
+  and production readback `sha256:efa2b8dd39495b8b151d51e4cb15e8c078e7b35ad94c6f4ff3a7982837c5bb6a`.
+- Production Discovery is independently signed at sequence **20**, with 2,546
+  records and snapshot digest
   `sha256:7aea022e6778f80c616cfefa71da1312d43a5bc9a47742dfa43e4ec07d9ee7c2`.
-  The consumer proof below used the preceding Discovery 19 with 2,523 records;
-  it is not relabeled as sequence-20 consumer evidence.
-  Discovery sequence 20 is **not** the pending reviewed Directory sequence 20.
-  Scheduled refreshes are functioning; do not dispatch a duplicate scan.
-- The historical 2026-08-30 Chrome upstream PR candidate
-  `ChromeDevTools/chrome-devtools-mcp@7e193aed8baa23c692355237a55237540b36cb2f`
-  passed the public `0.1.24` consumer checks in
-  [run 33331394696](https://github.com/777genius/universal-agent-plugins/actions/runs/33331394696),
-  catalog `bec7f643e50fee5f2bbebad045f107d81ab7a867`.
-  Claude Code has native CLI evidence; Gemini CLI, OpenCode, Cline, and Windsurf
-  have projection/configuration evidence. Codex, Cursor, and Kiro have isolated
-  add/info/remove evidence. Do not describe all eight as live tool runtime.
-  The same run rechecked the Cloudflare and GitHub upstream PR packages in
-  Codex, Cursor, and Kiro. The immutable Chrome result is committed by
-  [PR #155](https://github.com/777genius/universal-agent-plugins/pull/155):
-  `tests/e2e/results/agentplugins-chrome-devtools-multiclient-2026-08-30.json`,
-  SHA-256 `3b12546767ae1a8453516e1689031599f9f09d96bf54ad6d46c63d90a111bf77`.
-- Chrome #2623 now targets `02372c4d47ad257773b2b80c7d7fd056d7067be0`; the old eight-client matrix does not transfer to this head.
-  PR #159 records OpenCode `1.18.25` real `new_page`/`take_snapshot` success for the fixed root package and exact Directory bridge bytes in `tests/e2e/results/chrome-devtools-live-clients-2026-08-31.json`, not public short-alias proof.
-  Gemini `0.57.0` connected for MCP discovery only; model execution returned `UNSUPPORTED_CLIENT`, so no Gemini runtime is claimed.
-- Credential-free consumer [run 33387563994](https://github.com/777genius/universal-agent-plugins/actions/runs/33387563994) passed **5/5 jobs on attempt 1** with public CLI `0.1.24`, at diagnostic SHA `03cf3e15c4ea65499236f16da22d9853c7b46e29`, based on frozen main `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204`.
-  Four packages across `codex,cursor,kiro` prove **12 preparation/lifecycle cases**: Chrome `02372c4d47ad257773b2b80c7d7fd056d7067be0`, Cloudflare `3897acdb389b453205c559e2b79acc8bd5909bfa`, GitHub `14092de9940741511d224e0d7071ac02910bda11`, and Discovery Context7 `4e980f6b494d6f970cc5ec1df417ba684b2f6e0b` (`1.0.0`).
-  Discovery selector `discovery:upstash/context7//plugins/agent-plugins/context7` resolved through signed Discovery sequence 19; its successful no-change update preserved installation-state bytes. Direct full-SHA updates correctly rejected without mutation. All four jobs removed owned artifacts/data and reported read-only final doctor with zero installations/open operations.
-  The fifth job separately passed Chrome's five-client lifecycle: real Claude `2.1.251` plugin-list discovery/removal, with Gemini, OpenCode, Cline, and Windsurf limited to configuration/projection checks. This run proves no OAuth, model invocation, native hero activation, version upgrade, or protected 15/15 runtime.
-  The new `02372c4` consumer lifecycle supersedes the historical `7e193` lifecycle for new claims without changing its artifact tuple. Reviewed Directory remains at sequence 13; staged 19 was not promoted, and this run dispatched no publication or main update.
-  All five downloaded artifact checksums were verified. SHA-256 of each artifact's `evidence.json` (names below share suffix `-03cf3e15c4ea65499236f16da22d9853c7b46e29-33387563994-1`):
+  [Run 33385424418](https://github.com/777genius/universal-agent-plugins/actions/runs/33385424418)
+  verified its public pointer, snapshot, signature, and search projection.
+- Final public consumer
+  [run 33413276963](https://github.com/777genius/universal-agent-plugins/actions/runs/33413276963)
+  passed **7/7 jobs on attempt 1** at exact main
+  `7ac56c7832942ba931af25b52f474d5d59efd82f` with public CLI `0.1.25`.
+  Five package jobs proved add, info, update semantics, remove, owned-data purge,
+  and final zero-installation/zero-open-operation doctor state. Direct immutable
+  Chrome, Cloudflare, and GitHub sources rejected update without mutation;
+  reviewed `chrome-devtools` and discovered Context7 passed no-change update.
+  Every package job used explicit `codex,cursor,kiro` targets and a fresh
+  disposable root.
+- The same run proved Chrome preparation/lifecycle for Claude, Gemini, OpenCode,
+  Cline, and Windsurf, including native Claude listing, without claiming model
+  runtime or authentication. Public Pages passed at 1440x1000 and 390x844:
+  Directory 20, Discovery 20, 2,546 records, reviewed Chrome and unreviewed
+  Context7 search, exact multi-target commands, clipboard, no horizontal
+  overflow, and zero console/page/HTTP/UI errors. No command was executed by the
+  website smoke.
+- All downloaded final consumer checksums verified. Evidence JSON SHA-256:
 
-  | Artifact prefix | SHA-256 |
+  | Artifact | SHA-256 |
   | --- | --- |
-  | `upstream-package-chrome-devtools` | `23e440d81338b130e3d3b1cbe3859e03edb295e52474b45067ed209005833e84` |
-  | `upstream-package-cloudflare-docs` | `885efc9ed1755854cd52ce23506671342a6e4066d8f62b2c5d927e38db9d3667` |
-  | `upstream-package-github` | `9b3a9f7fb24323d2aae8f332d7f22dea97ecdd3473bfb8a3432e328aabf8b0e8` |
-  | `upstream-package-discovered-context7` | `c99960be1305c76860234b4b7de0344bde8262cffe455e0b83df69f9e1ad5795` |
-  | `chrome-five-client-lifecycle` | `56c0c0ad46f3609243491546b08b45af09049b49348a4eadfe5bc3d4ab5471bd` |
+  | `public-site` | `0518d56b31fdce004e1282cc5f9847b27a0bffbbe0e5c17b0af7aad5658d9bcf` |
+  | `upstream-package-chrome-devtools` | `64f2a57386043461a6917f82c0ea32a398f80209bff083873e875a42be5cbcec` |
+  | `upstream-package-cloudflare-docs` | `c225bb62f9075fb62072d020c2dfab01b712e73123edac28ad785ca2702a4e94` |
+  | `upstream-package-github` | `8a2016b3539b93202c75856d74436fae50a1ac664db23b36c414c9d60882a90c` |
+  | `upstream-package-discovered-context7` | `265cb28c008557cd336c148d0b369f26603044cfc708f136121a0ac6abed08f2` |
+  | `upstream-package-reviewed-chrome-short-alias` | `555ac3d923e37aa9a9527fac6dd936a23bc68f050bac52899bd6ab3df91a08b3` |
+  | `chrome-five-client-lifecycle` | `95cf7fb0e5d3ffe6d1dcbf51b675c0e1ec19ee4d8b1f731067107562e7943259` |
 
-- ChatGPT's current evidence is visible app activation plus an assistant
-  response. Tool attribution is inconclusive. The separate public MCP read is
-  authoritative for that endpoint, not proof that ChatGPT invoked it. Keep
-  these claims separate and bind any new human attestation to its exact run.
-- The old host was at 90% disk usage on 2026-08-31, with approximately 47 GiB free (an observation, not a test-space requirement). Its sole UAP instance,
-  `uap-observer-e2e-e352fcbf`, was STOPPED; total LXD usage was 7.8 GB. Remaining owned cleanup cannot bring the host below 80%.
-  Hosted E2E stays blocked until usage is below 80%. No new VM, container, or snapshot is authorized.
-  Do not delete preserved profile/authentication archives or other projects
-  to make room; only remove independently identified disposable UAP data.
+- Three upstream Agent Plugins 1.0 packaging PRs remain open at the exact heads
+  exercised by the final run: Chrome DevTools #2623 `02372c4`, Cloudflare #465
+  `3897acd`, and GitHub MCP Server #3169 `14092de`.
+- ChatGPT UI/tool attribution and vendor OAuth remain separate evidence. The
+  catalog publication used no account credentials and does not convert earlier
+  visual observations into runtime proof.
+- No VM, hosted UAP instance, SSH host, real user project, preserved profile, or
+  authentication archive was used or changed for this publication and consumer
+  proof. The old host's capacity is irrelevant to the completed catalog lane;
+  its 80% safety rule still applies if account-runtime work is resumed later.
 
-### 3.3 Remaining execution order
+### 3.3 Remaining work
 
-1. Keep the merged public-consumer proof from [PR #160](https://github.com/777genius/universal-agent-plugins/pull/160), merged as `58725099e68caa0cd2f8fd87beb636b79bb02f0d`.
-   Its real `0.1.24` lifecycle artifacts remain bound to diagnostic
-   `03cf3e15c4ea65499236f16da22d9853c7b46e29`, not relabeled as merged-head proof.
-   The five jobs passed in run `33387563994` without a VM or user accounts.
-2. Implement the accepted per-publication catalog gate, review its exact head,
-   and pass CI. Preserve strict account-runtime validators in their separate
-   lane. Freeze the resulting merged main for publication.
-3. Wait for any existing Discovery publication to finish; do not start a
-   duplicate scan or conflict with the shared ledger. Re-read current production,
-   staged identity, ledger head, and immutable tags before publication.
-4. Supersede reviewed stage 19 through the existing material-change guard,
-   creating sequence 20. Bind tests to its actual signed identity. A workflow-only
-   change must not be used to force a new sequence.
-5. Pass candidate-bound catalog readiness in GitHub Actions, then promote that
-   same immutable materialization. Failure leaves production unchanged; retry
-   the smallest missing phase without creating another signed candidate.
-6. Verify public assets, site,
-   CLI search, and one reviewed short-name plus discovered-package
-   add/info/update/remove lifecycle on explicit `codex,cursor,kiro` targets.
-7. Prove the external contributor path when its implementation changes; retain
-   earlier exact-base fork evidence as historical otherwise. Never merge the
-   test package into the live catalog or relabel an old PR as current-main proof.
-8. Record final evidence and cleanup disposable jobs/artifacts. Leave the stopped
-   UAP VM and preserved authentication archives untouched. No real user project
-   may be used for any test.
+The catalog, discovery, website, CLI, and credential-free consumer scope in this
+plan is complete. Remaining work is deliberately outside catalog-release
+acceptance:
 
-If another code change is required after the freeze, rebind only the affected
-proofs to the new exact SHA. Do not relabel old artifacts or restart already
-proved independent release/platform checks.
+1. Finish only the separately protected account-runtime/OAuth/ChatGPT UI matrix
+   when suitable test accounts and an isolated environment are available.
+2. Follow up on the three upstream PRs without changing or weakening the public
+   Directory fallback while they remain unmerged.
+3. For any future catalog change, create a higher signed sequence and rebind
+   only affected evidence. Never relabel sequence-20 artifacts as proof for a
+   different source, workflow, release, or ledger identity.
 
 Catalog readiness does not call `materialize_launch_evidence` or mutate runtime
-evidence/source pins. If that separate account-runtime lane is used later, its
+evidence/source pins. If the separate account-runtime lane is used later, its
 existing exact-source and reviewed pin-refresh requirements still apply.
 
 ### 3.4 Historical launch checkpoint (superseded)
@@ -1031,36 +1019,40 @@ Kill switches:
 
 ## 15. Final acceptance checklist
 
-- [x] Public stable `0.1.24`, npm provenance, and six native release platforms
-      are verified against one source commit.
-- [x] Protected workflow/schema/configuration pins target `0.1.24`.
+- [x] Public stable `0.1.25`, npm provenance, and six native release platforms
+      are verified against source `d168b28bcdeef0c558bee3935adab25abb9f6267`.
+- [x] Catalog workflow and evidence schema pin `0.1.25`; the protected
+      account-runtime tuple remains separate and is not claimed as 15/15.
 - [x] Historical pre-gate main validation and credential-free Live E2E are green at `ae458cd1a1a51eaaace5b82c35db2e3f6e7da204` (runs 33385424414/33385478850).
-- [ ] New merged catalog-gate main is frozen and its exact-head CI is green.
+- [x] Merged catalog-gate main was frozen at
+      `7190f18fe8181560f3db358772c0f6eb6c081585` and its exact-head CI was green.
 - [x] Owner approved catalog publication without VM/account-runtime ceremony;
       missing OAuth/model/UI outcomes remain untested, not waived as passed.
-- [ ] Required candidate-bound catalog gate and independent attestation pass
-      before promotion, with fixed complete coverage and source-policy checks.
-- [x] Reviewed production Directory sequence 13 remains publicly reachable.
-- [ ] Staged reviewed sequence 19 is superseded, never promoted; sequence 20
-      is proved, promoted, and read back from production.
+- [x] Required candidate-bound catalog gate and independent attestation passed
+      before promotion: 85/85 rows, four MCP probes, and eleven source-policy cases.
+- [x] Reviewed production Directory sequence 20 is publicly reachable and
+      verifies with snapshot digest `sha256:4fd545da5139a9701ee5de07c54927982d19624318aee899ea9d74b0a254b4db`.
+- [x] Staged reviewed sequence 19 was superseded and never promoted; sequence
+      20 was proved, promoted, and read back from production.
 - [x] Signed Discovery sequence 20 has 2,546 conformant records with verified
       public snapshot, signature, and search projection. Refresh is automated.
 - [x] `install`, `search`, `validate`, `outdated`, and `update --all` ship.
 - [x] Reviewed and unreviewed results remain visibly distinct; exact-SHA
       installation and multi-target lifecycle have recorded historical proof.
-- [ ] Fresh `0.1.24` production short-name and discovered-package
-      add/info/update/remove checks pass for explicit `codex,cursor,kiro`.
-      The discovered Context7 portion passed in run 33387563994; the combined gate stays open until the reviewed short-name/sequence 20 proof succeeds.
-- [ ] Final production website/search/copy flow reads the published candidate;
-      earlier desktop/mobile evidence is retained without changing its tuple.
+- [x] Fresh `0.1.25` production short-name and discovered-package
+      add/info/update/remove checks passed for explicit `codex,cursor,kiro` in
+      run 33413276963, with zero managed installations or open operations after cleanup.
+- [x] Final production website/search/copy flow reads Directory 20 and Discovery
+      20 at desktop and mobile widths, with verified clipboard commands and no UI errors.
 - [x] Real fork submissions have recorded exact-base/head checks and were closed
       without merging test packages; they are not claimed as final-main evidence.
-- [x] All three upstream packaging PRs remain open and passed historical
-      exact-head `0.1.24` add/info/remove checks; Chrome has separately scoped
-      evidence for five additional clients.
+- [x] All three upstream packaging PRs remain open and passed final exact-head
+      `0.1.25` lifecycle checks; Chrome has separately scoped preparation and
+      cleanup evidence for five additional clients.
 - [x] No install telemetry or implicit source switching is introduced.
-- [ ] Final privacy and cleanup audit passes; no real user project is used,
-      and required profile/authentication archives remain recoverable.
+- [x] Final privacy and cleanup audit passed; only disposable GitHub-hosted
+      roots were used. No VM, real user project, profile, account credential, or
+      authentication archive was used or changed.
 
 ### Separate account-runtime follow-up (not catalog-release acceptance)
 
@@ -1074,8 +1066,9 @@ Kill switches:
 ## 16. Original estimate (historical)
 
 The ranges below describe the initial implementation scope, not work remaining.
-The remaining critical path is verification and safe publication in section
-3.3; do not infer a completion percentage from changed lines of code.
+Catalog verification and safe publication are complete. The separate
+account-runtime follow-up is outcome-based; do not infer its completion from
+changed lines of code.
 
 ```text
 Confidence: 9/10
@@ -1098,7 +1091,7 @@ rewrite and no database service.
 ## 17. Implementation order
 
 ```text
-Verified public CLI 0.1.24 + merged PR159/160
+Verified public CLI 0.1.25
   -> reviewed credential-free per-publication gate
   -> exact merged-main CI and publication freeze
   -> supersede Directory19 with signed candidate20
@@ -1106,9 +1099,10 @@ Verified public CLI 0.1.24 + merged PR159/160
   -> separately validated GitHub attestation
   -> promote that same Directory20
   -> public assets, website, CLI and lifecycle readback
+  -> complete at run 33413276963
 ```
 
-CLI discovery, automatic index refresh, website integration, and the first
-upstream PR cohort are already implemented. Do not rebuild them or replay
-independent release proofs. Catalog promotion waits for the exact catalog and
-production checks above; 15/15 account-runtime and ChatGPT UI remain separate.
+CLI discovery, automatic index refresh, website integration, the first upstream
+PR cohort, catalog promotion, and public consumer proof are complete. Do not
+rebuild them or replay independent release proofs. The 15/15 account-runtime,
+vendor OAuth, and ChatGPT UI outcomes remain separate and unclaimed.
