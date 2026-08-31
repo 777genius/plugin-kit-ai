@@ -336,7 +336,7 @@ func (observer NativeIdentityObserver) inspectCopilotCLI(ctx context.Context, pl
 	if managed != nil && strings.TrimSpace(managed.TargetLocator) != "" {
 		expectedPath = managed.TargetLocator
 	}
-	return copilotRegistryFindingAt(result.Stdout, plan.DeclaredName, managedMarketplaceName(plan.PhysicalArtifactID), expectedPath, managed != nil), nil
+	return copilotRegistryFindingAt(result.Stdout, plan.DeclaredName, managedMarketplaceName(plan.PhysicalArtifactID), copilotMarketplaceVersion(plan.DeclaredVersion), expectedPath, managed != nil), nil
 }
 
 func (observer NativeIdentityObserver) runNativeRegistry(ctx context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
@@ -346,13 +346,13 @@ func (observer NativeIdentityObserver) runNativeRegistry(ctx context.Context, co
 	return observer.Runner.Run(ctx, command)
 }
 
-func copilotRegistryFinding(stdout []byte, name, expectedMarketplace string, owned bool) registryFinding {
-	return copilotRegistryFindingAt(stdout, name, expectedMarketplace, "", owned)
+func copilotRegistryFinding(stdout []byte, name, expectedMarketplace, expectedVersion string, owned bool) registryFinding {
+	return copilotRegistryFindingAt(stdout, name, expectedMarketplace, expectedVersion, "", owned)
 }
 
-func copilotRegistryFindingAt(stdout []byte, name, expectedMarketplace, expectedPath string, owned bool) registryFinding {
+func copilotRegistryFindingAt(stdout []byte, name, expectedMarketplace, expectedVersion, expectedPath string, owned bool) registryFinding {
 	expected := name + "@" + expectedMarketplace
-	if status, recognized := copilotLivePluginStatus(stdout, expected, expectedPath); recognized {
+	if status, recognized := copilotLivePluginStatus(stdout, expected, expectedVersion, expectedPath); recognized {
 		switch status {
 		case copilotStatusInstalled:
 			if !owned {
@@ -391,7 +391,7 @@ func copilotRegistryFindingAt(stdout []byte, name, expectedMarketplace, expected
 			return registryIndeterminate
 		}
 		match := copilotInstalledEntry.FindStringSubmatch(line)
-		if len(match) == 2 {
+		if len(match) == 3 {
 			if recognizedEmpty {
 				return registryIndeterminate
 			}
@@ -406,6 +406,9 @@ func copilotRegistryFindingAt(stdout []byte, name, expectedMarketplace, expected
 				return registryIndeterminate
 			}
 			if parts[0] == name && parts[1] == expectedMarketplace {
+				if match[2] != expectedVersion {
+					return registryIndeterminate
+				}
 				if !owned {
 					return registryCollision
 				}

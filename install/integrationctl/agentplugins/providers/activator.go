@@ -557,7 +557,7 @@ func (activator Activator) verifyCopilot(ctx context.Context, request domain.Act
 	if err != nil {
 		return fmt.Errorf("verify Copilot plugin listing: %w", err)
 	}
-	switch copilotPluginStatus(listed.Stdout, pluginSpec, request.Delivery.ActivePath) {
+	switch copilotPluginStatus(listed.Stdout, pluginSpec, copilotMarketplaceVersion(request.Plan.DeclaredVersion), request.Delivery.ActivePath) {
 	case copilotStatusInstalled:
 		return nil
 	case copilotStatusAbsent:
@@ -973,8 +973,8 @@ func foldJSONKey(key string) string {
 	return folded.String()
 }
 
-var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)
-var copilotLiveEntry = regexp.MustCompile(`^  • ([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*) \(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\) \(([A-Za-z0-9_-]+)\)$`)
+var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\)[ \t]*$`)
+var copilotLiveEntry = regexp.MustCompile(`^  • ([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*) \(v([0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?)\) \(([A-Za-z0-9_-]+)\)$`)
 
 const copilotLiveHeader = "Live Plugins (loaded from a local marketplace directory, never copied):"
 
@@ -989,20 +989,20 @@ const (
 var errCopilotListContractUnknown = errors.New("Copilot plugin list output is not recognized")
 var errRecognizedNegativeEvidence = errors.New("recognized negative client evidence")
 
-func copilotLivePluginStatus(stdout []byte, expected, expectedPath string) (copilotStatus, bool) {
+func copilotLivePluginStatus(stdout []byte, expected, expectedVersion, expectedPath string) (copilotStatus, bool) {
 	document := strings.TrimSuffix(strings.ReplaceAll(string(stdout), "\r\n", "\n"), "\n")
 	lines := strings.Split(document, "\n")
 	if len(lines) == 0 || lines[0] != copilotLiveHeader {
 		return copilotStatusUnknown, false
 	}
-	if len(lines) < 3 || (len(lines)-1)%2 != 0 || strings.TrimSpace(expectedPath) == "" {
+	if len(lines) < 3 || (len(lines)-1)%2 != 0 || strings.TrimSpace(expectedVersion) == "" || strings.TrimSpace(expectedPath) == "" {
 		return copilotStatusUnknown, true
 	}
 	seen := make(map[string]bool, (len(lines)-1)/2)
 	matches := 0
 	for index := 1; index < len(lines); index += 2 {
 		entry := copilotLiveEntry.FindStringSubmatch(lines[index])
-		if len(entry) != 3 || seen[entry[1]] || (entry[2] != "enabled" && entry[2] != "disabled") {
+		if len(entry) != 4 || seen[entry[1]] || (entry[3] != "enabled" && entry[3] != "disabled") {
 			return copilotStatusUnknown, true
 		}
 		seen[entry[1]] = true
@@ -1011,13 +1011,13 @@ func copilotLivePluginStatus(stdout []byte, expected, expectedPath string) (copi
 			return copilotStatusUnknown, true
 		}
 		listedPath := strings.TrimPrefix(lines[index+1], pathPrefix)
-		if listedPath == "" || !filepath.IsAbs(listedPath) {
+		if listedPath == "" || !filepath.IsAbs(listedPath) || listedPath != filepath.Clean(listedPath) {
 			return copilotStatusUnknown, true
 		}
 		if entry[1] != expected {
 			continue
 		}
-		if entry[2] != "enabled" || filepath.Clean(listedPath) != filepath.Clean(expectedPath) {
+		if entry[2] != expectedVersion || entry[3] != "enabled" || expectedPath != filepath.Clean(expectedPath) || listedPath != expectedPath {
 			return copilotStatusUnknown, true
 		}
 		matches++
@@ -1031,8 +1031,8 @@ func copilotLivePluginStatus(stdout []byte, expected, expectedPath string) (copi
 	return copilotStatusAbsent, true
 }
 
-func copilotPluginStatus(stdout []byte, expected, expectedPath string) copilotStatus {
-	if status, recognized := copilotLivePluginStatus(stdout, expected, expectedPath); recognized {
+func copilotPluginStatus(stdout []byte, expected, expectedVersion, expectedPath string) copilotStatus {
+	if status, recognized := copilotLivePluginStatus(stdout, expected, expectedVersion, expectedPath); recognized {
 		return status
 	}
 	inInstalledSection := false
@@ -1056,9 +1056,12 @@ func copilotPluginStatus(stdout []byte, expected, expectedPath string) copilotSt
 			continue
 		}
 		entry := copilotInstalledEntry.FindStringSubmatch(rawLine)
-		if len(entry) == 2 {
+		if len(entry) == 3 {
 			recognizedEntry = true
 			if entry[1] == expected {
+				if entry[2] != expectedVersion {
+					return copilotStatusUnknown
+				}
 				matches++
 			}
 			continue

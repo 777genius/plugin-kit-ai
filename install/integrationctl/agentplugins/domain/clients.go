@@ -199,6 +199,7 @@ type DeliveryPlan struct {
 	// are deliberately excluded from public output because registry locators
 	// can reveal local user paths.
 	DeclaredName             string `json:"-"`
+	DeclaredVersion          string `json:"-"`
 	NativeRegistryRoot       string `json:"-"`
 	NativeRegistryExecutable string `json:"-"`
 	// LocalPreparationAuthorized records signed package evidence that permits
