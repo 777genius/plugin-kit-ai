@@ -203,6 +203,54 @@ class CatalogContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gate.exact_targets(good, gate.CORE)
 
+    def test_native_version_accepts_exact_branded_release_formats(self):
+        # Copilot punctuation/notice format is documented by the exact released
+        # c78c79 clientdetect/detector_test.go:397-435 fixtures (then 1.0.80).
+        for output in ("GitHub Copilot CLI 1.0.82.\n", "GitHub Copilot CLI v1.0.82.\n",
+                       "GitHub Copilot CLI 1.0.82\n", "GitHub Copilot CLI 1.0.82.\nA newer version is available."):
+            with self.subTest(output=output):
+                gate.validate_native_version("copilot", output)
+        gate.validate_native_version("claude", "2.1.251 (Claude Code)\n")
+
+    def test_native_version_rejects_malformed_or_wrong_version_even_in_notice(self):
+        for output in ("", "GitHub Copilot CLI 1.0.82..", "GitHub Copilot CLI .1.0.82.",
+                       "GitHub Copilot CLI 1..82.", "GitHub Copilot CLI 1.0.x.",
+                       "GitHub Copilot CLI 1.0.82beta.", "GitHub Copilot CLI 1.0.82-beta.1.",
+                       "GitHub Copilot CLI 1.0.82+build.1.", "GitHub Copilot CLI 11.0.82.",
+                       "GitHub Copilot CLI 1.0.820.", "warning: GitHub Copilot CLI 1.0.82.",
+                       "GitHub Copilot CLI 1.0.81.\nA newer version 1.0.82 is available.",
+                       "GitHub Copilot CLI 1.0.81.\nGitHub Copilot CLI 1.0.82."):
+            with self.subTest(output=output), self.assertRaises(ValueError):
+                gate.validate_native_version("copilot", output)
+        for output in ("2.1.250 (Claude Code)\nUpdate to 2.1.251", "12.1.251 (Claude Code)",
+                       "2.1.251-beta (Claude Code)", "other-program 2.1.251", "2.1.251 (Claude Code) extra"):
+            with self.subTest(output=output), self.assertRaises(ValueError):
+                gate.validate_native_version("claude", output)
+
+    def test_native_version_diagnostics_distinguish_client_exit_and_format(self):
+        for client, failure in (("claude", "exit"), ("claude", "format"), ("copilot", "exit"), ("copilot", "format")):
+            with self.subTest(client=client, failure=failure), tempfile.TemporaryDirectory() as temporary:
+                parent = Path(temporary).resolve()
+                tools = parent / "tools"
+                tools.mkdir()
+                for name in ("agentplugins", "claude", "copilot", "npx"):
+                    (tools / name).write_bytes(b"fixture only; not executed")
+                args = argparse.Namespace(binary=tools / "agentplugins", claude=tools / "claude",
+                                          copilot=tools / "copilot", npx=tools / "npx", inspector=None)
+                def child(argv, **_):
+                    name = Path(argv[0]).name
+                    self.assertEqual(argv[1:], ["--version"])
+                    output = "2.1.251 (Claude Code)\n" if name == "claude" else "GitHub Copilot CLI 1.0.82.\n"
+                    code = 0
+                    if name == client:
+                        code = 9 if failure == "exit" else 0
+                        output = "wrong format" if failure == "format" else output
+                    return subprocess.CompletedProcess(argv, code, output, "not persisted")
+                with patch.object(gate, "child", side_effect=child), self.assertRaises(ValueError):
+                    gate.run_lifecycle(args, parent / "case", gate.selected(self.snapshot, "chrome-devtools", gate.CHROME),
+                                       gate.CHROME, vars(self.args))
+                self.assertEqual(args.failure_phase, f"lifecycle:chrome-devtools:native_version_{client}_{failure}")
+
     def test_static_package_binds_signed_app_key_to_acquired_http_interface(self):
         selection = gate.selected(self.snapshot, gate.STATIC[0], ("chatgpt",))
         with tempfile.TemporaryDirectory() as root:
@@ -248,6 +296,38 @@ class CatalogContractTests(unittest.TestCase):
             child.return_value = subprocess.CompletedProcess([], 0, '[]', "")
             gate.native_listing(Path("claude"), {}, root, "chrome-devtools", False, root=root, readonly=())
             self.assertEqual(child.call_args.args[0], ["claude", "plugin", "list", "--json"])
+
+    def test_copilot_exact_official_empty_registry_after_removal(self):
+        official = "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin."
+        for output in (official, official + "\n", official.replace("\n", "\r\n"),
+                       (official + "\n").replace("\n", "\r\n")):
+            with self.subTest(output=output), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                completed = subprocess.CompletedProcess([], 0, output, "")
+                with patch.object(gate, "child", return_value=completed) as child:
+                    gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", False, root=root, readonly=())
+                    self.assertEqual(child.call_args.args[0], ["copilot", "plugin", "list"])
+                    self.assertEqual(child.call_args.kwargs["root"], root)
+                    with self.assertRaisesRegex(ValueError, "unexpectedly empty"):
+                        gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", True, root=root, readonly=())
+
+    def test_copilot_empty_registry_rejects_truncation_prefix_suffix_and_failed_process(self):
+        # Mirrors c78c79 native_identity_test.go's absent_short/prefix/suffix
+        # negatives; no broad prefix/suffix tolerance is introduced.
+        official = "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin."
+        for output in ("No plugins installed.\n", "\n" + official + "\n", official + "\n\n",
+                       official + " extra", "prefix\n" + official, official.replace("\n\n", "\n"),
+                       official + "\r", "", "No plugins installed"):
+            with self.subTest(output=output), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with patch.object(gate, "child", return_value=subprocess.CompletedProcess([], 0, output, "")):
+                    with self.assertRaises(ValueError):
+                        gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", False, root=root, readonly=())
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(gate, "child", return_value=subprocess.CompletedProcess([], 1, official, "not persisted")):
+                with self.assertRaisesRegex(ValueError, "listing failed"):
+                    gate.native_listing(Path("copilot"), {}, root, "chrome-devtools", False, root=root, readonly=())
 
     def run_first_package_fixture(self, parent: Path, mutation: str | None = None):
         """Only the process boundary is fake; state, files and lifecycle checks are real.

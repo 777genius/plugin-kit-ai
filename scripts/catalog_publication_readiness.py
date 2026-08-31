@@ -45,7 +45,9 @@ CLI = {"version": "0.1.24", "tag": PLUGIN_KIT_TAG, "commit": PLUGIN_KIT_COMMIT,
        "mcp_inspector": "2.1.0"}
 LIMIT = 4 * 1024 * 1024
 LIFECYCLE_STEPS = frozenset({
-    "prepare", "native_versions", "add", "validate_add", "info", "validate_info",
+    "prepare", "native_version_claude_probe", "native_version_claude_exit", "native_version_claude_format",
+    "native_version_copilot_probe", "native_version_copilot_exit", "native_version_copilot_format",
+    "add", "validate_add", "info", "validate_info",
     "native_list_installed", "snapshot_before_update", "update", "validate_update",
     "snapshot_after_update", "remove_native", "native_list_removed", "remove_remaining",
     "list", "snapshot_before_doctor", "doctor", "validate_doctor", "snapshot_after_doctor",
@@ -305,6 +307,12 @@ def native_listing(tool: Path, env: dict, workspace: Path, plugin: str, installe
         require(len(matches) == int(installed), "Claude native listing mismatch")
         require(not installed or (matches[0].get("enabled") is True and matches[0].get("scope") == "user"), "Claude plugin not enabled in user scope")
     else:
+        # Exact released native_identity.go empty-registry document: normalize
+        # CRLF and remove at most one final newline, never arbitrary whitespace.
+        document = completed.stdout.replace("\r\n", "\n").removesuffix("\n")
+        if document == "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin.":
+            require(not installed, "Copilot native listing unexpectedly empty")
+            return
         # Same recognized installed-section contract as released .24, not substring logs.
         section, recognized, entries = False, False, []
         for line in completed.stdout.splitlines():
@@ -332,6 +340,18 @@ def exact_targets(data: dict, clients: tuple) -> list:
     return targets
 
 
+def validate_native_version(client: str, output: str) -> None:
+    require(client in CLI["native_clients"], "unknown native version client")
+    expected = re.escape(CLI["native_clients"][client])
+    # Released .24's detector_test.go documents Copilot's terminal period and
+    # optional v prefix. Match the branded first line, not an update notice that
+    # might mention the expected version while a different binary is running.
+    pattern = (rf"GitHub Copilot CLI v?{expected}\.?"
+               if client == "copilot" else rf"{expected} \(Claude Code\)")
+    first_line = output.splitlines()[0].strip() if output else ""
+    require(re.fullmatch(pattern, first_line) is not None, "native CLI version mismatch")
+
+
 def remove_targets(run, plugin: str, clients: tuple, verify_native_absent) -> dict:
     remaining = clients
     if "copilot" in clients or "vscode" in clients:
@@ -356,11 +376,13 @@ def run_lifecycle(args: argparse.Namespace, root: Path, selection: dict, clients
     roots, env = isolated_environment(root, ctx["directory_origin"], (args.claude, args.copilot))
     readonly = tool_paths(args)
     if "claude" in clients:
-        step("native_versions")
         for tool in (args.claude, args.copilot):
+            step(f"native_version_{tool.name}_probe")
             result = child([str(tool), "--version"], root=root, readonly=readonly, env=env, cwd=roots["workspace"], timeout=30)
+            step(f"native_version_{tool.name}_exit")
             require(result.returncode == 0, "native CLI version command failed")
-            require(CLI["native_clients"][tool.name] in result.stdout.split(), "native CLI version mismatch")
+            step(f"native_version_{tool.name}_format")
+            validate_native_version(tool.name, result.stdout)
     common = ["--target", ",".join(clients)]
     def run(phase, *tail):
         if phase == "remove":
