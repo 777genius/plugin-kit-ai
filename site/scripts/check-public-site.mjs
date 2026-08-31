@@ -80,7 +80,9 @@ try {
         await fit()
         return command
       }
-      const chrome = page.locator('.plugin-card').filter({ has: page.locator('a[href$="/plugins/chrome-devtools"]') })
+      const chrome = page.locator('.plugin-card')
+        .filter({ has: page.locator('a[href$="/plugins/chrome-devtools"]') })
+        .filter({ has: page.locator('.source-pill', { hasText: /^Install candidate/ }) })
       const chromeCommand = await checkCard('Chrome DevTools', chrome, 'chrome-devtools')
       await expect(chrome).toContainText('Install candidate v1.7.0-uap.1 · release 2')
       await expect(chrome).toContainText('signed fallback for selected clients')

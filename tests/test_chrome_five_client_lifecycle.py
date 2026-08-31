@@ -252,7 +252,20 @@ class ChromeFiveClientLifecycleTests(unittest.TestCase):
         schema = json.loads(
             (ROOT / "schemas/e2e/chrome-five-client-lifecycle.schema.json").read_text()
         )
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/upstream-package-e2e.yml").read_text()
+        )
+        release = workflow["env"]["AGENTPLUGINS_VERSION"]
         immutable = schema["properties"]["operations"]["properties"]["immutable_update"]
+        self.assertEqual(schema["properties"]["installer_version"], {"const": release})
+        self.assertEqual(
+            schema["properties"]["adapter_version"],
+            {"const": f"agentplugins-{release}"},
+        )
+        self.assertEqual(
+            schema["properties"]["installer"]["properties"]["version"],
+            {"const": release},
+        )
         self.assertEqual(
             schema["properties"]["run"]["properties"]["source_commit"],
             {"$ref": "#/$defs/sha"},

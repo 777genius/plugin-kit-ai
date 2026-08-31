@@ -43,8 +43,8 @@
     "product_id": { "const": "chrome-devtools" },
     "distribution_kind": { "const": "direct" },
     "package_version": { "const": "1.8.0" },
-    "installer_version": { "const": "0.1.24" },
-    "adapter_version": { "const": "agentplugins-0.1.24" },
+    "installer_version": { "const": "0.1.25" },
+    "adapter_version": { "const": "agentplugins-0.1.25" },
     "binary_digest": { "$ref": "#/$defs/digest" },
     "immutable_source_revision": { "$ref": "#/$defs/sha" },
     "source": {
@@ -82,7 +82,7 @@
       "required": ["npm_package", "version", "npm_integrity", "binary_digest"],
       "properties": {
         "npm_package": { "const": "universal-agent-plugins" },
-        "version": { "const": "0.1.24" },
+        "version": { "const": "0.1.25" },
         "npm_integrity": { "$ref": "#/$defs/integrity" },
         "binary_digest": { "$ref": "#/$defs/digest" }
       },
