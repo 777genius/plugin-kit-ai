@@ -1,7 +1,8 @@
 {
   "evidence_type": "local_chrome_live_client_check_v1",
-  "client": "OpenCode runtime and Gemini MCP discovery",
+  "client": "OpenCode model runtime and Gemini direct MCP runtime",
   "date": "2026-08-31",
+  "updated_at": "2026-09-01",
   "platform": "darwin-arm64",
   "signed_publication_evidence": false,
   "real_user_project_used": false,
@@ -48,9 +49,19 @@
     "gemini": {
       "version": "0.57.0",
       "mcp_discovery": "connected",
+      "direct_mcp_runtime": {
+        "outcome": "passed",
+        "protocol_version": "2025-06-18",
+        "tools_listed": 29,
+        "completed_tool_calls": ["new_page", "take_snapshot"],
+        "fixture_requested": true,
+        "unprompted_marker_recovered": true,
+        "duration_seconds": 2.86,
+        "model_or_google_account_used": false
+      },
       "model": "gemini-2.5-flash",
       "model_runtime": "blocked",
-      "reason": "Google returned IneligibleTierError with UNSUPPORTED_CLIENT for the existing individual-account session",
+      "reason": "Google ended individual-account Gemini CLI access on 2026-06-18; the legacy session returned UNSUPPORTED_CLIENT",
       "model_runtime_claimed": false
     }
   },
@@ -84,6 +95,7 @@
     {"scenario": "OpenCode model uses root-package Chrome tools", "status": "passed"},
     {"scenario": "OpenCode model uses exact Directory bridge Chrome tools", "status": "passed"},
     {"scenario": "Gemini discovers the fixed root MCP server", "status": "passed"},
+    {"scenario": "Gemini-installed MCP directly opens and reads an isolated page without a model or Google account", "status": "passed"},
     {"scenario": "Gemini model invokes Chrome tools", "status": "auth_required"}
   ],
   "cleanup": {
