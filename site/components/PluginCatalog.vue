@@ -83,7 +83,13 @@ watch([query, category, component, source, trust, client, authentication, owner]
   <section class="catalog" aria-labelledby="catalog-title">
     <div class="section-heading">
       <p class="eyebrow">Plugin directory</p>
-      <h2 id="catalog-title">{{ heading }}</h2>
+      <div class="catalog-heading-row">
+        <h2 id="catalog-title">{{ heading }}</h2>
+        <a class="catalog-add-button" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer" aria-label="Add a plugin" aria-describedby="catalog-add-tooltip">
+          <span aria-hidden="true">＋</span>
+          <span id="catalog-add-tooltip" class="catalog-add-button__tooltip" role="tooltip">Add a plugin</span>
+        </a>
+      </div>
       <p>{{ intro }}</p>
     </div>
     <div class="catalog-controls" role="search" aria-label="Filter plugins">
@@ -115,9 +121,6 @@ watch([query, category, component, source, trust, client, authentication, owner]
           <template v-else>Reviewed plugins are ready.</template>
         </p>
       </div>
-      <a class="button button--secondary catalog-submit" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">
-        <span aria-hidden="true">＋</span> Add a plugin
-      </a>
     </div>
     <div v-if="visible.length" class="plugin-grid">
       <PluginCard v-for="plugin in displayed" :key="plugin.install_source" :plugin="plugin" />

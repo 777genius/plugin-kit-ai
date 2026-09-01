@@ -15,31 +15,52 @@ type MultiSelectOption = {
   description?: string
 }
 
+type AutoDetectOption = {
+  label: string
+  summary?: string
+  description: string
+}
+
 const props = defineProps<{
   modelValue: readonly string[]
   options: readonly MultiSelectOption[]
   label: string
+  autoOption?: AutoDetectOption
+  autoSelected?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
+  'update:autoSelected': [value: boolean]
 }>()
 const hydrated = ref(false)
 onMounted(() => { hydrated.value = true })
 
 const selected = computed(() => props.options.filter(option => props.modelValue.includes(option.value)))
-const summary = computed(() => selected.value.length === 1 ? selected.value[0]!.label : `${selected.value.length} agents`)
+const summary = computed(() => props.autoSelected && props.autoOption
+  ? props.autoOption.summary ?? props.autoOption.label
+  : selected.value.length === 1 ? selected.value[0]!.label : `${selected.value.length} agents`)
 
 watchEffect(() => {
   if (!props.options.length) throw new Error(`AppMultiSelect "${props.label}" requires at least one option`)
-  if (!props.modelValue.length) throw new Error(`AppMultiSelect "${props.label}" requires at least one selected value`)
+  if (!props.modelValue.length && !props.autoSelected) throw new Error(`AppMultiSelect "${props.label}" requires at least one selected value`)
   if (props.modelValue.some(value => !props.options.some(option => option.value === value))) {
     throw new Error(`AppMultiSelect "${props.label}" received an unknown value`)
   }
 })
 
+function selectAuto() {
+  if (!props.autoOption) return
+  emit('update:autoSelected', true)
+}
+
 function toggle(value: string) {
   if (props.options.find(option => option.value === value)?.disabled) return
+  if (props.autoSelected) {
+    emit('update:autoSelected', false)
+    emit('update:modelValue', [value])
+    return
+  }
   if (props.modelValue.includes(value)) {
     if (props.modelValue.length === 1) return
     emit('update:modelValue', props.modelValue.filter(item => item !== value))
@@ -54,26 +75,40 @@ function toggle(value: string) {
   <PopoverRoot>
     <PopoverTrigger class="app-multiselect__trigger" :aria-label="`${label}: ${summary}`" :data-hydrated="hydrated ? 'true' : 'false'">
       <span class="app-multiselect__value">
-        <span class="app-multiselect__icons" aria-hidden="true">
+        <span v-if="!autoSelected" class="app-multiselect__icons" aria-hidden="true">
           <span v-for="option in selected.slice(0, 3)" :key="option.value"><img v-if="option.icon" :src="option.icon" alt="" width="19" height="19" /></span>
         </span>
+        <span v-else class="app-multiselect__auto-icon" aria-hidden="true">✨</span>
         <span>{{ summary }}</span>
       </span>
       <span class="app-multiselect__chevron" aria-hidden="true">⌄</span>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent class="app-multiselect__content" align="start" :side-offset="7" :collision-padding="14">
-        <div class="app-multiselect__heading"><strong>{{ label }}</strong><span>{{ selected.length }} selected</span></div>
+        <div class="app-multiselect__heading"><strong>{{ label }}</strong><span>{{ autoSelected ? 'Auto-detect' : `${selected.length} selected` }}</span></div>
+        <button
+          v-if="autoOption"
+          type="button"
+          class="app-multiselect__auto"
+          :class="{ 'app-multiselect__auto--selected': autoSelected }"
+          :aria-pressed="autoSelected"
+          @click="selectAuto"
+        >
+          <span class="app-multiselect__auto-symbol" aria-hidden="true">✨</span>
+          <span><strong>{{ autoOption.label }}</strong><small>{{ autoOption.description }}</small></span>
+          <span class="app-multiselect__check" aria-hidden="true">✓</span>
+        </button>
+        <div v-if="autoOption" class="app-multiselect__separator"><span>Or choose specific agents</span></div>
         <div class="app-multiselect__options" role="group" :aria-label="label">
           <button
             v-for="option in options"
             :key="option.value"
             type="button"
             class="app-multiselect__item"
-            :class="{ 'app-multiselect__item--selected': modelValue.includes(option.value) }"
+            :class="{ 'app-multiselect__item--selected': !autoSelected && modelValue.includes(option.value) }"
             role="checkbox"
-            :aria-checked="modelValue.includes(option.value)"
-            :disabled="option.disabled || (modelValue.length === 1 && modelValue.includes(option.value))"
+            :aria-checked="!autoSelected && modelValue.includes(option.value)"
+            :disabled="option.disabled || (!autoSelected && modelValue.length === 1 && modelValue.includes(option.value))"
             @click="toggle(option.value)"
           >
             <span class="app-multiselect__item-icon"><img v-if="option.icon" :src="option.icon" alt="" width="20" height="20" /></span>
@@ -81,7 +116,7 @@ function toggle(value: string) {
             <span class="app-multiselect__check" aria-hidden="true">✓</span>
           </button>
         </div>
-        <p>Select every agent that should receive this plugin. At least one stays selected.</p>
+        <p>{{ autoSelected ? 'The CLI checks this plugin against installed agents, skips incompatible ones, and lets you confirm the targets. ChatGPT is included only when the plugin provides a verified connection.' : 'Select every agent that should receive this plugin. At least one stays selected.' }}</p>
         <PopoverArrow class="app-multiselect__arrow" />
       </PopoverContent>
     </PopoverPortal>

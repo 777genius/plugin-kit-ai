@@ -16,9 +16,11 @@ const props = withDefaults(defineProps<{
   compact: false,
 })
 const copied = ref(false)
-const visibleCommand = computed(() => props.compact
-  ? props.command.replace(' --target ', '\n--target ')
-  : props.command)
+const visibleCommand = computed(() => {
+  if (!props.compact) return props.command
+  if (props.command.includes(' --target ')) return props.command.replace(' --target ', '\n--target ')
+  return props.command.replace(/^(npx universal-agent-plugins\s+\S+)\s+/, '$1\n')
+})
 let timer: ReturnType<typeof setTimeout> | undefined
 
 onBeforeUnmount(() => { if (timer) clearTimeout(timer) })

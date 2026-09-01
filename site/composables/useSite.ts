@@ -3,7 +3,7 @@ import { githubSourceUrl, mirroredIconPath } from '~/utils/registry'
 
 export const clients: ClientTarget[] = [
   { id: 'codex', name: 'Codex', icon: 'openai.svg', note: 'Skills and supported MCP transports', status: 'CLI supported' },
-  { id: 'chatgpt', name: 'ChatGPT', icon: 'openai.svg', note: 'Registered remote MCP app paths', status: 'App setup' },
+  { id: 'chatgpt', name: 'ChatGPT', icon: 'openai.svg', note: 'Verified ChatGPT connections', status: 'App setup' },
   { id: 'cursor', name: 'Cursor', icon: 'cursor.svg', note: 'Native Agent Plugin package', status: 'CLI supported' },
   { id: 'copilot', name: 'GitHub Copilot CLI', icon: 'github-copilot.svg', note: 'Managed native plugin', status: 'CLI supported' },
   { id: 'vscode', name: 'VS Code', icon: 'vscode.svg', note: 'Copilot plugin integration', status: 'CLI supported' },
@@ -25,7 +25,7 @@ export function useSite() {
     // External author-controlled images are never loaded. A future sanitized
     // mirror can opt entries into locally served assets explicitly.
     const path = mirroredIconPath(plugin)
-    return asset(path ?? 'logo.svg')
+    return path ? asset(path) : undefined
   }
 
   const sourceUrl = (plugin: RegistryPlugin) => {

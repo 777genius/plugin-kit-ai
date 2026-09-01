@@ -104,15 +104,13 @@ try {
       }
       const chrome = page.locator('.plugin-card')
         .filter({ has: page.locator('a[href$="/plugins/chrome-devtools"]') })
-        .filter({ has: page.locator('.source-pill', { hasText: /^Reviewed plugin$/ }) })
+        .filter({ has: page.locator('.plugin-card__ribbon', { hasText: /^Reviewed plugin$/ }) })
       const chromeCommand = await checkCard('Chrome DevTools', chrome, 'chrome-devtools')
       await expect(chrome).toContainText('Ready for 10 supported agents')
-      await expect(chrome).toContainText('Package reviewed')
       const selector = 'discovery:upstash/context7//plugins/agent-plugins/context7'
       const context7 = page.locator('.plugin-card').filter({ has: page.locator('.command-snippet code', { hasText: selector }) })
       const context7Command = await checkCard('context7', context7, selector)
       await expect(context7).toContainText('Found on GitHub')
-      await expect(context7).toContainText('Package format checked')
       assert.deepEqual(errors, [])
       evidence.viewports.push({ viewport, directory_sequence: registry.snapshot_sequence,
         directory_snapshot_digest: digest(directoryRaw), discovery_sequence: discovery.sequence,

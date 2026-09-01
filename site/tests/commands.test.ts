@@ -40,6 +40,10 @@ describe('command generation', () => {
     })
   })
 
+  it('omits target flags for interactive installed-agent detection', () => {
+    assert.equal(pluginCommands(plugins[0]!).add, 'npx universal-agent-plugins add context7')
+  })
+
   it('requires at least one selected agent', () => {
     assert.throws(() => pluginCommands(plugins[0]!, []), /At least one target/)
   })

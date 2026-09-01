@@ -48,15 +48,20 @@ Cloudflare Docs is an easy first choice. It searches current Cloudflare
 documentation and requires no account. You need Node.js 22 or newer:
 
 ```bash
-npx universal-agent-plugins add cloudflare-docs --target codex,cursor,kiro
+npx universal-agent-plugins add cloudflare-docs
 ```
 
-The npm launcher requires Node.js 22+. Pass every target explicitly in
-non-interactive use as one comma-separated value:
+In an interactive terminal the CLI detects installed supported agents, skips
+clients the package cannot serve from one release, and selects the compatible
+set for you to confirm. ChatGPT is included when its desktop app is detected
+and the package provides a verified connection; you can also select it
+explicitly. The npm launcher requires Node.js 22+. In scripts and other
+non-interactive use, pass every target explicitly as one comma-separated value:
 
 ```bash
 npx universal-agent-plugins add cloudflare-docs --target cursor
 npx universal-agent-plugins add cloudflare-docs --target codex,cursor
+npx universal-agent-plugins add cloudflare-docs --target codex,cursor,kiro
 ```
 
 The CLI resolves and verifies one immutable package once, preflights the whole
@@ -155,7 +160,7 @@ client-specific.
 | Client | Delivery | Activation |
 | --- | --- | --- |
 | <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> Codex | Official-layout `.codex-plugin` package | CLI prints the exact activation steps |
-| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | Only a release with a registered app binding | Manual Plugins UI and OAuth consent; disabled when no binding exists |
+| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | Prepares the package when a verified ChatGPT connection is available | Select the app in ChatGPT and complete any OAuth consent |
 | <img src="assets/client-icons/cursor.svg" width="20" height="20" alt=""> Cursor | Native Agent Plugin | Reload, then verify discovery |
 | <img src="assets/client-icons/github-copilot.svg" width="20" height="20" alt=""> GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
 | <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | Shared Copilot plugin when its CLI is available | Automatic; otherwise the exact setting is shown |

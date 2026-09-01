@@ -32,18 +32,27 @@ const heroTargetOptions = computed(() => clients.map(client => ({
     if (!published.value) return 'Unavailable: review data is not installation authority'
     if (expired.value) return 'Unavailable: signed Directory snapshot expired'
     const target = expectedDistribution(demoPlugin.value, [client.id])?.targets.find(item => item.client === client.id)
+    if (client.id === 'chatgpt') return target?.app_binding ? 'Verified connection; finish setup in ChatGPT' : 'Not available for ChatGPT'
     if (target) return deliveryLabel(target.delivery)
-    return client.id === 'chatgpt' ? `Unavailable: ${demoPlugin.value.display_name} has no registered app binding in signed policy` : 'Not compatible with an active release'
+    return 'Not compatible with an active release'
   })(),
 })))
 const heroClientLabel = (id: ClientID, name: string) => id === 'copilot' ? 'Copilot' : name
 const initialHeroTarget = heroTargets.value.find(client => client.id === 'cursor')?.id ?? heroTargets.value[0]!.id
 const heroTargetIDs = ref<ClientID[]>([initialHeroTarget])
+const heroAutoDetect = ref(true)
+const autoDetectOption = {
+  label: 'All installed agents (recommended)',
+  summary: 'All installed agents',
+  description: 'Detected when you run the command',
+}
 const selectedHeroClients = computed(() => heroTargets.value.filter(client => heroTargetIDs.value.includes(client.id)))
-const selectedHeroNames = computed(() => selectedHeroClients.value.map(client => heroClientLabel(client.id, client.name)).join(' + '))
+const selectedHeroNames = computed(() => heroAutoDetect.value
+  ? 'all installed agents'
+  : selectedHeroClients.value.map(client => heroClientLabel(client.id, client.name)).join(' + '))
 const heroResolution = computed(() => resolveDistribution(demoPlugin.value, selectedHeroClients.value.map(client => client.id)))
-const heroCommand = computed(() => !current.value || !heroResolution.value.distribution ? '' : pluginCommands(demoPlugin.value, selectedHeroClients.value.map(client => client.id)).add)
-const description = 'Install one Agent Plugins 1.0 package into one or several explicitly selected supported clients, then inspect, update, repair, switch, or remove it with the same community CLI.'
+const heroCommand = computed(() => !current.value || (!heroAutoDetect.value && !heroResolution.value.distribution) ? '' : pluginCommands(demoPlugin.value, heroAutoDetect.value ? undefined : selectedHeroClients.value.map(client => client.id)).add)
+const description = 'Install one Agent Plugins 1.0 package into your selected installed clients, then inspect, update, repair, switch, or remove it with the same community CLI.'
 const workflowPath = ref<HTMLElement>()
 const workflowAnimated = ref(false)
 const workflowVisible = ref(false)
@@ -53,6 +62,10 @@ function updateHeroTargets(values: string[]) {
   const allowed = new Set(heroTargets.value.map(client => client.id))
   const next = values.filter((value): value is ClientID => allowed.has(value as ClientID))
   if (next.length) heroTargetIDs.value = next
+}
+
+function updateHeroAutoDetect(value: boolean) {
+  heroAutoDetect.value = value
 }
 
 onMounted(() => {
@@ -86,8 +99,8 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
   <div>
     <section class="hero container">
       <div class="hero__copy">
-        <h1>One package.<br /><em>Your selected clients</em></h1>
-        <p class="hero__lead">One command installs an Agent Plugins 1.0 package into one or several explicitly selected compatible clients. The same CLI inspects, updates, repairs, switches, and removes it.</p>
+        <h1>One plugin.<br /><em>All your agents</em></h1>
+        <p class="hero__lead">One command finds your installed agents and lets you confirm where to set up an Agent Plugins 1.0 package. You can also choose agents manually, then inspect, update, repair, switch, or remove the plugin with the same CLI.</p>
         <div class="hero__actions">
           <NuxtLink class="button button--primary" to="/plugins">Explore {{ registry.plugins.length }} plugins <span aria-hidden="true">→</span></NuxtLink>
           <a class="button button--secondary" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">Add a plugin</a>
@@ -96,19 +109,19 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
       </div>
       <div class="hero__demo">
         <div class="hero__window">
-          <div class="hero__window-top"><span /><span /><span /><b>Quick start</b></div>
+          <div class="hero__window-top"><b>Quick start</b></div>
           <div class="hero__window-body">
             <p>Install {{ demoPlugin.display_name }} for {{ selectedHeroNames }}</p>
             <div class="hero-command-row">
-              <div class="hero-agent-select"><span>Choose one or more agents</span><AppMultiSelect :model-value="heroTargetIDs" label="Choose target clients" :options="heroTargetOptions" @update:model-value="updateHeroTargets" /></div>
+              <div class="hero-agent-select"><span>Choose your agents</span><AppMultiSelect :model-value="heroTargetIDs" :auto-selected="heroAutoDetect" :auto-option="autoDetectOption" label="Choose target clients" :options="heroTargetOptions" @update:auto-selected="updateHeroAutoDetect" @update:model-value="updateHeroTargets" /></div>
               <CommandSnippet v-if="heroCommand" :command="heroCommand" />
               <p v-else class="install-panel__notice" role="status"><strong>Command unavailable{{ expired ? ': stale Directory' : !published ? ': review preview' : '' }}.</strong> {{ expired ? 'Browse historical package information while a fresh signed snapshot is published.' : !published ? 'Production commands require a published signed Directory snapshot.' : heroResolution.unavailable_reason }}</p>
             </div>
-            <p v-if="heroResolution.fallback_reason && !expired" class="hero__fine-print">{{ heroResolution.fallback_reason }}</p>
-            <p v-else-if="heroResolution.unavailable_reason && !expired" class="hero__fine-print">{{ heroResolution.unavailable_reason }}</p>
+            <p v-if="!heroAutoDetect && heroResolution.fallback_reason && !expired" class="hero__fine-print">{{ heroResolution.fallback_reason }}</p>
+            <p v-else-if="!heroAutoDetect && heroResolution.unavailable_reason && !expired" class="hero__fine-print">{{ heroResolution.unavailable_reason }}</p>
             <div v-if="heroCommand" class="hero__success">
               <span>✓</span>
-              <div><strong>Command ready for {{ selectedHeroClients.length === 1 ? selectedHeroNames : `${selectedHeroClients.length} agents` }}</strong><small>One command installs each selected target in order.</small></div>
+              <div><strong>{{ heroAutoDetect ? 'Interactive installer ready' : `Command ready for ${selectedHeroClients.length === 1 ? selectedHeroNames : `${selectedHeroClients.length} agents`}` }}</strong><small>{{ heroAutoDetect ? 'The CLI checks package support, skips incompatible installed agents, and lets you confirm the targets.' : 'The CLI configures the selected agents and shows any remaining setup steps.' }}</small></div>
             </div>
           </div>
         </div>
@@ -123,7 +136,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
     <section class="client-section container" aria-labelledby="clients-title">
       <p id="clients-title">Supported agents</p>
       <ClientStrip />
-      <p class="client-section__note">The CLI installs or prepares packages for ten agents. ChatGPT uses its app setup when a plugin provides one. Some agents may still ask you to finish activation or sign in.</p>
+      <p class="client-section__note">The CLI installs or prepares packages for supported agents. ChatGPT uses its app setup when a plugin provides one. Some agents may still ask you to finish activation or sign in.</p>
     </section>
 
     <section id="how-it-works" class="how container" aria-labelledby="how-title">
@@ -149,7 +162,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
               <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="6" r="2.5" /><circle cx="6" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" /><path d="m10.8 8.2-3.6 6.6m6-6.6 3.6 6.6M8.5 17h7" /></svg>
             </span>
           </div>
-          <div><h3>Choose your agents</h3><p>Select one or more supported clients. ChatGPT appears only for plugins with a registered app binding.</p></div>
+          <div><h3>Choose your agents</h3><p>Use automatic detection or select agents manually. ChatGPT is available when the plugin provides a verified ChatGPT connection.</p></div>
           <div class="workflow-step__tags" aria-hidden="true"><span>Multi-target</span><span>One command</span></div>
         </li>
         <li class="workflow-step workflow-step--control">
@@ -178,8 +191,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
         <p class="eyebrow">Clear status</p>
         <h2 id="validation-title">Know what was checked.</h2>
       </div>
-      <div class="validation-section__cards">
-        <article><span class="validation-badge"><span>✓</span> Package format checked</span><p>The plugin has the files and structure needed for Agent Plugins 1.0.</p></article>
+      <div class="validation-section__cards validation-section__cards--single">
         <article><span class="runtime-badge">◇ Runtime tested</span><p>When a real agent test exists, we show it separately. Sign-in and OAuth can still vary by plugin.</p></article>
       </div>
     </section>
