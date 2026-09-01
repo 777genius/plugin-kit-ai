@@ -37,8 +37,21 @@ jobs:
       - name: Capture non-secret publisher identity for environment bootstrap
         if: github.event_name == 'workflow_dispatch'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: gh api /installation --jq '{client_id,app_slug}' > "$RUNNER_TEMP/publisher-identity.json"
+          APP_ID: ${{ secrets.DIRECTORY_PUBLISHER_APP_ID }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          app_id = os.environ["APP_ID"]
+          app_slug = os.environ["APP_SLUG"]
+          if re.fullmatch(r"[1-9][0-9]*", app_id) is None:
+              raise SystemExit("invalid GitHub App ID")
+          if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", app_slug) is None:
+              raise SystemExit("invalid GitHub App slug")
+          output = Path(os.environ["RUNNER_TEMP"], "publisher-identity.json")
+          output.write_text(json.dumps({"app_id": app_id, "app_slug": app_slug}, sort_keys=True) + "\n")
+          PY
 
       - name: Upload non-secret publisher identity
         if: github.event_name == 'workflow_dispatch'
