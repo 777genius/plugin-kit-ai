@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -538,7 +539,7 @@ func TestCacheAtomicPermissionsPreservationAndOfflineExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Fatalf("cache mode %o", info.Mode().Perm())
 	}
 	lowerSnapshot, lowerEnvelope, _ := signedFixture(t, 19, key, private)
