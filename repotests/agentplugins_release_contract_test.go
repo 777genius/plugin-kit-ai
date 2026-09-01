@@ -130,7 +130,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`NPM_PACKAGE: ${{ steps.verify-target.outputs.package_name }}`,
 		`npm view --prefer-online "${NPM_PACKAGE}@${version}" version`,
 		`npm view --prefer-online "${NPM_PACKAGE}@latest" version`,
-		`[[ "${latest_version}" = "${version}" ]]`,
+		`if [[ "${published_version}" = "${version}" ]]; then`,
+		"informational: ${NPM_PACKAGE}@latest is ${latest_version}; auditing exact historical version ${version}",
+		"warning: ${NPM_PACKAGE}@latest could not be resolved; exact historical version ${version} is available",
 		"max_attempts=30",
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
@@ -171,10 +173,12 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, npmVerifyJob, "id-token: write")
 	mustNotContain(t, npmVerifyJob, "platform-proof")
 	mustNotContain(t, npmVerifyJob, "--target cursor --yes")
+	mustNotContain(t, npmVerifyJob, `[[ "${latest_version}" = "${version}" ]]`)
 	mustAppearBefore(t, npmVerifyJob, "Resolve immutable verification target", `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
-	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
+	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`)
+	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
 	mustNotContain(t, npmVerifyJob, `.data.result.`)
@@ -287,6 +291,19 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	} {
 		mustContain(t, runbook, want)
 	}
+}
+
+func TestAgentpluginsHistoricalAuditAllowsLatestToBeNewer(t *testing.T) {
+	root := RepoRoot(t)
+	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
+	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
+
+	// A historical version remains auditable after a later owner advances the
+	// latest dist-tag. Only exact package@version existence may open the gate.
+	mustContain(t, npmVerifyJob, `if [[ "${published_version}" = "${version}" ]]; then`)
+	mustContain(t, npmVerifyJob, `test "${available}" = true`)
+	mustNotContain(t, npmVerifyJob, `[[ "${latest_version}" = "${version}" ]]`)
+	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `latest_version="$(npm view --prefer-online "${NPM_PACKAGE}@latest" version 2/dev/null || true)"`)
 }
 
 func TestAgentpluginsReadmesUseUnversionedNpxExamples(t *testing.T) {

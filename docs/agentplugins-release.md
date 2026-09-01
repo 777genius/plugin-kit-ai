@@ -98,7 +98,10 @@ environment, OIDC write permission, token, or publish-ready gate. Its
 closed. Dispatch it with `verify_only=true` and an existing historical tag to
 verify the public registry version, signature, provenance, and isolated
 lifecycle. Historical audit mode does not require the tag to point to current
-`main` and does not rerun the schema-v2 six-platform release proof.
+`main` and does not rerun the schema-v2 six-platform release proof. The audit
+waits only for the exact `package@version` named by the historical tag. The
+current `latest` dist-tag is logged for context but is non-blocking, so a newer
+UAP publication does not invalidate or delay an older immutable-version audit.
 
 The UAP facade publisher must consume an exact public tag and verify the release
 manifest version, source commit, six filenames, byte sizes, SHA-256 digests, and

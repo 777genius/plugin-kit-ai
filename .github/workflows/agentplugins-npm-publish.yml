@@ -101,9 +101,7 @@ jobs:
           max_attempts=30
           for attempt in $(seq 1 "${max_attempts}"); do
             published_version="$(npm view --prefer-online "${NPM_PACKAGE}@${version}" version 2>/dev/null || true)"
-            latest_version="$(npm view --prefer-online "${NPM_PACKAGE}@latest" version 2>/dev/null || true)"
-            if [[ "${published_version}" = "${version}" ]] && \
-              [[ "${latest_version}" = "${version}" ]]; then
+            if [[ "${published_version}" = "${version}" ]]; then
               available=true
               break
             fi
@@ -111,6 +109,12 @@ jobs:
             sleep 10
           done
           test "${available}" = true
+          latest_version="$(npm view --prefer-online "${NPM_PACKAGE}@latest" version 2>/dev/null || true)"
+          if [[ -n "${latest_version}" ]]; then
+            echo "informational: ${NPM_PACKAGE}@latest is ${latest_version}; auditing exact historical version ${version}"
+          else
+            echo "warning: ${NPM_PACKAGE}@latest could not be resolved; exact historical version ${version} is available" >&2
+          fi
           npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"
           npm audit signatures --json --include-attestations > audit-signatures.json
           jq -e --arg package "${NPM_PACKAGE}" --arg version "${version}" '
