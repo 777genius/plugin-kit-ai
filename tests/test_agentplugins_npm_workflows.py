@@ -103,6 +103,17 @@ class AgentpluginsNpmWorkflowContractTests(unittest.TestCase):
         self.assertIn("npm view universal-agent-plugins versions", body)
         self.assertIn("npm dist-tag ls universal-agent-plugins", body)
 
+    def test_publish_pins_an_oidc_capable_npm_cli_before_publication(self):
+        workflow = load(PUBLISH)
+        steps = workflow["jobs"]["publish"]["steps"]
+        install = next(step for step in steps if step.get("name") ==
+                       "Install the pinned npm CLI required for trusted publishing")
+        self.assertIn("npm install --global npm@12.0.2", install["run"])
+        self.assertIn('test "$(npm --version)" = 12.0.2', install["run"])
+        install_index = steps.index(install)
+        publish_index = next(i for i, step in enumerate(steps) if "npm publish" in step.get("run", ""))
+        self.assertLess(install_index, publish_index)
+
     def test_publish_lock_serializes_all_versions_and_eligibility_is_rechecked_last(self):
         workflow = load(PUBLISH)
         self.assertIn("inputs.version", workflow["concurrency"]["group"])
