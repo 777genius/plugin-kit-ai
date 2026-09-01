@@ -18,7 +18,7 @@
   "npm_facade_package": "universal-agent-plugins",
   "npm_facade_version": "0.1.24",
   "npm_facade_integrity": "sha512-hUMKvd2kAjTWA1obzAlXdbE3GxjRk8lhXRA9YuO2h2NINnYv/GQi2JwgkqWhOd95BpEKh5Do8vV1B4B/Unl+jw==",
-  "directory_source_digest": "sha256:1046ec5f0baa8bbf604a264c62f80a757ee051bcce171753f7dd2d6d40fcd6dd",
+  "directory_source_digest": "sha256:4d5838c8ebc7ad79bf1daa410765f18ddb22ce39c0eeacd3507d461aa37ac4d1",
   "scenario_contract_digest": "sha256:30a5a44dd6a1a32957dcba1a6d96ccb7c64f4fc7ed042a29bec6108f30011c32",
   "copilot_cli_integrity": "sha512-6tf93ZF56KOiTTAjK/UhLZkl1W543IzaTQly288kockJZFswpRTnQEI00Yvacpb39DTvTYu3/ha9SeKpo/pgZQ==",
   "copilot_cli_package": "@github/copilot",
