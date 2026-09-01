@@ -604,7 +604,7 @@ export function validationLabel(view: Pick<RegistryPlugin, 'evidence' | 'package
   if (passed.some(item => item.level === 'discovery' && hasEnvironment(item))) return 'Discovery tested'
   if (passed.some(item => item.level === 'materialization' && hasEnvironment(item))) return 'Materialization tested'
   const schema = view.package_evidence[0]
-  return schema ? evidenceLabel(schema) : 'No current evidence'
+  return schema ? evidenceLabel(schema) : 'Package reviewed'
 }
 
 export function defaultDistribution(plugin: RegistryPlugin): DistributionView {

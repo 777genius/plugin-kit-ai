@@ -9,11 +9,16 @@ const props = withDefaults(defineProps<{
   command: string
   label?: string
   kind?: CommandKind
+  compact?: boolean
 }>(), {
   label: 'Terminal',
   kind: 'terminal',
+  compact: false,
 })
 const copied = ref(false)
+const visibleCommand = computed(() => props.compact
+  ? props.command.replace(' --target ', '\n--target ')
+  : props.command)
 let timer: ReturnType<typeof setTimeout> | undefined
 
 onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
@@ -38,7 +43,7 @@ async function copyCommand() {
 </script>
 
 <template>
-  <div class="command-snippet" :class="`command-snippet--${kind}`">
+  <div class="command-snippet" :class="[`command-snippet--${kind}`, { 'command-snippet--compact': compact }]">
     <div class="command-snippet__header">
       <span class="command-snippet__label">
         <svg class="command-snippet__label-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -66,7 +71,7 @@ async function copyCommand() {
         {{ copied ? 'Copied' : 'Copy' }}
       </button>
     </div>
-    <pre><code>{{ command }}</code></pre>
+    <pre><code>{{ visibleCommand }}</code></pre>
     <span class="sr-only" role="status" aria-live="polite">{{ copied ? 'Command copied to clipboard' : '' }}</span>
   </div>
 </template>

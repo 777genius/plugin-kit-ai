@@ -1098,6 +1098,12 @@ class DirectoryDomainTests(unittest.TestCase):
                     expected_minimum = "0.1.13"
                 if distribution["id"] == "777genius/chrome-devtools-bridge" and policy["release_sequence"] == 2:
                     expected_minimum = "0.1.24"
+                if (
+                    distribution["status"] == "active"
+                    and policy["status"] == "active"
+                    and distribution["id"] != "upstash/context7"
+                ):
+                    expected_minimum = "0.1.26"
                 self.assertEqual(policy["minimum_installer_version"], expected_minimum)
             release = distribution["releases"][0]
             if release["package_source"]["revision"] is not None:
@@ -1142,7 +1148,10 @@ class DirectoryDomainTests(unittest.TestCase):
             if product["id"] == "context7"
         )
         local = next(item for item in context7["distributions"] if item["id"] == "777genius/context7" and item["release_sequence"] == 2)
-        self.assertEqual([item["client"] for item in local["eligible_targets"]], ["codex", "cursor", "copilot", "vscode", "kiro"])
+        self.assertEqual(
+            [item["client"] for item in local["eligible_targets"]],
+            ["codex", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"],
+        )
 
     def test_chrome_bridge_has_one_locked_active_release_and_legacy_bytes_stay_revoked(self) -> None:
         source = self.source()
@@ -1172,10 +1181,11 @@ class DirectoryDomainTests(unittest.TestCase):
         self.assertEqual([target["client"] for target in previous["targets"]], clients[:5])
         self.assertEqual(previous["minimum_installer_version"], "0.1.8")
         self.assertEqual([target["client"] for target in active["targets"]], clients)
-        self.assertEqual(active["minimum_installer_version"], "0.1.24")
+        self.assertEqual(active["minimum_installer_version"], "0.1.26")
         self.assertEqual(active["current_evidence"], [])
         self.assertEqual(registry.eligible_product_targets(source, "chrome-devtools"), clients)
-        # CLI agentplugins-v0.1.24, c78c79e44efd5ad07083d63436d9170b107df6cb:
+        # The current public CLI client registry keeps Directory delivery
+        # distinct from its internal package mode.
         # domain.ClientDefinitions().DirectoryDelivery is distinct from PackageMode.
         expected_delivery = {"claude": "managed", "gemini": "managed", "opencode": "managed", "cline": "managed", "windsurf": "prepared"}
         for client, delivery in expected_delivery.items():
@@ -1191,6 +1201,23 @@ class DirectoryDomainTests(unittest.TestCase):
         with self.assertRaisesRegex(registry.RegistryError, "no distribution supports"):
             registry.resolve_directory(source, "chrome-devtools", clients + ["chatgpt"])
 
+    def test_every_reviewed_product_resolves_the_complete_cli_client_set(self) -> None:
+        source = self.source()
+        clients = ["codex", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf"]
+        expected_delivery = {
+            "codex": "managed", "cursor": "managed", "copilot": "managed", "vscode": "prepared",
+            "kiro": "managed", "claude": "managed", "gemini": "managed", "opencode": "managed",
+            "cline": "managed", "windsurf": "prepared",
+        }
+        for product in source["products"]:
+            with self.subTest(product=product["id"]):
+                resolved = registry.resolve_directory(source, product["id"], clients)
+                distribution = next(item for item in source["distributions"] if item["id"] == resolved["distribution_id"])
+                policy = next(item for item in distribution["release_policies"] if item["release_sequence"] == resolved["release_sequence"])
+                by_client = {target["client"]: target for target in policy["targets"]}
+                self.assertEqual({client: by_client[client]["delivery"] for client in clients}, expected_delivery)
+                self.assertEqual(policy["minimum_installer_version"], "0.1.26")
+
     def test_chrome_preview_preserves_complete_target_resolution_without_runtime_claims(self) -> None:
         source = self.source()
         source["products"] = [item for item in source["products"] if item["id"] == "chrome-devtools"]
@@ -1201,7 +1228,14 @@ class DirectoryDomainTests(unittest.TestCase):
         product = preview["products"][0]
         clients = registry.eligible_product_targets(source, "chrome-devtools")
         self.assertEqual(product["default_distribution"], "777genius/chrome-devtools")
-        self.assertEqual(len(product["target_resolutions"]), 2 ** len(clients) - 1)
+        singleton_clients = {
+            item["targets"][0]["client"]
+            for item in product["target_resolutions"]
+            if len(item["targets"]) == 1
+        }
+        self.assertEqual(singleton_clients, set(clients))
+        policy_count = sum(len(item["release_policies"]) for item in source["distributions"])
+        self.assertLessEqual(len(product["target_resolutions"]), len(registry.CLIENT_IDS) + policy_count)
         full = next(item for item in product["target_resolutions"] if [target["client"] for target in item["targets"]] == clients)
         self.assertEqual((full["distribution_id"], full["release_sequence"]), ("777genius/chrome-devtools-bridge", 2))
         self.assertTrue(all(item["current_evidence"] == [] for item in product["distributions"]))
@@ -1263,7 +1297,7 @@ class DirectoryDomainTests(unittest.TestCase):
         self.assertEqual(
             [(policy["release_sequence"], policy["status"], policy["minimum_installer_version"])
              for policy in distribution["release_policies"]],
-            [(1, "revoked", "0.1.8"), (2, "revoked", "0.1.13"), (3, "active", "0.1.13")],
+            [(1, "revoked", "0.1.8"), (2, "revoked", "0.1.13"), (3, "active", "0.1.26")],
         )
         resolution = registry.resolve_directory(source, "hubspot-developer", ["codex"])
         self.assertEqual(

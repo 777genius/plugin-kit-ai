@@ -1,7 +1,9 @@
 # Client compatibility
 
-Verified on 2026-08-10. "Supported" comes from the Agent Plugins project;
-"local test" records what was actually available on the test machine.
+The CLI adapts a standard Agent Plugins package to each client's supported
+skills and MCP configuration. "CLI delivery" is installation support; it does
+not by itself claim that every external service, OAuth flow, or model runtime
+was tested in that client.
 
 | Client | Agent Plugins 1.0 components | Local availability | Verification |
 | --- | --- | --- | --- |
@@ -11,6 +13,11 @@ Verified on 2026-08-10. "Supported" comes from the Agent Plugins project;
 | VS Code | Skills; stdio, Streamable HTTP, legacy SSE MCP | Not installed | Shares the managed Copilot plugin when Copilot CLI is available; VS Code UI runtime remains separately untested |
 | GitHub Copilot | Skills; stdio, Streamable HTTP, legacy SSE MCP | Copilot CLI 1.0.78 | Five hero packages passed automatic marketplace add, plugin install, verification, uninstall, and marketplace cleanup in an isolated profile |
 | Kiro | Skills; stdio, Streamable HTTP, legacy SSE MCP | Kiro IDE 1.0.288 | Local folder import, power activation, and Context7 resolve/query calls passed in a disposable project |
+| Claude Code | Skills and MCP | Claude Code 2.1.251 | Managed package lifecycle and native plugin listing passed in an isolated profile |
+| Gemini CLI | Skills and MCP | Gemini CLI 0.57.0 | Managed package lifecycle and MCP discovery passed in an isolated profile; model-account runtime remains separate and unclaimed |
+| OpenCode | Skills and MCP | OpenCode 1.18.25 | Managed package lifecycle and live Chrome DevTools model tool calls passed in an isolated profile |
+| Cline | Skills and MCP | Disposable product-shaped profile | Managed package lifecycle passed; live extension/model runtime remains untested |
+| Windsurf | Prepared skills and MCP package | Disposable product-shaped profile | Preparation, repair, and removal passed; manual activation and live model runtime remain untested |
 
 The compatibility directory describes client support for the standard. It is
 not proof that this repository was installed in every listed client. Marketplace
@@ -24,15 +31,9 @@ proved. Separate repository marketplace ingestion, official manager installation
 cache materialization, and desktop control-plane parsing also passed. ChatGPT
 Work UI activation and package-routed runtime remain unproved.
 
-## Component-compatible, not claimed as Agent Plugins 1.0 clients
-
-| Client | Locally detected | Boundary |
-| --- | --- | --- |
-| Claude Code 2.1.205 | Yes | Has its own plugin marketplace; individual skills and MCP servers may be adapted |
-| Gemini CLI 0.36.0 | Yes | Has separate extensions, skills, and MCP commands |
-| OpenCode 1.18.4 | Yes | Not listed by the Agent Plugins compatibility directory |
-
-The repository does not claim that a package installs unchanged in clients that
-are absent from the official compatibility directory.
+Claude Code, Gemini CLI, OpenCode, Cline, and Windsurf are supported through
+client adapters rather than a claim that those products natively consume every
+Agent Plugins 1.0 file unchanged. The Directory exposes a target only when the
+current stable CLI can produce that client's delivery safely.
 
 Sanitized client evidence is committed under [`tests/e2e/results`](../tests/e2e/results).

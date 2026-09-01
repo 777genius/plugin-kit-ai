@@ -31,16 +31,17 @@ ALIASES = tuple("agent-code-navigator atlassian chrome-devtools cloudflare cloud
                 "figma firebase github gitlab greptile heroku hubspot-crm hubspot-developer "
                 "linear neon notion sentry statsig stripe supabase vercel".split())
 CORE = ("codex", "cursor", "kiro")
-CHROME = CORE + ("copilot", "vscode", "claude", "gemini", "opencode", "cline", "windsurf")
+CATALOG_CLIENTS = ("codex", "cursor", "copilot", "vscode", "kiro", "claude", "gemini", "opencode", "cline", "windsurf")
+CHROME = CATALOG_CLIENTS
 STATIC = ("777genius/cloudflare-docs", "777genius/cloudflare-docs-bridge")
 CONTEXT_FIELDS = ("repository", "source_sha", "workflow_sha", "signed_ledger_sha",
                   "materialized_ledger_sha", "publication_id", "sequence", "snapshot_digest",
                   "run_id", "run_attempt", "directory_origin")
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
-CLI = {"version": "0.1.25", "tag": "agentplugins-v0.1.25",
-       "commit": "d168b28bcdeef0c558bee3935adab25abb9f6267",
-       "binary_digest": "sha256:83f7785383a47b82523ff610893df51ee979d6f444f7de6723b07fbc80cec2e4",
+CLI = {"version": "0.1.26", "tag": "agentplugins-v0.1.26",
+       "commit": "24c2a74340d382abdc03a9f65563b951a9c1fcfb",
+       "binary_digest": "sha256:9867ad3cac009c45616ff41c06e019ada2c74a10e14a4f025c003971732a20a4",
        "native_clients": {"claude": "2.1.251", "copilot": "1.0.82"},
        "mcp_inspector": "2.1.0"}
 LIMIT = 4 * 1024 * 1024
@@ -151,8 +152,7 @@ def row_identity(selection: dict, client: str) -> dict:
 
 def plan(snapshot: dict) -> list[tuple[dict, tuple[str, ...]]]:
     # A new publication cannot silently shrink this accepted catalog matrix.
-    return [(selected(snapshot, alias, CHROME if alias == "chrome-devtools" else CORE),
-             CHROME if alias == "chrome-devtools" else CORE) for alias in ALIASES]
+    return [(selected(snapshot, alias, CATALOG_CLIENTS), CATALOG_CLIENTS) for alias in ALIASES]
 
 
 def policy_scope(baseline: dict, snapshot: dict, selections: list) -> None:
@@ -230,7 +230,8 @@ def expected_artifact(snapshot: dict, baseline: dict, identity: dict, ctx: dict)
     rows = [{**row_identity(selection, client), "proof": lifecycle_proof(client)} for selection, clients in selections for client in clients]
     probes = [probe_contract(selection, method) for selection, _ in selections
               if selection["product_id"] in ("context7", "cloudflare-docs") for method in ("tools/list", "tools/call")]
-    require(len(rows) == 85 and len(probes) == 4, "fixed matrix cardinality mismatch")
+    require(len(rows) == len(ALIASES) * len(CATALOG_CLIENTS) == 260 and len(probes) == 4,
+            "fixed matrix cardinality mismatch")
     return {"schema_version": 1, "kind": "catalog-publication-readiness-v1", "outcome": "passed",
             "context": ctx, "cli": CLI, "baseline": identity, "rows": rows,
             "static_metadata": static_rows(snapshot), "mcp_probes": probes,

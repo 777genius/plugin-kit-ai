@@ -56,11 +56,15 @@ class CatalogContractTests(unittest.TestCase):
 
     def test_fixed_matrix_fallback_and_honest_claims(self):
         artifact = self.expected()
-        self.assertEqual(len(artifact["rows"]), 85)
+        self.assertEqual(len(artifact["rows"]), 260)
         self.assertEqual(len(artifact["static_metadata"]), 2)
         self.assertEqual(len(artifact["mcp_probes"]), 4)
         chrome = [row for row in artifact["rows"] if row["selector"] == "chrome-devtools"]
-        self.assertEqual({row["client"] for row in chrome}, set(gate.CHROME))
+        self.assertEqual({row["client"] for row in chrome}, set(gate.CATALOG_CLIENTS))
+        self.assertEqual(
+            {(row["selector"], row["client"]) for row in artifact["rows"]},
+            {(alias, client) for alias in gate.ALIASES for client in gate.CATALOG_CLIENTS},
+        )
         self.assertEqual({row["distribution_id"] for row in chrome}, {"777genius/chrome-devtools-bridge"})
         self.assertEqual({row["release_sequence"] for row in chrome}, {2})
         self.assertTrue(all(row["fallback_reason"] for row in chrome))
@@ -74,7 +78,7 @@ class CatalogContractTests(unittest.TestCase):
             lambda value: value["rows"].append(value["rows"][0]),
             lambda value: value.update(runtime_claims=True),
             lambda value: value.update(runtime_claims=0),
-            lambda value: value["cli"].update(version="0.1.26"),
+            lambda value: value["cli"].update(version="0.1.27"),
             lambda value: value["context"].update(run_attempt=2),
             lambda value: value["mcp_probes"].pop(),
             lambda value: value["rows"][0]["proof"].update(acquisition_count=True),
@@ -145,7 +149,7 @@ class CatalogContractTests(unittest.TestCase):
         selected = gate.selected(self.snapshot, "chrome-devtools", gate.CHROME)
         distribution = next(item for item in self.snapshot["distributions"] if item["id"] == selected["distribution_id"])
         for policy in distribution["release_policies"]:
-            policy["minimum_installer_version"] = "0.1.26"
+            policy["minimum_installer_version"] = "0.1.27"
         with self.assertRaisesRegex(ValueError, "newer CLI"):
             gate.plan(self.snapshot)
         self.snapshot = catalog()

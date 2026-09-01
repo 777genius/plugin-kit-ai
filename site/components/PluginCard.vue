@@ -73,7 +73,7 @@ function updateTargets(values: string[]) {
       </span>
       <div class="plugin-card__install">
         <AppMultiSelect v-if="targets.length" :model-value="targets" :label="`Choose clients for ${plugin.display_name}`" :options="targetOptions" @update:model-value="updateTargets" />
-        <CommandSnippet v-if="selectedDistribution" label="Add" kind="add" :command="command" />
+        <CommandSnippet v-if="selectedDistribution" label="Add" kind="add" :command="command" compact />
         <span v-else class="plugin-card__author">{{ isDiscovered ? 'Unavailable at its indexed immutable source; no install command is generated.' : expired ? 'Commands disabled because the signed Directory snapshot is stale.' : !published ? 'Commands disabled because review data is not installation authority.' : resolution.unavailable_reason }}</span>
       </div>
     </div>

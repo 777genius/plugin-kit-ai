@@ -82,7 +82,7 @@ describe('registry parsing', () => {
     assert.equal(plugin.declared_default_distribution, '777genius/chrome-devtools')
     assert.equal(plugin.default_distribution, '777genius/chrome-devtools-bridge')
     assert.deepEqual(new Set(plugin.client_support.clients), new Set(clients))
-    assert.equal(validationLabel(plugin), 'No current evidence')
+    assert.equal(validationLabel(plugin), 'Package reviewed')
     for (const targets of [...clients.map(client => [client]), clients, clients.slice(5)]) {
       const selected = expectedDistribution(plugin, targets)!
       assert.equal(selected.id, '777genius/chrome-devtools-bridge')
@@ -561,7 +561,7 @@ describe('registry parsing', () => {
     assert.deepEqual(registry.plugins[0]?.client_support.clients, ['codex', 'cursor', 'copilot', 'vscode', 'kiro'])
     assert.equal(registry.plugins[1]?.client_support.resolution, 'install_time')
     assert.deepEqual(registry.plugins[0]?.evidence.map(item => item.client), ['codex', 'cursor'])
-    assert.equal(validationLabel(registry.plugins[0]!), 'No current evidence')
+    assert.equal(validationLabel(registry.plugins[0]!), 'Package reviewed')
     assert.equal(authenticationLabel(expectedDistribution(registry.plugins[0]!, ['cursor']), ['cursor'], registry.plugins[0]!.authentication), 'No account required')
     assert.deepEqual(registry.plugins[1]?.components, ['skills'])
   })

@@ -11,7 +11,6 @@ import argparse
 import base64
 import gzip
 import hashlib
-import itertools
 import json
 import os
 import re
@@ -1824,47 +1823,56 @@ def directory_preview(source: dict[str, object]) -> dict[str, object]:
     products = []
     for product in source["products"]:
         target_resolutions = []
-        for count in range(1, len(CLIENT_IDS) + 1):
-            for target_set in itertools.combinations(CLIENT_IDS, count):
-                try:
-                    resolution = resolve_directory(source, product["aliases"][0], list(target_set))
-                except RegistryError:
-                    continue
-                selected_distribution = distributions[resolution["distribution_id"]]
-                selected_policy = _policy_for(
-                    selected_distribution, resolution["release_sequence"],
+        # A release is eligible monotonically: if it serves a target set, it
+        # also serves every member alone.  Keep all singleton decisions plus
+        # each declared policy set, which proves source fallback and the
+        # maximal multi-target paths without serializing 2^N combinations.
+        candidate_target_sets = {(client,) for client in CLIENT_IDS}
+        for distribution_id in product["distributions"]:
+            distribution = distributions[distribution_id]
+            for policy in distribution["release_policies"]:
+                clients = tuple(
+                    client for client in CLIENT_IDS
+                    if client in {target["client"] for target in policy["targets"]}
                 )
-                authentication = {
-                    target["client"]: target["authentication"]
-                    for target in selected_policy["targets"]
-                }
-                target_resolution = {
-                    "targets": [
-                        {"client": client, "authentication": authentication[client]}
-                        for client in target_set
-                    ],
-                    "distribution_id": resolution["distribution_id"],
-                    "release_sequence": resolution["release_sequence"],
-                }
-                if resolution["fallback_reason"] is not None:
-                    target_resolution["fallback_reason"] = resolution["fallback_reason"]
-                target_resolutions.append(target_resolution)
+                if clients:
+                    candidate_target_sets.add(clients)
+        for target_set in sorted(candidate_target_sets, key=lambda value: (len(value), value)):
+            try:
+                resolution = resolve_directory(source, product["aliases"][0], list(target_set))
+            except RegistryError:
+                continue
+            selected_distribution = distributions[resolution["distribution_id"]]
+            selected_policy = _policy_for(
+                selected_distribution, resolution["release_sequence"],
+            )
+            authentication = {
+                target["client"]: target["authentication"]
+                for target in selected_policy["targets"]
+            }
+            target_resolution = {
+                "targets": [
+                    {"client": client, "authentication": authentication[client]}
+                    for client in target_set
+                ],
+                "distribution_id": resolution["distribution_id"],
+                "release_sequence": resolution["release_sequence"],
+            }
+            if resolution["fallback_reason"] is not None:
+                target_resolution["fallback_reason"] = resolution["fallback_reason"]
+            target_resolutions.append(target_resolution)
         choices = []
         for distribution_id in product["distributions"]:
             distribution = distributions[distribution_id]
             selected_clients: dict[int, set[str]] = {}
-            # The review artifact serves a multi-target command.  Record every
-            # target participating in any complete target set for which the
-            # authoritative resolver selects this release, not merely the
-            # winners of independent one-client resolutions.
-            for count in range(1, len(CLIENT_IDS) + 1):
-                target_sets = itertools.combinations(CLIENT_IDS, count)
-                for target_set in target_sets:
-                    candidate, _ = _eligible_release(
-                        distribution, product, set(target_set), evidence,
-                    )
-                    if candidate is None:
-                        continue
+            # A newer release can win every singleton while an older release
+            # remains the only complete multi-target choice.  Reuse the bounded
+            # singleton + declared-policy sets so that case stays visible.
+            for target_set in candidate_target_sets:
+                candidate, _ = _eligible_release(
+                    distribution, product, set(target_set), evidence,
+                )
+                if candidate is not None:
                     selected_clients.setdefault(candidate["sequence"], set()).update(target_set)
             selected_releases = [
                 release for release in reversed(distribution["releases"])

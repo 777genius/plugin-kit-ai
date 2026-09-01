@@ -149,7 +149,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
               <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="6" r="2.5" /><circle cx="6" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" /><path d="m10.8 8.2-3.6 6.6m6-6.6 3.6 6.6M8.5 17h7" /></svg>
             </span>
           </div>
-          <div><h3>Choose your agents</h3><p>Select one or more supported agents and get one exact command for all of them.</p></div>
+          <div><h3>Choose your agents</h3><p>Select one or more supported clients. ChatGPT appears only for plugins with a registered app binding.</p></div>
           <div class="workflow-step__tags" aria-hidden="true"><span>Multi-target</span><span>One command</span></div>
         </li>
         <li class="workflow-step workflow-step--control">

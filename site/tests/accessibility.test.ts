@@ -26,13 +26,16 @@ describe('focused catalog accessibility contract', () => {
     assert.match(multiselect, /<img v-if="option\.icon"[^>]+alt=""/)
   })
 
-  it('places the target selector beside the exact generated command', () => {
+  it('places a compact target selector above the exact generated command', () => {
     const home = source('../pages/index.vue')
     const card = source('../components/PluginCard.vue')
+    const styles = source('../assets/css/main.css')
     const layout = source('../layouts/default.vue')
     assert.match(home, /class="hero-command-row"[\s\S]*AppMultiSelect[\s\S]*CommandSnippet/)
-    assert.match(card, /class="plugin-card__install"[\s\S]*AppMultiSelect[\s\S]*CommandSnippet/)
+    assert.match(card, /class="plugin-card__install"[\s\S]*AppMultiSelect[\s\S]*CommandSnippet[^>]+compact/)
     assert.match(card, /AppMultiSelect v-if="targets\.length"/)
+    assert.match(styles, /\.plugin-card__install \{[^}]*grid-template-columns: minmax\(0, 1fr\)/)
+    assert.match(styles, /\.plugin-card__install \.app-multiselect__trigger \{[^}]*190px/)
     assert.match(layout, /Pull request preview/)
   })
 

@@ -32,6 +32,11 @@ Supported targets:
 | `copilot` | Registers a managed marketplace, installs, and verifies through Copilot CLI | Nothing when successful |
 | `vscode` | Installs automatically through Copilot CLI when available | Otherwise prints the exact `chat.pluginLocations` setting |
 | `kiro` | Prepares the native package folder | Prints the exact **Powers -> Add Custom Power -> Import** steps and folder |
+| `claude` | Installs the package and managed MCP configuration | Follow any printed restart or activation hint |
+| `gemini` | Writes the managed MCP configuration | Client login or model entitlement remains a separate client concern |
+| `opencode` | Writes the managed MCP configuration | Nothing when successful |
+| `cline` | Writes the managed MCP configuration | Reload the extension when prompted |
+| `windsurf` | Prepares the package without claiming UI activation | Follow the exact MCP or skills activation hint |
 
 Lifecycle commands use the same explicit target or comma-separated targets:
 

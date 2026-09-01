@@ -910,7 +910,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -951,6 +951,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -988,7 +1028,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1029,6 +1069,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1138,7 +1218,9 @@
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
           "tree_digest": "sha256:98172304c27836ebcbf842a5970b128ce8b9688ec06dcf136c35f0688691053a",
           "manifest_digest": "sha256:02a77a0509681567df75e941175b148c1bcdfe0001cec24cfef8300b85547850",
-          "components": ["mcp"]
+          "components": [
+            "mcp"
+          ]
         },
         {
           "sequence": 2,
@@ -1157,7 +1239,9 @@
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
           "tree_digest": "sha256:9ecf4bcd3eff01f3cb23a46838f65e5c9e213a29367514b320dc92aee98689ed",
           "manifest_digest": "sha256:38c1ccf9c0857300832c140caf1049aaaacaa09594011d45e68b85a416734265",
-          "components": ["mcp"]
+          "components": [
+            "mcp"
+          ]
         }
       ],
       "release_policies": [
@@ -1166,29 +1250,134 @@
           "status": "revoked",
           "minimum_installer_version": "0.1.8",
           "targets": [
-            {"client": "codex", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "cursor", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "copilot", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "vscode", "authentication": "not_required", "scopes": ["user"], "delivery": "prepared"},
-            {"client": "kiro", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"}
+            {
+              "client": "codex",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cursor",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "copilot",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "vscode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            },
+            {
+              "client": "kiro",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            }
           ],
           "current_evidence": []
         },
         {
           "release_sequence": 2,
           "status": "active",
-          "minimum_installer_version": "0.1.24",
+          "minimum_installer_version": "0.1.26",
           "targets": [
-            {"client": "codex", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "cursor", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "copilot", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "vscode", "authentication": "not_required", "scopes": ["user"], "delivery": "prepared"},
-            {"client": "kiro", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "claude", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "gemini", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "opencode", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "cline", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "windsurf", "authentication": "not_required", "scopes": ["user"], "delivery": "prepared"}
+            {
+              "client": "codex",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cursor",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "copilot",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "vscode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            },
+            {
+              "client": "kiro",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            }
           ],
           "current_evidence": []
         }
@@ -1225,7 +1414,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1266,6 +1455,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1303,7 +1532,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1344,6 +1573,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1381,7 +1650,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1435,6 +1704,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1466,21 +1775,110 @@
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
           "tree_digest": "sha256:2b1d984194324b50b756a893a576f3d795262bd7edfec6d7167863ca8be93a2c",
           "manifest_digest": "sha256:7d1ada5818ced00257f39edd0bea371630ad5167dbfa572fbf01d7504012119c",
-          "components": ["mcp"]
+          "components": [
+            "mcp"
+          ]
         }
       ],
       "release_policies": [
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
-            {"client": "codex", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "chatgpt", "authentication": "not_required", "scopes": ["user"], "delivery": "manual_activation", "app_binding": {"app_key": "cloudflare-docs", "id": "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b", "mcp_server": "cloudflare-docs"}},
-            {"client": "cursor", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "copilot", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "vscode", "authentication": "not_required", "scopes": ["user"], "delivery": "prepared"},
-            {"client": "kiro", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"}
+            {
+              "client": "codex",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "chatgpt",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "manual_activation",
+              "app_binding": {
+                "app_key": "cloudflare-docs",
+                "id": "plugin_asdk_app_6a92d29a704c8191931e76b47668cb0b",
+                "mcp_server": "cloudflare-docs"
+              }
+            },
+            {
+              "client": "cursor",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "copilot",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "vscode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            },
+            {
+              "client": "kiro",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            }
           ],
           "current_evidence": []
         }
@@ -1517,7 +1915,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1558,6 +1956,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1595,7 +2033,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1636,6 +2074,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1738,7 +2216,7 @@
         {
           "release_sequence": 2,
           "status": "active",
-          "minimum_installer_version": "0.1.13",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1779,6 +2257,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1816,7 +2334,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1857,6 +2375,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "not_required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -1894,7 +2452,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -1935,6 +2493,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2103,7 +2701,7 @@
         {
           "release_sequence": 3,
           "status": "active",
-          "minimum_installer_version": "0.1.13",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2144,6 +2742,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2181,7 +2819,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2222,6 +2860,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2253,20 +2931,97 @@
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
           "tree_digest": "sha256:8b4fa6985607be1f503fc98294b1c0af4d4f2c3c55cf089604a3137deaaa53e8",
           "manifest_digest": "sha256:90f940c0f656bdf83fa8cccd5515bf4df9211c5a1d9cb095b84c30ee0f4f6efe",
-          "components": ["mcp"]
+          "components": [
+            "mcp"
+          ]
         }
       ],
       "release_policies": [
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
-            {"client": "codex", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "cursor", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "copilot", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "vscode", "authentication": "required", "scopes": ["user"], "delivery": "prepared"},
-            {"client": "kiro", "authentication": "required", "scopes": ["user"], "delivery": "managed"}
+            {
+              "client": "codex",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            }
           ],
           "current_evidence": []
         }
@@ -2303,7 +3058,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2344,6 +3099,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2381,7 +3176,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2422,6 +3217,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2459,7 +3294,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2500,6 +3335,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2537,7 +3412,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2578,6 +3453,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2746,7 +3661,7 @@
         {
           "release_sequence": 3,
           "status": "active",
-          "minimum_installer_version": "0.1.13",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2787,6 +3702,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2824,7 +3779,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2865,6 +3820,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2902,7 +3897,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -2943,6 +3938,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2980,7 +4015,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -3021,6 +4056,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -3058,7 +4133,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -3099,6 +4174,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -3136,7 +4251,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -3177,6 +4292,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -3214,7 +4369,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -3255,6 +4410,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -3292,7 +4487,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
           "targets": [
             {
               "client": "codex",
@@ -3333,6 +4528,46 @@
                 "user"
               ],
               "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -3370,7 +4605,125 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.8",
+          "minimum_installer_version": "0.1.26",
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "claude",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "gemini",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "opencode",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "cline",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "managed"
+            },
+            {
+              "client": "windsurf",
+              "authentication": "required",
+              "scopes": [
+                "user"
+              ],
+              "delivery": "prepared"
+            }
+          ],
+          "current_evidence": []
+        }
+      ]
+    },
+    {
+      "schema_version": 1,
+      "id": "upstash/context7",
+      "product_id": "context7",
+      "kind": "upstream",
+      "status": "active",
+      "packager": "upstash",
+      "releases": [
+        {
+          "sequence": 1,
+          "package_version": "1.0.0",
+          "manifest_name": "context7",
+          "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+          "package_source": {
+            "repository": "upstash/context7",
+            "revision": "769c6cd22c3d95462d1f55d789e9532cabefa5a9",
+            "path": "plugins/agent-plugins/context7"
+          },
+          "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
+          "tree_digest": "sha256:08eed3b67f2e71a11b68baa594380c2f69ec1bc97584d701deaf7942ac34c0d8",
+          "manifest_digest": "sha256:d01781acd899aefa9445a290cf43a481230321934d62f9c8a2aab06a89718236",
+          "components": [
+            "mcp",
+            "skills"
+          ]
+        }
+      ],
+      "release_policies": [
+        {
+          "release_sequence": 1,
+          "status": "active",
+          "minimum_installer_version": "0.1.13",
           "targets": [
             {
               "client": "codex",
@@ -3412,46 +4765,6 @@
               ],
               "delivery": "managed"
             }
-          ],
-          "current_evidence": []
-        }
-      ]
-    },
-    {
-      "schema_version": 1,
-      "id": "upstash/context7",
-      "product_id": "context7",
-      "kind": "upstream",
-      "status": "active",
-      "packager": "upstash",
-      "releases": [
-        {
-          "sequence": 1,
-          "package_version": "1.0.0",
-          "manifest_name": "context7",
-          "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-          "package_source": {
-            "repository": "upstash/context7",
-            "revision": "769c6cd22c3d95462d1f55d789e9532cabefa5a9",
-            "path": "plugins/agent-plugins/context7"
-          },
-          "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
-          "tree_digest": "sha256:08eed3b67f2e71a11b68baa594380c2f69ec1bc97584d701deaf7942ac34c0d8",
-          "manifest_digest": "sha256:d01781acd899aefa9445a290cf43a481230321934d62f9c8a2aab06a89718236",
-          "components": ["mcp", "skills"]
-        }
-      ],
-      "release_policies": [
-        {
-          "release_sequence": 1,
-          "status": "active",
-          "minimum_installer_version": "0.1.13",
-          "targets": [
-            {"client": "codex", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "cursor", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "copilot", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "vscode", "authentication": "required", "scopes": ["user"], "delivery": "prepared"},
-            {"client": "kiro", "authentication": "required", "scopes": ["user"], "delivery": "managed"}
           ],
           "current_evidence": [
             "context7/upstash-materialization-codex-cli-0.1.13",

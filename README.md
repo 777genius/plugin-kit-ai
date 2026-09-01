@@ -29,7 +29,7 @@ The installer is open source and maintained in
 `universal-agent-plugins` is the npm package; `agentplugins` is the installed
 command. Its shared Go engine reads standard `plugin.json` packages and uses
 client-specific adapters for Codex, ChatGPT, Cursor, GitHub Copilot/VS Code,
-and Kiro.
+Kiro, Claude Code, Gemini CLI, OpenCode, Cline, and Windsurf.
 
 Browse the [plugin directory](https://777genius.github.io/universal-agent-plugins/)
 or [submit a plugin](registry/README.md#submit-an-external-package) through a Git-native
@@ -153,6 +153,11 @@ client-specific.
 | <img src="assets/client-icons/github-copilot.svg" width="20" height="20" alt=""> GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
 | <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | Shared Copilot plugin when its CLI is available | Automatic; otherwise the exact setting is shown |
 | <img src="assets/client-icons/kiro.svg" width="20" height="20" alt=""> Kiro | Native folder package | Follow the exact Power import hint |
+| <img src="assets/client-icons/claude.svg" width="20" height="20" alt=""> Claude Code | Managed plugin and MCP configuration | Installed automatically; follow any client restart hint |
+| <img src="assets/client-icons/gemini.svg" width="20" height="20" alt=""> Gemini CLI | Managed MCP configuration | Installed automatically; account access is separate from plugin setup |
+| <img src="assets/client-icons/opencode.svg" width="20" height="20" alt=""> OpenCode | Managed MCP configuration | Installed automatically |
+| <img src="assets/client-icons/cline.svg" width="20" height="20" alt=""> Cline | Managed MCP configuration | Installed automatically; reload the extension if prompted |
+| <img src="assets/client-icons/windsurf.svg" width="20" height="20" alt=""> Windsurf | Prepared MCP or skills package | Follow the exact manual activation hint |
 
 All 26 packages pass standard schema validation; that is schema-only evidence.
 Historical evidence includes 15/15 runtime checks for five starter packages

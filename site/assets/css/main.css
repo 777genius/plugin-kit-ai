@@ -141,6 +141,7 @@ code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospac
 .command-snippet__label-icon { width: 13px; height: 13px; flex: 0 0 13px; color: var(--command-accent); stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .command-snippet button { border: 0; padding: 4px 7px; color: #a999ff; background: transparent; font-size: .63rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
 .command-snippet pre { margin: 0; padding: 15px 14px 17px; overflow-x: auto; color: #dfe5ff; font-size: clamp(.66rem, 1.15vw, .78rem); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.command-snippet--compact pre { padding-block: 12px 14px; font-size: .7rem; line-height: 1.45; white-space: pre; overflow-wrap: normal; }
 .command-snippet code::first-line { color: #dfe5ff; }
 
 .client-section { padding-block: 38px 75px; text-align: center; }
@@ -244,7 +245,7 @@ code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospac
 .plugin-card__popularity span { color: #f5c451; text-shadow: 0 0 14px rgba(245,196,81,.25); }
 .plugin-card__auth { margin: -12px 0 18px; color: var(--muted); font-size: .68rem; }
 .plugin-card__bottom { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 13px; }
-.plugin-card__install { width: 100%; display: grid; grid-template-columns: minmax(130px, .42fr) minmax(0, 1fr); gap: 7px; align-items: stretch; }.plugin-card__install .app-multiselect__trigger { height: 100%; min-height: 44px; }
+.plugin-card__install { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; align-items: start; }.plugin-card__install .app-multiselect__trigger { width: min(100%, 190px); min-height: 42px; padding-inline: 10px; }.plugin-card__install .app-multiselect__value { gap: 7px; font-size: .76rem; }.plugin-card__install .app-multiselect__icons span { width: 25px; height: 25px; }.plugin-card__install .app-multiselect__icons img { width: 16px; height: 16px; }
 .badge-list, .tag-list { margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; list-style: none; }
 .badge-list li { padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, var(--cyan) 7%, var(--surface-raised)); color: var(--cyan); font: 700 .62rem "SFMono-Regular", monospace; text-transform: uppercase; }
 .tag-list li { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .7rem; }

@@ -28,8 +28,8 @@ env:
   SIGNED_LEDGER_SHA: ${{ inputs.signed_ledger_sha }}
   MATERIALIZED_LEDGER_SHA: ${{ inputs.materialized_ledger_sha }}
   BASELINE_LEDGER_SHA: ${{ inputs.baseline_ledger_sha }}
-  AGENTPLUGINS_VERSION: "0.1.25"
-  AGENTPLUGINS_COMMIT: d168b28bcdeef0c558bee3935adab25abb9f6267
+  AGENTPLUGINS_VERSION: "0.1.26"
+  AGENTPLUGINS_COMMIT: 24c2a74340d382abdc03a9f65563b951a9c1fcfb
   SOURCE_POLICY_AGENTPLUGINS_VERSION: "0.1.24"
   SOURCE_POLICY_AGENTPLUGINS_COMMIT: c78c79e44efd5ad07083d63436d9170b107df6cb
   CLAUDE_CODE_VERSION: "2.1.251"
@@ -141,9 +141,9 @@ jobs:
             --pattern checksums.txt --pattern release-manifest.json \
             --dir "$RUNNER_TEMP/release"
           cd "$RUNNER_TEMP/release"
-          test "$(sha256sum agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 | cut -d ' ' -f 1)" = 83f7785383a47b82523ff610893df51ee979d6f444f7de6723b07fbc80cec2e4
-          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = af3b08a34fcf8a24c307ffb252cc5144edadbc6be3345ef2e008caef7e471f85
-          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = 26a99c47b6571bd3af52124529e2d57f983e6690c5082dbaae47f955259a20be
+          test "$(sha256sum agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 | cut -d ' ' -f 1)" = 9867ad3cac009c45616ff41c06e019ada2c74a10e14a4f025c003971732a20a4
+          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = 2ec815b4f6a9ead2f0c0a0ac00bf914620093fa4096f894f4300c6ad0b2bf223
+          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = 859618eec97dc7f28f599d6c9ff098c155cfb524d8ffc4481737dc1af06bff30
           sha256sum --check checksums.txt --ignore-missing
           python3 - <<'PY'
           import hashlib, json, os
