@@ -16,7 +16,9 @@ Pick from 26 ready-made abilities: search current documentation, navigate code,
 debug browsers, work with cloud tools, and more. Install one plugin and add
 others only when you need them.
 
-This repository contains 26 open-source plugins packaged for the
+This repository is the product home and public source for the npm facade.
+`universal-agent-plugins` is the npm package; `agentplugins` is the installed
+command. The repository also contains 26 open-source plugins packaged for the
 [Agent Plugins 1.0](https://agent-plugins.org/specification) standard.
 Portable packages use a root `plugin.json`. For OpenAI hosts, CI generates
 official-layout `.codex-plugin/plugin.json` packages under
@@ -24,12 +26,17 @@ official-layout `.codex-plugin/plugin.json` packages under
 and follows the [OpenAI plugin build guide](https://developers.openai.com/plugins/build/plugins).
 The installer below is a community CLI, not an OpenAI product.
 
-The installer is open source and maintained in
-[`777genius/plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai).
-`universal-agent-plugins` is the npm package; `agentplugins` is the installed
-command. Its shared Go engine reads standard `plugin.json` packages and uses
-client-specific adapters for Codex, ChatGPT, Cursor, GitHub Copilot/VS Code,
-Kiro, Claude Code, Gemini CLI, OpenCode, Cline, and Windsurf.
+The [`universal-agent-plugins` npm package](npm/universal-agent-plugins) is
+maintained here and installs the `agentplugins` binary. Its thin Node.js
+launcher selects, downloads, verifies, and caches the matching platform binary.
+[`plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai) owns and releases
+the shared Go implementation engine; it reads standard `plugin.json` packages
+and uses client-specific adapters for Codex, ChatGPT, Cursor, GitHub Copilot/VS
+Code, Kiro, Claude Code, Gemini CLI, OpenCode, Cline, and Windsurf. The engine is
+not duplicated in this repository.
+Both `npx universal-agent-plugins` and a
+global `agentplugins` command run that same installer and lifecycle manager,
+not separate engines.
 
 Browse the [plugin directory](https://777genius.github.io/universal-agent-plugins/)
 or [submit a plugin](registry/README.md#submit-an-external-package) through a Git-native

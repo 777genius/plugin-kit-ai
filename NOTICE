@@ -1,6 +1,17 @@
 Universal Agent Plugins
 Copyright 2026 777genius
 
+The `universal-agent-plugins` npm facade is maintained in this repository and
+is distributed under the MIT License included in
+npm/universal-agent-plugins/LICENSE. It was adapted from the npm launcher and
+release tooling developed by the plugin-kit-ai contributors. The downloaded
+`agentplugins` binaries and their Go implementation engine remain built and
+released from https://github.com/777genius/plugin-kit-ai; engine source is not
+vendored into this repository.
+
+The repository as a whole remains licensed under Apache License 2.0 as stated
+in the top-level LICENSE file.
+
 This product includes independently authored configuration and documentation
 for the Agent Plugins open standard.
 
