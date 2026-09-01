@@ -13,7 +13,7 @@ env:
   AGENTPLUGINS_NPM_INTEGRITY: sha512-7aPo4aoulltyx9zTbhJLxjCpQSvjKN0/YW/ATF6AUl2tnpWMwZf440SZbXfTGeuPRo0Ol2K5epNJFOguaPj7WQ==
   CLAUDE_CODE_VERSION: "2.1.251"
   CLAUDE_CODE_NPM_INTEGRITY: sha512-eG+ZPPpW2Dbmnntf1Fz9/T9ewS8I8SKfc1tcU2PqSwmftfjRPP7BXPaCyLuZ8kvgTdiPnJi/2/JnTvTRieneEQ==
-  CHROME_UPSTREAM_HEAD: 02372c4d47ad257773b2b80c7d7fd056d7067be0
+  CHROME_UPSTREAM_HEAD: 59380dd5c1af79973081d7b594262e86e24eb0b3
 
 jobs:
   public-site:
@@ -63,9 +63,9 @@ jobs:
       matrix:
         package:
           - id: chrome-devtools
-            source: ChromeDevTools/chrome-devtools-mcp@02372c4d47ad257773b2b80c7d7fd056d7067be0
+            source: ChromeDevTools/chrome-devtools-mcp@59380dd5c1af79973081d7b594262e86e24eb0b3
             repository: ChromeDevTools/chrome-devtools-mcp
-            revision: 02372c4d47ad257773b2b80c7d7fd056d7067be0
+            revision: 59380dd5c1af79973081d7b594262e86e24eb0b3
             plugin: chrome-devtools
             version: 1.8.0
           - id: cloudflare-docs
@@ -83,7 +83,6 @@ jobs:
           - id: discovered-context7
             source: discovery:upstash/context7//plugins/agent-plugins/context7
             repository: upstash/context7
-            revision: 4e980f6b494d6f970cc5ec1df417ba684b2f6e0b
             plugin: context7
             version: 1.0.0
           - id: reviewed-chrome-short-alias
@@ -319,7 +318,7 @@ jobs:
               assert data.get("version") == expected_version
           else:
               assert not data.get("version")
-          if not directory:
+          if not directory and not discovered:
               assert data["revision"] == os.environ["EXPECTED_REVISION"]
           exact_targets(data)
           acquisition = data["acquisition"]

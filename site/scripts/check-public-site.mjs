@@ -67,7 +67,9 @@ try {
       assert(discovery.records.length >= 2000)
       assert.equal(discoveryEnvelope.sequence, discovery.sequence)
       assert.equal(discoveryEnvelope.snapshot_digest, digest(discoveryRaw))
-      await expect(page.locator('.discovery-status')).toContainText(new RegExp(`${discovery.records.length} unreviewed packages from (?:last-known-good )?signed index ${discovery.sequence}(?:\\D|$)`))
+      await expect(page.locator('.discovery-status')).toContainText(new RegExp(
+        `(?:Showing ${discovery.records.length} recently found community packages|${discovery.records.length} community packages found on GitHub)`,
+      ))
       const search = page.getByRole('searchbox', { name: 'Search plugins' })
       const checkCard = async (query, card, selector) => {
         await search.fill(query)

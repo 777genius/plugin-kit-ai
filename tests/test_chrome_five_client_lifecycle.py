@@ -288,16 +288,16 @@ class ChromeFiveClientLifecycleTests(unittest.TestCase):
         self.assertNotIn("info.json", rendered)
         self.assertEqual(
             workflow["env"]["CHROME_UPSTREAM_HEAD"],
-            "02372c4d47ad257773b2b80c7d7fd056d7067be0",
+            "59380dd5c1af79973081d7b594262e86e24eb0b3",
         )
         chrome = workflow["jobs"]["install-lifecycle"]["strategy"]["matrix"]["package"][0]
         self.assertEqual(
             chrome,
             {
                 "id": "chrome-devtools",
-                "source": "ChromeDevTools/chrome-devtools-mcp@02372c4d47ad257773b2b80c7d7fd056d7067be0",
+                "source": "ChromeDevTools/chrome-devtools-mcp@59380dd5c1af79973081d7b594262e86e24eb0b3",
                 "repository": "ChromeDevTools/chrome-devtools-mcp",
-                "revision": "02372c4d47ad257773b2b80c7d7fd056d7067be0",
+                "revision": "59380dd5c1af79973081d7b594262e86e24eb0b3",
                 "plugin": "chrome-devtools",
                 "version": "1.8.0",
             },

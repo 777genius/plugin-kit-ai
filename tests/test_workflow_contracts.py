@@ -1968,7 +1968,7 @@ sys.modules['catalog_process_isolation']=module
         self.assertEqual(len(packages), 5)
         self.assertEqual(packages[-2], {"id": "discovered-context7",
             "source": "discovery:upstash/context7//plugins/agent-plugins/context7", "repository": "upstash/context7",
-            "revision": "4e980f6b494d6f970cc5ec1df417ba684b2f6e0b", "plugin": "context7", "version": "1.0.0"})
+            "plugin": "context7", "version": "1.0.0"})
         step = next(step for step in job["steps"] if step.get("name", "").startswith("Prove isolated preparation"))
         body = step["run"]
         self.assertNotIn("GH_TOKEN", json.dumps(step))
@@ -1976,6 +1976,7 @@ sys.modules['catalog_process_isolation']=module
         self.assertIn('state_file.read_bytes() == state_before', body)
         self.assertIn('snapshot_roots(roots) == final_before', body)
         self.assertIn('ensure_sanitized(evidence, sandbox)', body)
+        self.assertIn('if not directory and not discovered:', body)
         for claim in ("activation_executed", "runtime_executed", "authentication_executed", "version_upgrade_executed"):
             self.assertIn(f'"{claim}": False', body)
         self.assertEqual(job["steps"][-1]["with"]["path"].splitlines(), [
@@ -2063,6 +2064,7 @@ sys.modules['catalog_process_isolation']=module
         for required in ('https://777genius.github.io/universal-agent-plugins/',
                          'registry.snapshot_sequence >= 20', 'discovery.sequence >= 20',
                          'discovery.records.length >= 2000', 'navigator.clipboard.readText()',
+                         'recently found community packages',
                          'assert.deepEqual(errors, [])', 'width: 390', 'width: 1440',
                          "hasText: /^Install candidate/",
                          "failure === 'net::ERR_ABORTED'",
@@ -2071,6 +2073,7 @@ sys.modules['catalog_process_isolation']=module
             self.assertIn(required, source)
         for forbidden in ('.route(', 'route.fulfill', 'addInitScript', 'executablePath', 'child_process'):
             self.assertNotIn(forbidden, source)
+        self.assertNotIn('unreviewed packages from', source)
 
     def test_upstream_public_site_artifacts_are_json_and_newline_terminated_sha(self) -> None:
         node = shutil.which("node")
