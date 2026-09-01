@@ -69,7 +69,12 @@
     "distribution": "777genius/chrome-devtools-bridge",
     "release_sequence": 2,
     "version": "1.7.0-uap.1",
-    "acquisition": "local package with exact Directory bridge bytes; not a public short-alias installation",
+    "acquisition": "public signed Directory short-alias installation",
+    "public_install_selector": "chrome-devtools",
+    "directory_snapshot_sequence": 20,
+    "directory_snapshot_digest": "sha256:4fd545da5139a9701ee5de07c54927982d19624318aee899ea9d74b0a254b4db",
+    "installed_source": "777genius/universal-agent-plugins//plugins/chrome-devtools",
+    "installed_revision": "dcd94db0bfafe5ff5c4b1f1154ee1f7c656c19e4",
     "tree_digest": "sha256:9ecf4bcd3eff01f3cb23a46838f65e5c9e213a29367514b320dc92aee98689ed",
     "manifest_digest": "sha256:38c1ccf9c0857300832c140caf1049aaaacaa09594011d45e68b85a416734265",
     "opencode": {
@@ -82,13 +87,23 @@
       "unprompted_marker_recovered": true,
       "duration_seconds": 32.77,
       "event_log_digest": "sha256:8df638b1773c178da61cf12816208e35e7e0043db9c14808bc479003818c88e6"
+    },
+    "gemini": {
+      "version": "0.57.0",
+      "outcome": "passed",
+      "protocol_version": "2025-06-18",
+      "tools_listed": 29,
+      "completed_tool_calls": ["new_page", "take_snapshot"],
+      "fixture_requested": true,
+      "unprompted_marker_recovered": true,
+      "duration_seconds": 1.28,
+      "model_or_google_account_used": false
     }
   },
   "not_proved": [
     "Gemini live model tool invocation",
     "Cline or Windsurf live model runtime",
-    "OpenCode OpenAI OAuth refresh (returned 401; runtime used a built-in free provider)",
-    "public chrome-devtools short alias for newly added clients before signed Directory publication"
+    "OpenCode OpenAI OAuth refresh (returned 401; runtime used a built-in free provider)"
   ],
   "checks": [
     {"scenario": "fixed root package five-client installation lifecycle", "status": "passed"},
@@ -96,6 +111,7 @@
     {"scenario": "OpenCode model uses exact Directory bridge Chrome tools", "status": "passed"},
     {"scenario": "Gemini discovers the fixed root MCP server", "status": "passed"},
     {"scenario": "Gemini-installed MCP directly opens and reads an isolated page without a model or Google account", "status": "passed"},
+    {"scenario": "Public chrome-devtools short alias installs and runs in Gemini", "status": "passed"},
     {"scenario": "Gemini model invokes Chrome tools", "status": "auth_required"}
   ],
   "cleanup": {
