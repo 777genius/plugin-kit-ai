@@ -7,11 +7,18 @@
       "upstream_pr_number": 2623,
       "package_path": ".",
       "reviewed_head_sha": "59380dd5c1af79973081d7b594262e86e24eb0b3",
-      "distribution_id": "chromedevtools/chrome-devtools",
-      "release_sequence": 1,
+      "distribution_id": "777genius/chrome-devtools-bridge",
+      "release_sequence": 3,
       "minimum_installer_version": "0.1.26",
-      "promotion_mode": "observe_only",
-      "block_reason": "The official package uses live npx without a content-addressed runtime closure.",
+      "promotion_mode": "locked_bridge_manual",
+      "block_reason": "The official package uses live npx, so CI must lock its npm runtime and require a human merge.",
+      "bridge": {
+        "id": "chrome-devtools",
+        "npm_package": "chrome-devtools-mcp",
+        "server": "chrome-devtools",
+        "entrypoint": "node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js",
+        "runtime_args": ["--no-usage-statistics"]
+      },
       "targets": [
         {"client": "codex", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"},
         {"client": "cursor", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"},

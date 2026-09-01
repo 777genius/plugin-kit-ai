@@ -59,15 +59,15 @@ jobs:
           if len(files) != 1:
               raise SystemExit("verdict artifact must contain exactly one file")
           value = json.loads(files[0].read_text())
-          number, head = value.get("pr_number"), value.get("head_sha")
-          if type(number) is not int or number < 1 or not isinstance(head, str) or re.fullmatch(r"[0-9a-f]{40}", head) is None:
+          number, head, auto_merge = value.get("pr_number"), value.get("head_sha"), value.get("auto_merge")
+          if type(number) is not int or number < 1 or not isinstance(head, str) or re.fullmatch(r"[0-9a-f]{40}", head) is None or type(auto_merge) is not bool:
               raise SystemExit("verdict PR identity is invalid")
           with open(sys.argv[1], "a", encoding="utf-8") as output:
-              output.write(f"pr_number={number}\nhead_sha={head}\n")
+              output.write(f"pr_number={number}\nhead_sha={head}\nauto_merge={'true' if auto_merge else 'false'}\n")
           PY
 
       - name: Recheck current PR head and enable protected auto-merge
-        if: steps.verdict.outputs.promotion == 'true'
+        if: steps.verdict.outputs.promotion == 'true' && steps.current.outputs.auto_merge == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.current.outputs.pr_number }}

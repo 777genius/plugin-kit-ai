@@ -42,15 +42,37 @@
         "release_sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
         "minimum_installer_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
         "targets": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"$ref": "#/$defs/target"}},
-        "promotion_mode": {"enum": ["automatic", "observe_only"]},
-        "block_reason": {"type": "string", "minLength": 1, "maxLength": 240}
+        "promotion_mode": {"enum": ["automatic", "locked_bridge_manual", "observe_only"]},
+        "block_reason": {"type": "string", "minLength": 1, "maxLength": 240},
+        "bridge": {
+          "type": "object",
+          "required": ["id", "npm_package", "server", "entrypoint", "runtime_args"],
+          "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+            "npm_package": {"type": "string", "pattern": "^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$"},
+            "server": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+            "entrypoint": {"type": "string", "pattern": "^node_modules/[A-Za-z0-9@._/-]+$"},
+            "runtime_args": {
+              "type": "array", "maxItems": 8,
+              "items": {"type": "string", "minLength": 1, "maxLength": 120}
+            }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false,
-      "allOf": [{
-        "if": {"properties": {"promotion_mode": {"const": "observe_only"}}, "required": ["promotion_mode"]},
-        "then": {"required": ["block_reason"]},
-        "else": {"not": {"required": ["block_reason"]}}
-      }]
+      "allOf": [
+        {
+          "if": {"properties": {"promotion_mode": {"enum": ["observe_only", "locked_bridge_manual"]}}, "required": ["promotion_mode"]},
+          "then": {"required": ["block_reason"]},
+          "else": {"not": {"required": ["block_reason"]}}
+        },
+        {
+          "if": {"properties": {"promotion_mode": {"const": "locked_bridge_manual"}}, "required": ["promotion_mode"]},
+          "then": {"required": ["bridge"]},
+          "else": {"not": {"required": ["bridge"]}}
+        }
+      ]
     }
   },
   "additionalProperties": false

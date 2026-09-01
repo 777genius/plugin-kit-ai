@@ -30,6 +30,9 @@ class UpstreamPromotionWorkflowTests(unittest.TestCase):
         self.assertNotIn("DIRECTORY_PUBLISHER", body)
         self.assertNotIn("publisher-identity", body)
         self.assertIn("scripts/run_upstream_promotion_materialization.py", body)
+        self.assertIn("scripts/upstream_bridge_promotion.py prepare", body)
+        self.assertIn("scripts/upstream_bridge_promotion.py finalize", body)
+        self.assertIn("Manual security review required", body)
         self.assertIn("scripts/validate_review_journey.py promotion", body)
         self.assertIn('git push origin "HEAD:refs/heads/$BRANCH"', body)
         self.assertIn("gh pr create", body)
@@ -55,6 +58,7 @@ class UpstreamPromotionWorkflowTests(unittest.TestCase):
         body = AUTO_MERGE.read_text()
         self.assertIn("upstream-promotion-verdict-", body)
         self.assertIn('gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash --delete-branch', body)
+        self.assertIn("steps.current.outputs.auto_merge == 'true'", body)
         self.assertNotIn("--admin", body)
 
 

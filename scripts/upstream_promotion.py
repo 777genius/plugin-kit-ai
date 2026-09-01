@@ -79,11 +79,25 @@ def validate_watch(path: Path) -> dict[str, Any]:
             clients == [client for client in CLIENT_IDS if client in clients] and len(clients) == len(set(clients)),
             f"{item['product_id']}: targets must be unique and in canonical order",
         )
-        require(
-            item["distribution_id"].split("/", 1)[0].casefold()
-            == item["repository"].split("/", 1)[0].casefold(),
-            f"{item['product_id']}: upstream publisher differs from repository owner",
-        )
+        if item["promotion_mode"] == "automatic":
+            require(
+                item["distribution_id"].split("/", 1)[0].casefold()
+                == item["repository"].split("/", 1)[0].casefold(),
+                f"{item['product_id']}: upstream publisher differs from repository owner",
+            )
+        elif item["promotion_mode"] == "locked_bridge_manual":
+            bridge = item["bridge"]
+            require(bridge["id"] == item["product_id"], f"{item['product_id']}: bridge id differs from product")
+            require(
+                item["distribution_id"] == f"777genius/{item['product_id']}-bridge",
+                f"{item['product_id']}: locked bridge distribution identity is invalid",
+            )
+            entrypoint = bridge["entrypoint"]
+            require(
+                entrypoint.startswith(f"node_modules/{bridge['npm_package']}/")
+                and "\\" not in entrypoint and ".." not in Path(entrypoint).parts,
+                f"{item['product_id']}: bridge entrypoint must remain inside its npm dependency",
+            )
     return watch
 
 
@@ -185,14 +199,16 @@ def select(args: argparse.Namespace) -> dict[str, Any]:
                 "expected": entry["reviewed_head_sha"], "actual": metadata["head_ref_oid"],
             })
             continue
-        if entry["promotion_mode"] != "automatic":
+        if entry["promotion_mode"] == "observe_only":
             diagnostics.append({
                 "product_id": entry["product_id"], "outcome": "awaiting_policy",
                 "reason": entry["block_reason"],
             })
             continue
         return {
-            "schema_version": 1, "decision": "promote", "entry": entry,
+            "schema_version": 1,
+            "decision": "promote_bridge" if entry["promotion_mode"] == "locked_bridge_manual" else "promote",
+            "entry": entry,
             "pr_metadata": metadata, "diagnostics": diagnostics,
         }
     return {"schema_version": 1, "decision": "none", "diagnostics": diagnostics}
@@ -359,6 +375,22 @@ def verify_pr(args: argparse.Namespace) -> dict[str, Any]:
     product_id, short_sha = branch_match.groups()
     require(git(args.repository, "rev-parse", "HEAD^{commit}") == args.head_sha, "checked-out head differs from PR head")
     commits = git(args.repository, "rev-list", "--reverse", f"{args.base_sha}..{args.head_sha}").splitlines()
+    changed_paths = git(args.repository, "diff", "--name-only", args.base_sha, args.head_sha).splitlines()
+    bridge_audits = [
+        item for item in changed_paths
+        if re.fullmatch(
+            rf"registry/upstream-promotion-audit/{re.escape(product_id)}/[0-9a-f]{{40}}/manual-review\.json",
+            item,
+        )
+    ]
+    if bridge_audits:
+        require(len(bridge_audits) == 1, "locked bridge promotion contains multiple review records")
+        from upstream_bridge_promotion import verify_pr as verify_bridge_pr
+        return verify_bridge_pr(
+            repository=args.repository, base_sha=args.base_sha, head_sha=args.head_sha,
+            branch=args.branch, product_id=product_id, short_sha=short_sha,
+            commits=commits, audit_path=bridge_audits[0],
+        )
     require(len(commits) == 2, "automated promotion PR must contain exactly two commits")
     evidence_commit, promotion_commit = commits
     require(promotion_commit == args.head_sha, "promotion commit is not the PR head")
@@ -415,7 +447,8 @@ def verify_pr(args: argparse.Namespace) -> dict[str, Any]:
         )
     return {
         "schema_version": 1, "outcome": "verified", "product_id": product_id,
-        "head_sha": args.head_sha, "observer_run_id": raw["run"]["id"],
+        "head_sha": args.head_sha, "auto_merge": True, "promotion_kind": "upstream",
+        "observer_run_id": raw["run"]["id"],
         "observer_run_attempt": raw["run"]["attempt"], "observer_source_sha": raw["run"]["source_sha"],
         "materialization_path": raw_path, "materialization_digest": sha256((args.repository / raw_path).read_bytes()),
         "upstream_repository": candidate["source"]["repository"],

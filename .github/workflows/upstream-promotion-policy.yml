@@ -80,7 +80,11 @@ jobs:
           from pathlib import Path
           path = Path(os.environ["RUNNER_TEMP"], "verdict.json")
           value = json.loads(path.read_text())
-          if value.get("outcome") != "verified" or value.get("head_sha") != os.environ["HEAD_SHA"]:
+          if (
+              value.get("outcome") != "verified" or value.get("head_sha") != os.environ["HEAD_SHA"]
+              or type(value.get("auto_merge")) is not bool
+              or value.get("promotion_kind") not in {"upstream", "locked_bridge"}
+          ):
               raise SystemExit("trusted verifier did not bind the current PR head")
           value["pr_number"] = int(os.environ["PR_NUMBER"])
           path.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n")

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from scripts import upstream_promotion as promotion
+from scripts import upstream_bridge_promotion as bridge_promotion
 from scripts import run_upstream_promotion_materialization as lifecycle
 from scripts.build_registry import RegistryError, validated_package_facts
 from scripts.validate_review_journey import materialize
@@ -107,6 +108,17 @@ class UpstreamPromotionTests(unittest.TestCase):
         watch = promotion.validate_watch(ROOT / "registry/upstream-promotions.json")
         self.assertEqual([item["product_id"] for item in watch["entries"]], ["chrome-devtools", "cloudflare-docs", "github"])
         self.assertEqual(watch["entries"][0]["package_path"], ".")
+        self.assertEqual(watch["entries"][0]["promotion_mode"], "locked_bridge_manual")
+        self.assertEqual(watch["entries"][0]["distribution_id"], "777genius/chrome-devtools-bridge")
+
+    def test_locked_bridge_entrypoint_cannot_escape_its_npm_dependency(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            value = promotion.validate_watch(ROOT / "registry/upstream-promotions.json")
+            value["entries"][0]["bridge"]["entrypoint"] = "node_modules/chrome-devtools-mcp/../other/index.js"
+            path = Path(temporary) / "watch.json"
+            path.write_bytes(promotion.pretty(value))
+            with self.assertRaisesRegex(promotion.PromotionError, "entrypoint must remain"):
+                promotion.validate_watch(path)
 
     def test_materialize_supports_an_exact_repository_root_without_path_escape(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -172,6 +184,7 @@ class UpstreamPromotionTests(unittest.TestCase):
             root = Path(temporary)
             watch = promotion.validate_watch(ROOT / "registry/upstream-promotions.json")
             watch["entries"] = [watch["entries"][0]]
+            watch["entries"][0]["reviewed_head_sha"] = REVIEWED_SHA
             watch_path = root / "watch.json"
             watch_path.write_bytes(promotion.pretty(watch))
             gh = root / "gh"
@@ -192,6 +205,172 @@ class UpstreamPromotionTests(unittest.TestCase):
                 result = promotion.select(args)
             self.assertEqual(result["decision"], "none")
             self.assertEqual(result["diagnostics"][0]["outcome"], "reviewed_head_changed")
+
+    def test_select_routes_exact_locked_bridge_merge_to_manual_pr(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            watch = promotion.validate_watch(ROOT / "registry/upstream-promotions.json")
+            watch["entries"] = [watch["entries"][0]]
+            watch["entries"][0]["reviewed_head_sha"] = REVIEWED_SHA
+            watch_path = root / "watch.json"
+            watch_path.write_bytes(promotion.pretty(watch))
+            gh = root / "gh"
+            gh.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json,sys\n"
+                "endpoint=sys.argv[-1]\n"
+                "if endpoint.endswith('pulls?state=open&per_page=100'):\n print('[]')\n"
+                "elif endpoint.endswith('/pulls/2623'):\n"
+                f" print(json.dumps({{'number':2623,'state':'closed','draft':False,'merged_at':'2026-09-01T00:00:00Z','merge_commit_sha':'{MERGE_SHA}','html_url':'https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623','head':{{'sha':'{REVIEWED_SHA}'}},'base':{{'ref':'main'}}}}))\n"
+                "else:\n print(json.dumps({'default_branch':'main'}))\n"
+            )
+            gh.chmod(0o755)
+            args = argparse.Namespace(watch=watch_path, directory=ROOT / "registry/directory.json", gh=gh)
+            with mock.patch.dict(os.environ, {"GH_TOKEN": "fixture"}):
+                result = promotion.select(args)
+            self.assertEqual(result["decision"], "promote_bridge")
+            self.assertFalse(result["entry"].get("auto_merge", False))
+
+    def test_apply_locked_bridge_release_preserves_targets_and_requires_manual_merge(self) -> None:
+        directory = promotion.read_object(ROOT / "registry/directory.json")
+        before = next(item for item in directory["distributions"] if item["id"] == "777genius/chrome-devtools-bridge")
+        current_targets = copy.deepcopy(before["release_policies"][-1]["targets"])
+        plan = {
+            "product_id": "chrome-devtools", "distribution_id": "777genius/chrome-devtools-bridge",
+            "release_sequence": 3, "minimum_installer_version": "0.1.26", "previous_revision": MERGE_SHA,
+            "upstream": {"repository": "ChromeDevTools/chrome-devtools-mcp", "merge_sha": MERGE_SHA},
+            "package": {
+                "path": "plugins/chrome-devtools", "version": "1.8.0-uap.1",
+                "tree_digest": FAKE_DIGEST, "manifest_digest": MANIFEST_DIGEST, "components": ["mcp"],
+            },
+        }
+        bridge_promotion.apply_bridge_release(directory, plan)
+        after = next(item for item in directory["distributions"] if item["id"] == "777genius/chrome-devtools-bridge")
+        self.assertEqual(after["releases"][-1]["sequence"], 3)
+        self.assertEqual(after["releases"][-2]["package_source"]["revision"], MERGE_SHA)
+        self.assertEqual(after["releases"][-1]["build_provenance"]["upstream_revision"], MERGE_SHA)
+        self.assertEqual(after["release_policies"][-1]["targets"], current_targets)
+        self.assertEqual(after["release_policies"][-1]["current_evidence"], [])
+
+    def test_prepare_locked_bridge_pins_exact_official_npm_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repository = root / "official"
+            repository.mkdir()
+            run_git(repository, "init", "-q")
+            (repository / "plugin.json").write_text(json.dumps({
+                "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+                "name": "chrome-devtools", "version": "1.8.0",
+                "description": "Official Chrome DevTools MCP package.",
+                "author": {"name": "ChromeDevTools"},
+                "repository": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+                "license": "Apache-2.0", "keywords": ["chrome", "mcp"],
+            }) + "\n")
+            (repository / "mcp.json").write_text(json.dumps({
+                "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+                "mcpServers": {"chrome-devtools": {
+                    "type": "stdio", "command": "npx",
+                    "args": ["--prefix", "${PLUGIN_DATA}", "chrome-devtools-mcp@1.8.0"],
+                }},
+            }) + "\n")
+            (repository / "package.json").write_text(json.dumps({"name": "chrome-devtools-mcp", "version": "1.8.0"}) + "\n")
+            (repository / "README.md").write_text("# Chrome DevTools\n")
+            (repository / "LICENSE").write_text("Apache License 2.0 fixture\n")
+            run_git(repository, "add", ".")
+            run_git(repository, "commit", "-qm", "test: official package")
+            merge_sha = run_git(repository, "rev-parse", "HEAD")
+
+            mirror = root / "mirror" / "ChromeDevTools"
+            mirror.mkdir(parents=True)
+            subprocess.run(
+                ["git", "clone", "--bare", str(repository), str(mirror / "chrome-devtools-mcp.git")],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            candidate = root / "candidate"
+            candidate.mkdir()
+            for name in ("bridges", "plugins", "registry"):
+                shutil.copytree(ROOT / name, candidate / name)
+            run_git(candidate, "init", "-q")
+            run_git(candidate, "add", ".")
+            run_git(candidate, "commit", "-qm", "test: trusted base")
+            base_sha = run_git(candidate, "rev-parse", "HEAD")
+            entry = copy.deepcopy(promotion.validate_watch(ROOT / "registry/upstream-promotions.json")["entries"][0])
+            selection = {
+                "schema_version": 1, "decision": "promote_bridge", "entry": entry,
+                "pr_metadata": {"merge_commit_oid": merge_sha, "merged_at": "2026-09-01T00:00:00Z"},
+            }
+            selection_path = root / "selection.json"
+            selection_path.write_bytes(promotion.pretty(selection))
+            fake_npm = root / "npm"
+            fake_npm.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json\nfrom pathlib import Path\n"
+                "p=json.loads(Path('package.json').read_text()); name,version=next(iter(p['dependencies'].items()))\n"
+                "lock={'name':p['name'],'version':'1.0.0','lockfileVersion':3,'requires':True,'packages':"
+                "{'':p, f'node_modules/{name}':{'version':version,'resolved':f'https://registry.npmjs.org/{name}/-/{name}-{version}.tgz',"
+                "'integrity':'sha512-eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eA=='}}}\n"
+                "Path('package-lock.json').write_text(json.dumps(lock,indent=2)+'\\n')\n"
+            )
+            fake_npm.chmod(0o755)
+            output = root / "plan.json"
+            plan = bridge_promotion.prepare(argparse.Namespace(
+                selection=selection_path, official_repository=repository, root=candidate,
+                npm=fake_npm, npm_cache=None, upstream_mirror=root / "mirror", output=output,
+            ))
+            self.assertFalse(plan["auto_merge"])
+            self.assertTrue(plan["manual_review_required"])
+            self.assertEqual(plan["upstream"]["merge_sha"], merge_sha)
+            self.assertEqual(plan["runtime"]["version"], "1.8.0")
+            self.assertEqual(plan["package"]["version"], "1.8.0-uap.1")
+            self.assertEqual(
+                json.loads((candidate / "plugins/chrome-devtools/io.github.777genius.agentplugins/runtime/runtime.json").read_text())["package_lock_sha256"],
+                plan["runtime"]["package_lock_sha256"],
+            )
+            raw_path = candidate / f"evidence/upstream-promotions/chrome-devtools/{merge_sha}/materialization.json"
+            raw_path.parent.mkdir(parents=True)
+            raw = {
+                "schema_version": 1, "outcome": "passed", "product_id": "chrome-devtools",
+                "repository": entry["repository"], "revision": merge_sha, "path": ".",
+                "materialized_source": {"kind": "local_bridge", "path": str(candidate / "plugins/chrome-devtools")},
+                "clients": [target["client"] for target in entry["targets"]],
+                "installer_version": entry["minimum_installer_version"], "package": {
+                    "package_version": plan["package"]["version"],
+                    "tree_digest": plan["package"]["tree_digest"],
+                    "manifest_digest": plan["package"]["manifest_digest"],
+                },
+                "run": {"repository": "777genius/universal-agent-plugins", "id": "1", "attempt": "1", "source_sha": "c" * 40},
+            }
+            raw_path.write_bytes(promotion.pretty(raw))
+            run_git(candidate, "add", "bridges/chrome-devtools", "plugins/chrome-devtools", str(raw_path.relative_to(candidate)))
+            run_git(candidate, "commit", "-qm", "test(directory): record upstream promotion evidence")
+            bridge_commit = run_git(candidate, "rev-parse", "HEAD")
+
+            audit_path = f"registry/upstream-promotion-audit/chrome-devtools/{merge_sha}/manual-review.json"
+            bridge_promotion.finalize(argparse.Namespace(
+                selection=selection_path, plan=output, materialization=raw_path,
+                artifact_revision=bridge_commit, previous_revision=base_sha,
+                artifact_path=str(raw_path.relative_to(candidate)),
+                directory=candidate / "registry/directory.json", output=candidate / audit_path,
+                root=candidate,
+            ))
+            directory = promotion.read_object(candidate / "registry/directory.json")
+            (candidate / "registry/review-preview.json").write_bytes(
+                bridge_promotion.encoded(bridge_promotion.directory_preview(directory))
+            )
+            (candidate / "registry/review-search.json").write_bytes(
+                bridge_promotion.encoded(bridge_promotion.directory_search(directory))
+            )
+            run_git(candidate, "add", "registry")
+            run_git(candidate, "commit", "-qm", "feat(directory): review locked chrome-devtools bridge")
+            head_sha = run_git(candidate, "rev-parse", "HEAD")
+            verdict = bridge_promotion.verify_pr(
+                repository=candidate, base_sha=base_sha, head_sha=head_sha,
+                branch=f"automation/upstream-promotion-chrome-devtools-{merge_sha[:12]}",
+                product_id="chrome-devtools", short_sha=merge_sha[:12],
+                commits=[bridge_commit, head_sha], audit_path=audit_path,
+            )
+            self.assertEqual(verdict["outcome"], "verified")
+            self.assertFalse(verdict["auto_merge"])
 
     def test_apply_and_verify_exact_two_commit_promotion(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -244,6 +423,7 @@ class UpstreamPromotionTests(unittest.TestCase):
             ))
             self.assertEqual(result["outcome"], "verified")
             self.assertEqual(result["observer_run_id"], "1")
+            self.assertTrue(result["auto_merge"])
 
             review["evidence"][0]["installer_version"] = "0.1.25"
             review_path.write_bytes(promotion.pretty(review))

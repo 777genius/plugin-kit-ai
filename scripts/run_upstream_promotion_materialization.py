@@ -53,7 +53,8 @@ def batch(value: dict[str, Any], command: str, clients: list[str]) -> dict[str, 
 
 def checked_identity(data: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     require(data.get("plugin") == args.product_id, "installed manifest name differs from the watched product")
-    require(data.get("revision") == args.revision, "installed revision differs from the official merge commit")
+    if getattr(args, "local_path", None) is None:
+        require(data.get("revision") == args.revision, "installed revision differs from the official merge commit")
     for field in ("tree_digest", "manifest_digest"):
         value = data.get(field)
         require(isinstance(value, str) and value.startswith("sha256:") and len(value) == 71, f"installed {field} is invalid")
@@ -81,15 +82,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_TERMINAL_PROMPT": "0", "CI": "true",
     }
-    source = f"{args.repository}@{args.revision}"
-    if args.path != ".":
+    local_path = getattr(args, "local_path", None)
+    source = str(local_path.resolve()) if local_path is not None else f"{args.repository}@{args.revision}"
+    if local_path is None and args.path != ".":
         source += f"//{args.path}"
     common = ["--target", args.targets]
     try:
         dry_run = invoke(args.cli, "add", [source, *common, "--dry-run"], env=environment, cwd=roots["workspace"])
         dry_data = dry_run.get("data")
         require(isinstance(dry_data, dict), "dry-run data is absent")
-        require(dry_data.get("revision") == args.revision, "dry-run revision differs")
+        if local_path is None:
+            require(dry_data.get("revision") == args.revision, "dry-run revision differs")
         add = invoke(args.cli, "add", [source, *common], env=environment, cwd=roots["workspace"])
         add_data = batch(add, "add", clients)
         identity = checked_identity(add_data, args)
@@ -113,6 +116,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return {
             "schema_version": 1, "outcome": "passed", "product_id": args.product_id,
             "repository": args.repository, "revision": args.revision, "path": args.path,
+            "materialized_source": {
+                "kind": "local_bridge" if local_path is not None else "official_upstream",
+                "path": str(local_path.resolve()) if local_path is not None else args.path,
+            },
             "clients": clients, "installer_version": args.installer_version,
             "package": identity,
             "operations": {"dry_run": "passed", "add": "passed", "info": "passed", "doctor": "passed", "remove": "passed", "cleanup": "passed"},
@@ -133,6 +140,7 @@ def main() -> int:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--revision", required=True)
     parser.add_argument("--path", required=True)
+    parser.add_argument("--local-path", type=Path)
     parser.add_argument("--targets", required=True)
     parser.add_argument("--sandbox", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)

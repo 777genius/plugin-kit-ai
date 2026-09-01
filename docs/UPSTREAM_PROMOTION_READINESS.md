@@ -19,9 +19,11 @@ upstream maintainer merges an exact watched head, the workflow:
 the validator from the trusted base revision, authenticates the original
 observer run and uploaded evidence, rechecks the official merged PR, restricts
 the changed paths, and reproduces the Directory projections. A successful
-verdict lets `Upstream promotion auto-merge` enable GitHub's protected squash
-auto-merge. Main rules, required checks, unresolved conversations, and strict
-up-to-date checks still apply. No workflow uses an admin merge bypass.
+verdict includes an explicit `auto_merge` decision. Exact upstream packages let
+`Upstream promotion auto-merge` enable GitHub's protected squash auto-merge.
+Review-required bridges never do: their PR waits for a human merge. Main rules,
+required checks, unresolved conversations, and strict up-to-date checks still
+apply. No workflow uses an admin merge bypass.
 
 If the upstream PR head changes, the observer records `reviewed_head_changed`
 and does nothing until the watch entry and exact-head evidence are reviewed
@@ -32,12 +34,18 @@ watches Chrome DevTools, Cloudflare Docs, and GitHub MCP Server. The root packag
 path `.` is supported explicitly for repositories such as Chrome DevTools; it
 does not weaken traversal or ambiguous-path rejection.
 
-Chrome DevTools is currently `observe_only`: its official manifest launches
-live `npx` without the content-addressed runtime closure required by Directory
-eligibility. Its merge is still observed, but it cannot block automatic
-promotion of the other entries and cannot silently weaken runtime policy. The
-reviewed bridge remains the short-name default until that package boundary is
-closed or a separately reviewed policy replaces this restriction.
+Chrome DevTools uses `locked_bridge_manual`: its official manifest launches live
+`npx`, which does not meet the Directory's content-addressed runtime policy.
+After the exact reviewed upstream head merges, CI resolves the exact npm version,
+generates an install-script-disabled lockfile, validates the resulting bridge in
+disposable client homes, and opens a promotion PR with the integrity and risk
+report. Auto-merge is disabled. A human may merge that locked bridge after
+review; the live `npx` command itself is never admitted by the exception.
+
+This is deterministic policy classification, not a malware detector. A risk
+signal means the runtime boundary changed or was not independently immutable;
+it routes the locked result to human review instead of claiming that arbitrary
+upstream code is safe.
 
 The feature requires repository auto-merge to be enabled and the
 `upstream-promotion-policy` check to be required on `main`. Those repository
