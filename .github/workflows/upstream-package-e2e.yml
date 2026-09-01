@@ -8,9 +8,9 @@ permissions:
   contents: read
 
 env:
-  AGENTPLUGINS_VERSION: "0.1.26"
-  AGENTPLUGINS_COMMIT: 24c2a74340d382abdc03a9f65563b951a9c1fcfb
-  AGENTPLUGINS_NPM_INTEGRITY: sha512-7aPo4aoulltyx9zTbhJLxjCpQSvjKN0/YW/ATF6AUl2tnpWMwZf440SZbXfTGeuPRo0Ol2K5epNJFOguaPj7WQ==
+  AGENTPLUGINS_VERSION: "0.1.34"
+  AGENTPLUGINS_COMMIT: 5ee12c478f7194686b30efbdac83b613a3f3d68a
+  AGENTPLUGINS_NPM_INTEGRITY: sha512-x4LoUwRJpPHzYaOUMSo1lbGxxEPozJSMShGLI/qa4aOrvasIP/hjEVfYSEtSDmuGfhRpCnOfa0RCufrOmSkndg==
   CLAUDE_CODE_VERSION: "2.1.251"
   CLAUDE_CODE_NPM_INTEGRITY: sha512-eG+ZPPpW2Dbmnntf1Fz9/T9ewS8I8SKfc1tcU2PqSwmftfjRPP7BXPaCyLuZ8kvgTdiPnJi/2/JnTvTRieneEQ==
   CHROME_UPSTREAM_HEAD: 59380dd5c1af79973081d7b594262e86e24eb0b3
@@ -50,6 +50,115 @@ jobs:
         with:
           name: public-site-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/public-site-evidence
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
+  public-version-doctor:
+    name: Public npm ${{ matrix.release.version }} read-only doctor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        release:
+          - version: "0.1.34"
+            integrity: sha512-x4LoUwRJpPHzYaOUMSo1lbGxxEPozJSMShGLI/qa4aOrvasIP/hjEVfYSEtSDmuGfhRpCnOfa0RCufrOmSkndg==
+          - version: "0.1.26"
+            integrity: sha512-7aPo4aoulltyx9zTbhJLxjCpQSvjKN0/YW/ATF6AUl2tnpWMwZf440SZbXfTGeuPRo0Ol2K5epNJFOguaPj7WQ==
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
+      - name: Pin the npm signature verifier
+        run: |
+          npm install --global npm@12.0.2
+          test "$(npm --version)" = 12.0.2
+      - name: Prove the exact public facade and read-only empty-state doctor
+        env:
+          VERSION: ${{ matrix.release.version }}
+          INTEGRITY: ${{ matrix.release.integrity }}
+        run: |
+          proof_root="$RUNNER_TEMP/public-version-$VERSION"
+          tools_root="$proof_root/tools"
+          mkdir -p "$proof_root"/{home,state,workspace,config,cache,tmp,evidence} "$tools_root"
+          env -i PATH="$PATH" LANG=C.UTF-8 HOME="$proof_root/home" USERPROFILE="$proof_root/home" \
+            XDG_CONFIG_HOME="$proof_root/config" XDG_CACHE_HOME="$proof_root/cache" \
+            AGENTPLUGINS_HOME="$proof_root/state" TMPDIR="$proof_root/tmp" \
+            GIT_CONFIG_GLOBAL="$proof_root/home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 CI=true \
+            NPM_CONFIG_CACHE="$proof_root/cache/npm" NPM_CONFIG_USERCONFIG="$proof_root/home/user.npmrc" \
+            NPM_CONFIG_GLOBALCONFIG="$proof_root/home/global.npmrc" NPM_CONFIG_REGISTRY=https://registry.npmjs.org \
+            VERSION="$VERSION" INTEGRITY="$INTEGRITY" PROOF_ROOT="$proof_root" TOOLS_ROOT="$tools_root" \
+            python3 -B - <<'PY'
+          import hashlib
+          import json
+          import os
+          import stat
+          import subprocess
+          from pathlib import Path
+
+          root = Path(os.environ["PROOF_ROOT"])
+          tools = Path(os.environ["TOOLS_ROOT"])
+          version = os.environ["VERSION"]
+          integrity = os.environ["INTEGRITY"]
+          env = dict(os.environ)
+
+          def invoke(command, *, cwd=tools):
+              return subprocess.run(command, env=env, cwd=cwd, check=True, capture_output=True,
+                                    text=True, timeout=180)
+
+          def snapshot():
+              result = {}
+              for name in ("home", "state", "workspace", "config", "cache", "tmp"):
+                  base = root / name
+                  for path in sorted([base, *base.rglob("*")], key=lambda item: str(item)):
+                      relative = str(path.relative_to(root))
+                      mode = stat.S_IMODE(path.lstat().st_mode)
+                      if path.is_symlink():
+                          result[relative] = ["symlink", mode, os.readlink(path)]
+                      elif path.is_file():
+                          result[relative] = ["file", mode, hashlib.sha256(path.read_bytes()).hexdigest()]
+                      elif path.is_dir():
+                          result[relative] = ["directory", mode]
+              return result
+
+          metadata = invoke(["npm", "view", f"universal-agent-plugins@{version}", "--json"])
+          package = json.loads(metadata.stdout)
+          assert package["version"] == version and package["dist"]["integrity"] == integrity
+          invoke(["npm", "install", "--prefix", str(tools), "--no-audit", "--no-fund",
+                  f"universal-agent-plugins@{version}"])
+          audit = invoke(["npm", "audit", "signatures", "--prefix", str(tools)])
+          assert "audited" in audit.stdout.lower() or "verified" in audit.stdout.lower()
+          binary = tools / "node_modules/.bin/agentplugins"
+          assert invoke([str(binary), "version"], cwd=root / "workspace").stdout.strip() == f"agentplugins {version}"
+
+          before = snapshot()
+          completed = invoke([str(binary), "doctor", "--format", "json"], cwd=root / "workspace")
+          report = json.loads(completed.stdout)
+          assert report["command"] == "doctor" and report["result"] == "success"
+          data = report["data"]
+          assert data["read_only"] is True
+          assert type(data["installation_count"]) is int and data["installation_count"] == 0
+          assert type(data["open_operation_count"]) is int and data["open_operation_count"] == 0
+          assert snapshot() == before
+
+          evidence = {"schema_version": 1, "package": "universal-agent-plugins", "version": version,
+                      "integrity": integrity, "npm_signature_audit": "passed", "doctor": "passed_read_only",
+                      "managed_installations": 0, "open_operations": 0,
+                      "source_commit": os.environ["GITHUB_SHA"], "run_id": os.environ["GITHUB_RUN_ID"],
+                      "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"]}
+          body = json.dumps(evidence, indent=2, sort_keys=True) + "\n"
+          output = root / "evidence/evidence.json"
+          output.write_text(body)
+          (root / "evidence/evidence.sha256").write_text(hashlib.sha256(body.encode()).hexdigest() + "  evidence.json\n")
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-version-doctor-${{ matrix.release.version }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/public-version-${{ matrix.release.version }}/evidence
           if-no-files-found: error
           retention-days: 90
           overwrite: false
@@ -101,6 +210,10 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.20.0"
+      - name: Pin the npm signature verifier
+        run: |
+          npm install --global npm@12.0.2
+          test "$(npm --version)" = 12.0.2
       - name: Download and authenticate the exact released CLI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -114,9 +227,9 @@ jobs:
             --dir "$RUNNER_TEMP/release"
           chmod +x "$RUNNER_TEMP/release/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
           cd "$RUNNER_TEMP/release"
-          test "$(sha256sum agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 | cut -d ' ' -f 1)" = 9867ad3cac009c45616ff41c06e019ada2c74a10e14a4f025c003971732a20a4
-          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = 2ec815b4f6a9ead2f0c0a0ac00bf914620093fa4096f894f4300c6ad0b2bf223
-          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = 859618eec97dc7f28f599d6c9ff098c155cfb524d8ffc4481737dc1af06bff30
+          test "$(sha256sum agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 | cut -d ' ' -f 1)" = 0f1d5de082d79e8e109a5a822d863caafc48913916f43f211951af9c04988d4d
+          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = 5f0afce6498044369fa5076cdcefab2d82bffbbde309e6f98369c10d06209194
+          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = 0547052ce2bf0e6788cf867c8182d8edff46aec076a51bf3019335f5de8d3aa3
           sha256sum --check checksums.txt --ignore-missing
           python3 - <<'PY'
           import hashlib
@@ -449,6 +562,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Pin the npm signature verifier
+        run: |
+          npm install --global npm@12.0.2
+          test "$(npm --version)" = 12.0.2
       - name: Install and authenticate exact public npm clients
         env:
           TOOLS_ROOT: ${{ runner.temp }}/chrome-five-client-tools

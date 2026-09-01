@@ -1828,10 +1828,10 @@ sys.modules['catalog_process_isolation']=module
         body = (ROOT / ".github/workflows/upstream-package-e2e.yml").read_text()
         workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
         self.assertEqual(workflow["permissions"], {"attestations": "read", "contents": "read"})
-        self.assertIn('AGENTPLUGINS_VERSION: "0.1.26"', body)
-        self.assertIn("AGENTPLUGINS_COMMIT: 24c2a74340d382abdc03a9f65563b951a9c1fcfb", body)
-        self.assertIn("AGENTPLUGINS_NPM_INTEGRITY: sha512-7aPo4aoulltyx9zTbhJLxjCpQSvjKN0/YW/ATF6AUl2tnpWMwZf440SZbXfTGeuPRo0Ol2K5epNJFOguaPj7WQ==", body)
-        self.assertIn("9867ad3cac009c45616ff41c06e019ada2c74a10e14a4f025c003971732a20a4", body)
+        self.assertIn('AGENTPLUGINS_VERSION: "0.1.34"', body)
+        self.assertIn("AGENTPLUGINS_COMMIT: 5ee12c478f7194686b30efbdac83b613a3f3d68a", body)
+        self.assertIn("AGENTPLUGINS_NPM_INTEGRITY: sha512-x4LoUwRJpPHzYaOUMSo1lbGxxEPozJSMShGLI/qa4aOrvasIP/hjEVfYSEtSDmuGfhRpCnOfa0RCufrOmSkndg==", body)
+        self.assertIn("0f1d5de082d79e8e109a5a822d863caafc48913916f43f211951af9c04988d4d", body)
         self.assertIn("--pattern release-manifest.json", body)
         self.assertIn('manifest["commit"] == os.environ["AGENTPLUGINS_COMMIT"]', body)
         self.assertEqual(body.count("gh attestation verify"), 1)
@@ -1839,6 +1839,24 @@ sys.modules['catalog_process_isolation']=module
         self.assertIn('mkdir -p "$run_root/home"/{.codex,.cursor,.kiro}', body)
         self.assertIn('{item["status"] for item in data["targets"]} == {"external_completed"}', body)
         self.assertNotIn("kiro-cli", body)
+
+    def test_upstream_public_version_doctor_proves_current_and_fallback_without_mutation(self) -> None:
+        workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
+        job = workflow["jobs"]["public-version-doctor"]
+        releases = job["strategy"]["matrix"]["release"]
+        self.assertEqual([item["version"] for item in releases], ["0.1.34", "0.1.26"])
+        self.assertEqual(releases[0]["integrity"],
+                         "sha512-x4LoUwRJpPHzYaOUMSo1lbGxxEPozJSMShGLI/qa4aOrvasIP/hjEVfYSEtSDmuGfhRpCnOfa0RCufrOmSkndg==")
+        self.assertEqual(releases[1]["integrity"],
+                         "sha512-7aPo4aoulltyx9zTbhJLxjCpQSvjKN0/YW/ATF6AUl2tnpWMwZf440SZbXfTGeuPRo0Ol2K5epNJFOguaPj7WQ==")
+        body = commands(job)
+        for required in ("npm@12.0.2", 'test "$(npm --version)" = 12.0.2',
+                         'env -i PATH="$PATH"', '["npm", "audit", "signatures"',
+                         'assert data["read_only"] is True', 'assert snapshot() == before',
+                         'data["installation_count"] == 0', 'data["open_operation_count"] == 0'):
+            self.assertIn(required, body)
+        for forbidden in ("GH_TOKEN", "NPM_TOKEN", "NODE_AUTH_TOKEN", "add context7"):
+            self.assertNotIn(forbidden, body)
 
     def upstream_inline_contract(self):
         workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
