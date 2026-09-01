@@ -2065,6 +2065,8 @@ sys.modules['catalog_process_isolation']=module
                          'registry.snapshot_sequence >= 20', 'discovery.sequence >= 20',
                          'discovery.records.length >= 2000', 'navigator.clipboard.readText()',
                          'recently found community packages',
+                         "toContainText('Found on GitHub')",
+                         "toContainText('Package format checked')",
                          'assert.deepEqual(errors, [])', 'width: 390', 'width: 1440',
                          "hasText: /^Reviewed plugin$/",
                          "failure === 'net::ERR_ABORTED'",
