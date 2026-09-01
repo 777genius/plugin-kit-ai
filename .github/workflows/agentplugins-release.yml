@@ -6,6 +6,13 @@ on:
       tag:
         description: Exact stable tag, for example agentplugins-v0.1.0
         required: true
+      producer_mode:
+        description: Bounded release contract; publishes verified GitHub binary assets only
+        required: true
+        default: binary-only
+        type: choice
+        options:
+          - binary-only
 
 permissions:
   contents: read
@@ -37,9 +44,14 @@ jobs:
         id: identity
         env:
           TAG: ${{ inputs.tag }}
+          PRODUCER_MODE: ${{ inputs.producer_mode }}
           WORKFLOW_COMMIT: ${{ github.sha }}
           WORKFLOW_REF: ${{ github.ref }}
         run: |
+          if [[ "${PRODUCER_MODE}" != "binary-only" ]]; then
+            echo "unsupported agentplugins producer mode: ${PRODUCER_MODE}" >&2
+            exit 1
+          fi
           if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1

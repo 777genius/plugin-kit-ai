@@ -1,4 +1,4 @@
-name: Agentplugins NPM Publish
+name: Agentplugins NPM Historical Audit
 
 on:
   workflow_dispatch:
@@ -7,182 +7,29 @@ on:
         description: Existing immutable stable release tag
         required: true
       verify_only:
-        description: Verify an existing public version without publishing
+        description: Required retired-publisher guard; only historical verification is supported
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
   contents: read
 
 jobs:
-  release-identity:
-    if: ${{ !inputs.verify_only }}
+  audit-mode:
     runs-on: ubuntu-24.04
-    outputs:
-      commit: ${{ steps.identity.outputs.commit }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          ref: ${{ inputs.tag }}
-      - name: Freeze exact release identity
-        id: identity
+      - name: Enforce retired publisher boundary
         env:
-          TAG: ${{ inputs.tag }}
-          WORKFLOW_COMMIT: ${{ github.sha }}
-          WORKFLOW_REF: ${{ github.ref }}
+          VERIFY_ONLY: ${{ inputs.verify_only }}
         run: |
-          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "invalid agentplugins stable tag: ${TAG}" >&2
+          if [[ "${VERIFY_ONLY}" != "true" ]]; then
+            echo "npm publication is retired in plugin-kit-ai; dispatch with verify_only=true to audit a historical version" >&2
             exit 1
           fi
-          git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
-          commit="$(git rev-parse HEAD)"
-          test "${WORKFLOW_REF}" = "refs/heads/main"
-          if [[ "${WORKFLOW_COMMIT}" != "${commit}" ]]; then
-            echo "npm publish workflow source does not match the exact tagged main commit" >&2
-            exit 1
-          fi
-          test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"
-          test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
-          echo "commit=${commit}" >> "${GITHUB_OUTPUT}"
-
-  prepublish-conformance:
-    needs: release-identity
-    if: ${{ !inputs.verify_only }}
-    uses: ./.github/workflows/agentplugins-platform-proof.yml
-    permissions:
-      contents: read
-      attestations: read
-    with:
-      tag: ${{ inputs.tag }}
-      expected_commit: ${{ needs.release-identity.outputs.commit }}
-      allow_legacy_manifest: false
-
-  publish:
-    needs: [release-identity, prepublish-conformance]
-    if: ${{ !inputs.verify_only }}
-    runs-on: ubuntu-latest
-    environment: npm-agentplugins
-    outputs:
-      package_name: ${{ steps.publish-gate.outputs.package_name }}
-    permissions:
-      contents: read
-      id-token: write
-      attestations: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          ref: ${{ inputs.tag }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-          package-manager-cache: false
-      - name: Install pinned npm with trusted publishing support
-        run: npm install --global npm@12.0.2
-      - name: Validate explicit stable publication gate
-        id: publish-gate
-        env:
-          TAG: ${{ inputs.tag }}
-          READY: ${{ vars.NPM_AGENTPLUGINS_PUBLISH_READY }}
-        run: |
-          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "invalid agentplugins stable tag: ${TAG}" >&2
-            exit 1
-          fi
-          test "${READY}" = "true"
-          git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
-          head_commit="$(git rev-parse HEAD)"
-          test "${head_commit}" = "${{ needs.release-identity.outputs.commit }}"
-          test "${{ needs.prepublish-conformance.outputs.gate_eligible }}" = "true"
-          test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
-          test "${head_commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
-          echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
-          package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"
-          package_name_length="$(printf '%s' "${package_name}" | wc -c | tr -d ' ')"
-          if [[ ! "${package_name}" =~ ^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$ ]] || [[ "${package_name_length}" -gt 214 ]]; then
-            echo "invalid npm package name in npm/agentplugins/package.json" >&2
-            exit 1
-          fi
-          test "$(node -p 'require("./npm/agentplugins/package.json").bin.agentplugins')" = "bin/agentplugins.js"
-          echo "package_name=${package_name}" >> "${GITHUB_OUTPUT}"
-          registry_error="${RUNNER_TEMP}/agentplugins-npm-view.err"
-          if npm view "${package_name}" versions --json >/dev/null 2>"${registry_error}"; then
-            exists=true
-          elif grep -q 'E404' "${registry_error}"; then
-            exists=false
-          else
-            echo "unable to prove whether ${package_name} already exists in npm" >&2
-            cat "${registry_error}" >&2
-            exit 1
-          fi
-          if [[ "${exists}" != "true" ]]; then
-            echo "${package_name} does not exist yet; trusted publishing only supports existing packages" >&2
-            exit 1
-          fi
-      - name: Download and verify all release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
-        run: |
-          mkdir -p "${RUNNER_TEMP}/agentplugins-assets"
-          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${RUNNER_TEMP}/agentplugins-assets"
-          cd "${RUNNER_TEMP}/agentplugins-assets"
-          node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" verify \
-            "${PWD}" "${TAG}" "${{ steps.publish-gate.outputs.commit }}"
-          for asset in agentplugins_* checksums.txt release-manifest.json; do
-            gh attestation verify "${asset}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --signer-workflow "github.com/${GITHUB_REPOSITORY}/.github/workflows/agentplugins-release.yml" \
-              --source-digest "${{ steps.publish-gate.outputs.commit }}"
-          done
-      - name: Download exact six-platform-tested npm tarball
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ${{ needs.prepublish-conformance.outputs.tarball_artifact }}
-          path: ${{ runner.temp }}/agentplugins-tested-package
-      - name: Revalidate exact tested tarball publication identity
-        env:
-          TAG: ${{ inputs.tag }}
-          TARBALL_FILE: ${{ needs.prepublish-conformance.outputs.tarball_file }}
-          EXPECTED_PACKAGE: ${{ needs.prepublish-conformance.outputs.package_name }}
-        run: |
-          version="${TAG#agentplugins-v}"
-          tarball="${RUNNER_TEMP}/agentplugins-tested-package/${TARBALL_FILE}"
-          test -s "${tarball}"
-          install_root="${RUNNER_TEMP}/agentplugins-publish-inspection"
-          npm install --prefix "${install_root}" --ignore-scripts --no-audit --no-fund --save-exact "${tarball}"
-          package_root="${install_root}/node_modules/${EXPECTED_PACKAGE}"
-          test "$(node -p 'require(process.argv[1]).version' "${package_root}/package.json")" = "${version}"
-          test "$(node -p 'require(process.argv[1]).name' "${package_root}/package.json")" = "${EXPECTED_PACKAGE}"
-          test "$(node -p 'require(process.argv[1]).bin.agentplugins' "${package_root}/package.json")" = "bin/agentplugins.js"
-          test "$(node -p 'Boolean(require(process.argv[1]).scripts?.preinstall || require(process.argv[1]).scripts?.install || require(process.argv[1]).scripts?.postinstall)' "${package_root}/package.json")" = "false"
-          node -e '
-            const fs = require("node:fs");
-            const npmAssets = JSON.parse(fs.readFileSync(process.argv[1]));
-            const release = JSON.parse(fs.readFileSync(process.argv[2]));
-            if (npmAssets.version !== release.version || npmAssets.tag !== release.tag) throw new Error("npm manifest identity mismatch");
-            for (const [key, asset] of Object.entries(release.assets)) {
-              const pin = npmAssets.assets?.[key];
-              if (!pin || pin.file !== asset.file || pin.sha256 !== asset.sha256 || pin.size !== asset.size) {
-                throw new Error(`npm asset pin mismatch: ${key}`);
-              }
-            }
-            if (Object.keys(npmAssets.assets || {}).length !== 6) throw new Error("npm manifest target count mismatch");
-          ' "${package_root}/assets.json" "${RUNNER_TEMP}/agentplugins-tested-package/verified-release.json"
-      - name: Publish stable release with provenance
-        env:
-          TARBALL: ${{ runner.temp }}/agentplugins-tested-package/${{ needs.prepublish-conformance.outputs.tarball_file }}
-        run: npm publish --access public --tag latest --provenance "${TARBALL}"
 
   verify:
-    needs: publish
-    if: ${{ always() && !cancelled() && (inputs.verify_only || needs.publish.result == 'success') }}
+    needs: audit-mode
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -254,9 +101,7 @@ jobs:
           max_attempts=30
           for attempt in $(seq 1 "${max_attempts}"); do
             published_version="$(npm view --prefer-online "${NPM_PACKAGE}@${version}" version 2>/dev/null || true)"
-            latest_version="$(npm view --prefer-online "${NPM_PACKAGE}@latest" version 2>/dev/null || true)"
-            if [[ "${published_version}" = "${version}" ]] && \
-              [[ "${latest_version}" = "${version}" ]]; then
+            if [[ "${published_version}" = "${version}" ]]; then
               available=true
               break
             fi
@@ -264,6 +109,12 @@ jobs:
             sleep 10
           done
           test "${available}" = true
+          latest_version="$(npm view --prefer-online "${NPM_PACKAGE}@latest" version 2>/dev/null || true)"
+          if [[ -n "${latest_version}" ]]; then
+            echo "informational: ${NPM_PACKAGE}@latest is ${latest_version}; auditing exact historical version ${version}"
+          else
+            echo "warning: ${NPM_PACKAGE}@latest could not be resolved; exact historical version ${version} is available" >&2
+          fi
           npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"
           npm audit signatures --json --include-attestations > audit-signatures.json
           jq -e --arg package "${NPM_PACKAGE}" --arg version "${version}" '
