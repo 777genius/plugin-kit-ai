@@ -38,6 +38,7 @@ EXPECTED_SKILLS = {
     "a11y-debugging",
     "chrome-devtools",
     "chrome-devtools-cli",
+    "cookie-debugging",
     "debug-optimize-lcp",
     "memory-leak-debugging",
     "troubleshooting",

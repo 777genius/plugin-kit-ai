@@ -91,10 +91,10 @@ try {
       }
       const chrome = page.locator('.plugin-card')
         .filter({ has: page.locator('a[href$="/plugins/chrome-devtools"]') })
-        .filter({ has: page.locator('.source-pill', { hasText: /^Install candidate/ }) })
+        .filter({ has: page.locator('.source-pill', { hasText: /^Reviewed plugin$/ }) })
       const chromeCommand = await checkCard('Chrome DevTools', chrome, 'chrome-devtools')
-      await expect(chrome).toContainText('Install candidate v1.7.0-uap.1 · release 2')
-      await expect(chrome).toContainText('signed fallback for selected clients')
+      await expect(chrome).toContainText('Ready for 10 supported agents')
+      await expect(chrome).toContainText('Package reviewed')
       const selector = 'discovery:upstash/context7//plugins/agent-plugins/context7'
       const context7 = page.locator('.plugin-card').filter({ has: page.locator('.command-snippet code', { hasText: selector }) })
       const context7Command = await checkCard('context7', context7, selector)
