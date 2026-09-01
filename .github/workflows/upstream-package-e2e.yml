@@ -195,8 +195,12 @@ jobs:
                   exact_targets(data)
                   assert data["status"] == "completed"
                   for target in data["targets"]:
-                      assert target["output"]["result"]["no_change"] is True
-                      assert target["output"]["result"]["mutated"] is False
+                      result = target["output"]["result"]
+                      assert result["mutated"] is False
+                      # Manual client activation may remain pending, in which case the
+                      # lifecycle result is non-mutating without claiming full convergence.
+                      if "no_change" in result:
+                          assert result["no_change"] is True
               else:
                   assert value["command"] == "update" and value["result"] == "failure"
                   assert data["status"] == "preflight_failed"
@@ -394,7 +398,7 @@ jobs:
               "signed_directory_short_alias_resolution": directory,
               "directory_before_update": directory_before,
               "directory_after_update": directory_after,
-              "update": "passed_no_change" if mutable_selector else "blocked_immutable_full_sha_no_mutation",
+              "update": "passed_no_mutation" if mutable_selector else "blocked_immutable_full_sha_no_mutation",
               "version_upgrade_executed": False,
               "single_acquisition": True,
               "shared_installation_identity": True,

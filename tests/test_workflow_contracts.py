@@ -1855,7 +1855,7 @@ sys.modules['catalog_process_isolation']=module
         exec(compile(definitions, "upstream-package-e2e.yml", "exec"), namespace)
         return namespace
 
-    def test_upstream_update_distinguishes_immutable_rejection_from_no_change(self) -> None:
+    def test_upstream_update_distinguishes_immutable_rejection_from_no_mutation(self) -> None:
         validate = self.upstream_inline_contract()["validate_update"]
         blocked = {"command": "update", "result": "failure", "data": {
             "status": "preflight_failed", "succeeded": 0, "failed": 3, "targets": [],
@@ -1876,6 +1876,9 @@ sys.modules['catalog_process_isolation']=module
                 for client in ("codex", "cursor", "kiro")],
         }}
         validate(unchanged, "", True)
+        pending_activation = copy.deepcopy(unchanged)
+        del pending_activation["data"]["targets"][0]["output"]["result"]["no_change"]
+        validate(pending_activation, "", True)
         for field, changed in (("no_change", False), ("mutated", True)):
             forged = copy.deepcopy(unchanged)
             forged["data"]["targets"][0]["output"]["result"][field] = changed
@@ -2071,6 +2074,8 @@ sys.modules['catalog_process_isolation']=module
                          "hasText: /^Reviewed plugin$/",
                          "failure === 'net::ERR_ABORTED'",
                          "pathname === '/universal-agent-plugins/discovery/latest.json'",
+                         '![502, 503, 504].includes(status)',
+                         'attempt <= 4',
                          'discovery:upstash/context7//plugins/agent-plugins/context7'):
             self.assertIn(required, source)
         for forbidden in ('.route(', 'route.fulfill', 'addInitScript', 'executablePath', 'child_process'):

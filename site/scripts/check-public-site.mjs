@@ -30,8 +30,21 @@ try {
       })
       page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()}: ${response.url()}`) })
       const fit = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'horizontal overflow')
+      const goto = async path => {
+        const url = new URL(path, base).href
+        for (let attempt = 1; attempt <= 4; attempt += 1) {
+          const response = await page.goto(url)
+          const status = response?.status()
+          if (status === 200) return
+          if (![502, 503, 504].includes(status) || attempt === 4) assert.equal(status, 200)
+          const marker = `${status}: ${response.url()}`
+          const index = errors.lastIndexOf(marker)
+          if (index >= 0) errors.splice(index, 1)
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt))
+        }
+      }
       for (const path of ['', 'plugins']) {
-        assert.equal((await page.goto(new URL(path, base).href))?.status(), 200)
+        await goto(path)
         await expect(page.locator('main')).toBeVisible()
         await expect(page.locator('h1')).toHaveCount(1)
         await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1)
