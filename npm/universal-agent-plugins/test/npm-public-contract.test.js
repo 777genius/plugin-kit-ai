@@ -114,6 +114,27 @@ test("public npm metadata and downloaded pack bind the staged package identity",
   );
 });
 
+test("npm 12 object-shaped pack JSON preserves the exact package identity", (t) => {
+  const value = fixture();
+  const npm12 = { "universal-agent-plugins": structuredClone(value.pack[0]) };
+  assert.equal(validatePackJSON(npm12, value.version), npm12["universal-agent-plugins"]);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "npm-public-contract-npm12-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, value.pack[0].filename), value.body);
+  assert.equal(
+    validateDownloadedTarball(npm12, root, value.version, value.integrity, value.shasum),
+    npm12["universal-agent-plugins"]
+  );
+  assert.throws(
+    () => validatePackJSON({ ...npm12, lookalike: structuredClone(value.pack[0]) }, value.version),
+    /exactly one package-named record/
+  );
+  assert.throws(
+    () => validatePackJSON({ lookalike: structuredClone(value.pack[0]) }, value.version),
+    /exactly one package-named record/
+  );
+});
+
 test("public npm SLSA DSSE binds staged digest and exact UAP workflow tag commit", () => {
   const value = fixture();
   assert.deepEqual(

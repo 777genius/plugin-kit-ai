@@ -42,8 +42,19 @@ function validateExpected(version, integrity, shasum) {
 }
 
 function validatePackJSON(value, version) {
-  if (!Array.isArray(value) || value.length !== 1) fail("npm pack JSON must contain exactly one record");
-  const record = value[0];
+  let record;
+  if (Array.isArray(value)) {
+    if (value.length !== 1) fail("npm pack JSON must contain exactly one record");
+    [record] = value;
+  } else if (value && typeof value === "object") {
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== PACKAGE_NAME) {
+      fail("npm pack JSON must contain exactly one package-named record");
+    }
+    record = value[PACKAGE_NAME];
+  } else {
+    fail("npm pack JSON must contain exactly one record");
+  }
   if (!record || record.name !== PACKAGE_NAME || record.version !== version ||
       record.filename !== `${PACKAGE_NAME}-${version}.tgz`) {
     fail("npm pack JSON package identity does not match the release");
