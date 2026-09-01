@@ -13,7 +13,6 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/catalog"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/discoveryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/packagedigest"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
@@ -268,21 +267,9 @@ func (app App) acquireDiscovery(ctx context.Context, selector string, request pa
 	if err != nil {
 		return loadedPackage{}, fmt.Errorf("load signed Discovery Index: %w", err)
 	}
-	var matches []discoveryv1.Record
-	for _, record := range bundle.Search.Records {
-		if record.Slug == selector {
-			matches = append(matches, record)
-		}
-	}
-	if len(matches) != 1 {
-		if len(matches) == 0 {
-			return loadedPackage{}, fmt.Errorf("discovery package %q was not found", selector)
-		}
-		return loadedPackage{}, fmt.Errorf("discovery package %q is ambiguous", selector)
-	}
-	record := matches[0]
-	if record.Availability != "available" {
-		return loadedPackage{}, fmt.Errorf("discovery package %q is unavailable and cannot be newly acquired", selector)
+	record, err := resolveDiscoveryRecord(bundle, selector)
+	if err != nil {
+		return loadedPackage{}, err
 	}
 	for _, target := range request.Targets {
 		compatible := false

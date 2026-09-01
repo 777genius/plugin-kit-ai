@@ -52,10 +52,12 @@ source.
 
 ### Choose clients
 
-In an interactive terminal, `add` without `--target` detects supported clients.
-One detected client is selected automatically. With several clients, the CLI
-shows a multi-select with all detected clients selected by default; press Enter
-to keep all of them. Scripts and CI must choose explicitly, for example
+In an interactive terminal, `add` without `--target` detects installed clients,
+checks which of them the selected package can serve from one release, and skips
+incompatible clients before showing the confirmation. One compatible client is
+selected automatically. With several compatible clients, the CLI shows a
+multi-select with all of them selected by default; press Enter to keep all of
+them. Scripts and CI must choose explicitly, for example
 `--target claude,gemini,opencode`. The same comma-separated syntax works with
 `add`, `update`, `repair`, and `remove`.
 

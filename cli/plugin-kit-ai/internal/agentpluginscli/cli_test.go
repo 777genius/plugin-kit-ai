@@ -916,6 +916,25 @@ func TestInteractiveAddDefaultsDetectedMultiselectToAll(t *testing.T) {
 	assertClientBindings(t, fixture, domain.MaterializationMaterialized, 1)
 }
 
+func TestInteractiveAddSkipsDetectedClientThatPackageCannotServe(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientChatGPT), fixtureClient(t, domain.ClientCursor),
+	})
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	stdout, _, err := fixture.executeInput(true, "\n", "add", plugin, "--dry-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Skipped installed clients that this package cannot install together: chatgpt") {
+		t.Fatalf("package-aware interactive output = %q", stdout)
+	}
+	if strings.Contains(stdout, "Detected supported clients (all selected by default)") {
+		t.Fatalf("single compatible target unexpectedly prompted for multiple clients: %q", stdout)
+	}
+}
+
 func TestInteractiveAddProbesOnlyTargetsSelectedAfterReadOnlyDetection(t *testing.T) {
 	clientCodex := fixtureClient(t, domain.ClientCodex)
 	clientCursor := fixtureClient(t, domain.ClientCursor)
@@ -925,9 +944,15 @@ func TestInteractiveAddProbesOnlyTargetsSelectedAfterReadOnlyDetection(t *testin
 	command := &cobra.Command{}
 	command.SetIn(strings.NewReader("1\n"))
 	command.SetOut(io.Discard)
-	selection, clients, err := promptDetectedTargets(context.Background(), command, fixture.app)
+	selection, clients, loaded, err := promptCompatibleDetectedTargets(context.Background(), command, fixture.app, writeCLIPlugin(t))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if loaded == nil {
+		t.Fatal("direct package was not retained across interactive target selection")
+	}
+	if loaded.cleanup != nil {
+		defer loaded.cleanup()
 	}
 	targets, err := parseTargetOption(selection)
 	if err != nil {
