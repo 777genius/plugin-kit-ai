@@ -22,7 +22,10 @@ test("detached package execution sentinel", (t) => {
     t.skip("only asserted by the detached staged-package subprocess");
     return;
   }
-  assert.equal(path.resolve(__dirname, ".."), path.resolve(expectedRoot));
+  assert.equal(
+    fs.realpathSync(path.resolve(__dirname, "..")),
+    fs.realpathSync(path.resolve(expectedRoot))
+  );
   assert.equal(fs.existsSync(path.resolve(__dirname, "../../../README.md")), false);
 });
 
