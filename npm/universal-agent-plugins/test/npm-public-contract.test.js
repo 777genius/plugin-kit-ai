@@ -69,7 +69,7 @@ function fixture(body = Buffer.from("exact tarball bytes")) {
           workflow: {
             ref: `refs/tags/${uapTag}`,
             repository: "https://github.com/777genius/universal-agent-plugins",
-            path: "/.github/workflows/agentplugins-npm-publish.yml"
+            path: ".github/workflows/agentplugins-npm-publish.yml"
           }
         },
         resolvedDependencies: [{
@@ -170,6 +170,10 @@ test("public npm SLSA DSSE fails closed for every reviewed provenance binding", 
     }),
     (x) => mutatePayload(x, (statement) => {
       statement.predicate.buildDefinition.externalParameters.workflow.path = "/.github/workflows/lookalike.yml";
+    }),
+    (x) => mutatePayload(x, (statement) => {
+      statement.predicate.buildDefinition.externalParameters.workflow.path =
+        "/.github/workflows/agentplugins-npm-publish.yml";
     }),
     (x) => mutatePayload(x, (statement) => {
       statement.predicate.buildDefinition.externalParameters.workflow.ref = "refs/heads/main";

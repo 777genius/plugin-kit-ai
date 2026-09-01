@@ -142,17 +142,35 @@ jobs:
           set -euo pipefail
           proof_root="$RUNNER_TEMP/public-npm-acquisition"
           mkdir -p "$proof_root"/{home,cache,tmp,tarball}
-          curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
-            "https://registry.npmjs.org/universal-agent-plugins/$VERSION" \
-            > "$proof_root/metadata.json"
-          node npm/universal-agent-plugins/scripts/npm-public-contract.js metadata \
-            "$proof_root/metadata.json" "$VERSION" "$EXPECTED_INTEGRITY" "$EXPECTED_SHASUM"
-          curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
-            "https://registry.npmjs.org/-/npm/v1/attestations/universal-agent-plugins@$VERSION" \
-            > "$proof_root/attestations.json"
-          node npm/universal-agent-plugins/scripts/npm-public-contract.js attestation \
-            "$proof_root/attestations.json" "$VERSION" "$EXPECTED_INTEGRITY" \
-            "$UAP_TAG" "$GITHUB_SHA"
+          metadata_ready=false
+          for delay in 0 10 20 40 80 160; do
+            sleep "$delay"
+            if curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+                "https://registry.npmjs.org/universal-agent-plugins/$VERSION" \
+                > "$proof_root/metadata.json" && \
+              node npm/universal-agent-plugins/scripts/npm-public-contract.js metadata \
+                "$proof_root/metadata.json" "$VERSION" "$EXPECTED_INTEGRITY" "$EXPECTED_SHASUM"; then
+              metadata_ready=true
+              break
+            fi
+            rm -f "$proof_root/metadata.json"
+          done
+          test "$metadata_ready" = true
+          attestations_ready=false
+          for delay in 0 10 20 40 80 160; do
+            sleep "$delay"
+            if curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+                "https://registry.npmjs.org/-/npm/v1/attestations/universal-agent-plugins@$VERSION" \
+                > "$proof_root/attestations.json" && \
+              node npm/universal-agent-plugins/scripts/npm-public-contract.js attestation \
+                "$proof_root/attestations.json" "$VERSION" "$EXPECTED_INTEGRITY" \
+                "$UAP_TAG" "$GITHUB_SHA"; then
+              attestations_ready=true
+              break
+            fi
+            rm -f "$proof_root/attestations.json"
+          done
+          test "$attestations_ready" = true
           env -i PATH="$PATH" HOME="$proof_root/home" USERPROFILE="$proof_root/home" \
             XDG_CONFIG_HOME="$proof_root/config" XDG_CACHE_HOME="$proof_root/xdg-cache" \
             TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \

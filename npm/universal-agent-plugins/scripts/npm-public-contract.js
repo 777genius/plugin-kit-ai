@@ -8,7 +8,7 @@ const { isDeepStrictEqual } = require("node:util");
 
 const PACKAGE_NAME = "universal-agent-plugins";
 const UAP_REPOSITORY = "https://github.com/777genius/universal-agent-plugins";
-const UAP_WORKFLOW = "/.github/workflows/agentplugins-npm-publish.yml";
+const UAP_WORKFLOW = ".github/workflows/agentplugins-npm-publish.yml";
 const SLSA_PREDICATE = "https://slsa.dev/provenance/v1";
 const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 const INTEGRITY = /^sha512-([A-Za-z0-9+/]{86}==)$/;
