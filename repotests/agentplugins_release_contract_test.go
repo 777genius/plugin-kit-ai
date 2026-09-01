@@ -303,7 +303,7 @@ func TestAgentpluginsHistoricalAuditAllowsLatestToBeNewer(t *testing.T) {
 	mustContain(t, npmVerifyJob, `if [[ "${published_version}" = "${version}" ]]; then`)
 	mustContain(t, npmVerifyJob, `test "${available}" = true`)
 	mustNotContain(t, npmVerifyJob, `[[ "${latest_version}" = "${version}" ]]`)
-	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `latest_version="$(npm view --prefer-online "${NPM_PACKAGE}@latest" version 2/dev/null || true)"`)
+	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `latest_version="$(npm view --prefer-online "${NPM_PACKAGE}@latest" version 2>/dev/null || true)"`)
 }
 
 func TestAgentpluginsReadmesUseUnversionedNpxExamples(t *testing.T) {
