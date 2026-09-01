@@ -142,8 +142,11 @@ jobs:
           set -euo pipefail
           proof_root="$RUNNER_TEMP/public-npm-acquisition"
           mkdir -p "$proof_root"/{home,cache,tmp,tarball}
-          npm install --global npm@12.0.2
-          test "$(npm --version)" = 12.0.2
+          npm_root="$proof_root/npm-cli"
+          npm install --prefix "$npm_root" --ignore-scripts --no-audit --no-fund --save-exact npm@12.0.2
+          npm_cli="$npm_root/node_modules/npm/bin/npm-cli.js"
+          test -f "$npm_cli"
+          test "$(node "$npm_cli" --version)" = 12.0.2
           metadata_ready=false
           for delay in 0 10 20 40 80 160; do
             sleep "$delay"
@@ -178,7 +181,7 @@ jobs:
             TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
             NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
             NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
-            npm pack "universal-agent-plugins@$VERSION" --ignore-scripts --json \
+            node "$npm_cli" pack "universal-agent-plugins@$VERSION" --ignore-scripts --json \
               --pack-destination "$proof_root/tarball" > "$proof_root/pack.json"
           test "$(find "$proof_root/tarball" -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')" = 1
           node npm/universal-agent-plugins/scripts/npm-public-contract.js download \
@@ -190,7 +193,7 @@ jobs:
             TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
             NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
             NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
-            npm install --prefix "$proof_root/audit" --ignore-scripts --no-audit --no-fund \
+            node "$npm_cli" install --prefix "$proof_root/audit" --ignore-scripts --no-audit --no-fund \
               --save-exact "universal-agent-plugins@$VERSION"
           audit_ready=false
           for delay in 0 10 20 40 80 160; do
@@ -200,7 +203,7 @@ jobs:
                 TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
                 NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
                 NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
-                npm audit signatures --prefix "$proof_root/audit" --json --include-attestations \
+                node "$npm_cli" audit signatures --prefix "$proof_root/audit" --json --include-attestations \
                   > "$proof_root/audit.json" && \
               node npm/universal-agent-plugins/scripts/npm-public-contract.js audit \
                 "$proof_root/audit.json" "$proof_root/attestations.json" "$VERSION"; then
