@@ -91,6 +91,7 @@ jobs:
             GIT_CONFIG_GLOBAL="$proof_root/home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 CI=true \
             NPM_CONFIG_CACHE="$proof_root/cache/npm" NPM_CONFIG_USERCONFIG="$proof_root/home/user.npmrc" \
             NPM_CONFIG_GLOBALCONFIG="$proof_root/home/global.npmrc" NPM_CONFIG_REGISTRY=https://registry.npmjs.org \
+            GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
             VERSION="$VERSION" INTEGRITY="$INTEGRITY" PROOF_ROOT="$proof_root" TOOLS_ROOT="$tools_root" \
             python3 -B - <<'PY'
           import hashlib

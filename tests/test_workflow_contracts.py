@@ -1852,6 +1852,7 @@ sys.modules['catalog_process_isolation']=module
         body = commands(job)
         for required in ("npm@12.0.2", 'test "$(npm --version)" = 12.0.2',
                          'env -i PATH="$PATH"', '["npm", "audit", "signatures"',
+                         'GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID"',
                          'if isinstance(package, list):', 'assert len(package) == 1',
                          'assert isinstance(package, dict)',
                          'assert data["read_only"] is True', 'assert snapshot() == before',
