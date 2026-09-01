@@ -100,7 +100,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
           <div class="hero__window-body">
             <p>Install {{ demoPlugin.display_name }} for {{ selectedHeroNames }}</p>
             <div class="hero-command-row">
-              <AppMultiSelect :model-value="heroTargetIDs" label="Choose target clients" :options="heroTargetOptions" @update:model-value="updateHeroTargets" />
+              <div class="hero-agent-select"><span>Choose one or more agents</span><AppMultiSelect :model-value="heroTargetIDs" label="Choose target clients" :options="heroTargetOptions" @update:model-value="updateHeroTargets" /></div>
               <CommandSnippet v-if="heroCommand" :command="heroCommand" />
               <p v-else class="install-panel__notice" role="status"><strong>Command unavailable{{ expired ? ': stale Directory' : !published ? ': review preview' : '' }}.</strong> {{ expired ? 'Browse historical package information while a fresh signed snapshot is published.' : !published ? 'Production commands require a published signed Directory snapshot.' : heroResolution.unavailable_reason }}</p>
             </div>
@@ -123,7 +123,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
     <section class="client-section container" aria-labelledby="clients-title">
       <p id="clients-title">Supported agents</p>
       <ClientStrip />
-      <p class="client-section__note">Compatibility is release-specific. “Prepared” and “manual activation required” remain visible; ChatGPT is selectable only with a registered app binding.</p>
+      <p class="client-section__note">The CLI installs or prepares packages for ten agents. ChatGPT uses its app setup when a plugin provides one. Some agents may still ask you to finish activation or sign in.</p>
     </section>
 
     <section id="how-it-works" class="how container" aria-labelledby="how-title">
@@ -149,7 +149,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
               <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="6" r="2.5" /><circle cx="6" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" /><path d="m10.8 8.2-3.6 6.6m6-6.6 3.6 6.6M8.5 17h7" /></svg>
             </span>
           </div>
-          <div><h3>Choose your agents</h3><p>Select one or more of Codex, ChatGPT, Cursor, Copilot, VS Code, or Kiro.</p></div>
+          <div><h3>Choose your agents</h3><p>Select one or more supported agents and get one exact command for all of them.</p></div>
           <div class="workflow-step__tags" aria-hidden="true"><span>Multi-target</span><span>One command</span></div>
         </li>
         <li class="workflow-step workflow-step--control">
@@ -169,18 +169,18 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
       <PluginCatalog
         :plugins="registry.plugins"
         :heading="`Explore ${registry.plugins.length} plugins`"
-        :intro="`${reviewedCount} reviewed products${discoveryCount ? ` plus ${discoveryCount} schema-conformant unreviewed packages` : ''}. Every install source is pinned to immutable provenance.`"
+        :intro="`${reviewedCount} reviewed plugins${discoveryCount ? ` plus ${discoveryCount} community packages found on GitHub` : ''}. Choose a plugin, select your agents, and copy one command.`"
       />
     </div>
 
     <section class="validation-section container" aria-labelledby="validation-title">
       <div>
-        <p class="eyebrow">Read status precisely</p>
-        <h2 id="validation-title">Validated structure is not a runtime promise.</h2>
+        <p class="eyebrow">Clear status</p>
+        <h2 id="validation-title">Know what was checked.</h2>
       </div>
       <div class="validation-section__cards">
-        <article><span class="validation-badge"><span>✓</span> Schema validated</span><p>The manifest and declared components passed the repository’s structural checks.</p></article>
-        <article><span class="runtime-badge">◇ Runtime evidence</span><p>Runtime, authentication, and OAuth coverage varies by plugin and agent. Check the linked evidence before relying on a path.</p></article>
+        <article><span class="validation-badge"><span>✓</span> Package format checked</span><p>The plugin has the files and structure needed for Agent Plugins 1.0.</p></article>
+        <article><span class="runtime-badge">◇ Runtime tested</span><p>When a real agent test exists, we show it separately. Sign-in and OAuth can still vary by plugin.</p></article>
       </div>
     </section>
 

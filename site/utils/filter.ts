@@ -23,6 +23,34 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
+function compareDiscoveryPackages(left: RegistryPlugin, right: RegistryPlugin): number {
+  const leftDepth = left.source.path ? left.source.path.split('/').length : 0
+  const rightDepth = right.source.path ? right.source.path.split('/').length : 0
+  return leftDepth - rightDepth || compareText(normalized(left.display_name), normalized(right.display_name))
+}
+
+/** Stars belong to repositories, so popular monorepos are interleaved. */
+function diversifiedDiscovery(plugins: RegistryPlugin[]): RegistryPlugin[] {
+  const groups = new Map<string, RegistryPlugin[]>()
+  for (const plugin of plugins) {
+    const group = groups.get(plugin.source.repository) ?? []
+    group.push(plugin)
+    groups.set(plugin.source.repository, group)
+  }
+  const repositories = [...groups.entries()].sort(([leftRepository, left], [rightRepository, right]) => (
+    (right[0]?.discovery?.stars ?? 0) - (left[0]?.discovery?.stars ?? 0)
+    || compareText(leftRepository, rightRepository)
+  ))
+  repositories.forEach(([, group]) => group.sort(compareDiscoveryPackages))
+  const ranked: RegistryPlugin[] = []
+  for (let index = 0; ranked.length < plugins.length; index += 1) {
+    for (const [, group] of repositories) {
+      if (group[index]) ranked.push(group[index])
+    }
+  }
+  return ranked
+}
+
 function matchQuality(value: string, query: string): number | undefined {
   const candidate = normalized(value)
   if (candidate === query) return 0
@@ -71,6 +99,13 @@ export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters
         || (filters.authentication === 'none' ? plugin.authentication === 'none' : plugin.authentication !== 'none'))
       && (!filters.owner || normalized(sourceOwner(plugin)) === normalized(filters.owner))
   })
+  if (!query) {
+    const reviewed = matches
+      .filter(plugin => (plugin.trust_state ?? 'reviewed') === 'reviewed')
+      .sort((left, right) => compareText(normalized(left.display_name), normalized(right.display_name)))
+    const discovered = diversifiedDiscovery(matches.filter(plugin => plugin.trust_state === 'conformant_unreviewed'))
+    return [...reviewed, ...discovered]
+  }
   return matches.sort((left, right) => {
     const score = (plugin: RegistryPlugin) => {
       const reviewed = (plugin.trust_state ?? 'reviewed') === 'reviewed'

@@ -52,6 +52,24 @@ describe('catalog filtering', () => {
     )
   })
 
+  it('ranks discovery repositories by stars without repeating one repository on the first pass', () => {
+    const discovered = (name: string, repository: string, stars: number) => ({
+      ...plugins[0]!,
+      name,
+      display_name: name,
+      install_source: `discovery:${repository}//${name}`,
+      source: { ...plugins[0]!.source, repository, path: name },
+      discovery: { ...plugins[0]!.discovery!, stars },
+      trust_state: 'conformant_unreviewed' as const,
+    })
+    const ranked = filterPlugins([
+      discovered('popular-b', 'popular/monorepo', 10_000),
+      discovered('smaller', 'smaller/repo', 1_000),
+      discovered('popular-a', 'popular/monorepo', 10_000),
+    ], {})
+    assert.deepEqual(ranked.map(plugin => plugin.name), ['popular-a', 'smaller', 'popular-b'])
+  })
+
   it('combines category, component, and source filters', () => {
     assert.deepEqual(filterPlugins(plugins, { category: 'documentation', component: 'mcp', source: 'community' }), [plugins[0]])
     assert.deepEqual(filterPlugins(plugins, { source: 'direct' }), [plugins[1]])

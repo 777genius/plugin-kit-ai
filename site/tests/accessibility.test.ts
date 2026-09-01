@@ -36,6 +36,17 @@ describe('focused catalog accessibility contract', () => {
     assert.match(layout, /Pull request preview/)
   })
 
+  it('keeps the public homepage human-readable while preserving stale safety', () => {
+    const home = source('../pages/index.vue')
+    const layout = source('../layouts/default.vue')
+    const card = source('../components/PluginCard.vue')
+    assert.match(home, /class="hero-agent-select"/)
+    assert.doesNotMatch(layout, /Signed Directory snapshot \{\{/)
+    assert.doesNotMatch(card, /Immutable commit|Manifest/)
+    assert.match(card, /stars on repo/)
+    assert.match(layout, /Plugin updates are temporarily paused/)
+  })
+
   it('chooses an installable homepage demo instead of assuming one product', () => {
     const home = source('../pages/index.vue')
     assert.match(home, /preferredDemoNames = \['cloudflare-docs', 'agent-code-navigator'\]/)
@@ -85,7 +96,6 @@ describe('focused catalog accessibility contract', () => {
   it('binds every target-dependent install field to the exact resolved release', () => {
     const card = source('../components/PluginCard.vue')
     const detail = source('../pages/plugins/[slug].vue')
-    assert.match(card, /selectedDistribution\.version/)
     assert.match(card, /selectedDistribution\.components/)
     assert.match(card, /validationLabel\(selectedDistribution\)/)
     assert.match(card, /githubSourceUrl\(plugin, selectedDistribution\)/)

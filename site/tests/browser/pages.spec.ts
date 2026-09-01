@@ -113,12 +113,12 @@ test('renders target authentication distinctly and keeps it tied to multiselect 
   const search = page.getByRole('searchbox', { name: 'Search plugins' })
   await search.fill('Agent Code Navigator')
   const navigator = page.locator('.plugin-card').filter({ hasText: 'Agent Code Navigator' })
-  await expect(navigator.locator('.plugin-card__auth')).toHaveText('No account required')
+  await expect(navigator.locator('.plugin-card__auth')).toHaveCount(0)
   await navigator.getByRole('button', { name: /Choose clients for Agent Code Navigator:/ }).click()
   await expect(page.locator('.app-multiselect__content')).toBeInViewport({ ratio: 1 })
   await page.getByRole('checkbox', { name: /Codex/ }).click()
   await page.keyboard.press('Escape')
-  await expect(navigator.locator('.plugin-card__auth')).toHaveText('No account required')
+  await expect(navigator.locator('.plugin-card__auth')).toHaveCount(0)
   await expect(navigator.getByRole('button', { name: /Choose clients for Agent Code Navigator: 2 agents/ })).toBeVisible()
 
   await search.fill('Atlassian')
@@ -147,8 +147,12 @@ test('keeps tall target menus within a short viewport and scrolls every option i
   await expect(content).toBeInViewport({ ratio: 1 })
   await expect.poll(() => options.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
   const lastOption = options.getByRole('checkbox').last()
-  await lastOption.scrollIntoViewIfNeeded()
-  await expect(lastOption).toBeInViewport({ ratio: 1 })
+  await expect.poll(async () => lastOption.evaluate((element) => {
+    element.parentElement!.scrollTop = element.parentElement!.scrollHeight
+    const option = element.getBoundingClientRect()
+    const list = element.parentElement!.getBoundingClientRect()
+    return option.top >= list.top && option.bottom <= list.bottom
+  })).toBe(true)
   await expect.poll(() => options.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
 
   const codex = options.getByRole('checkbox', { name: /Codex/ })
@@ -173,12 +177,13 @@ test('unsigned pull-request preview exposes no copyable install command', async 
 
 test('loads, filters, and installs one signed unreviewed package without a site rebuild', async ({ page }) => {
   await page.goto('plugins')
-  await expect(page.getByText(/2 unreviewed packages from signed index 7/)).toBeVisible()
+  await expect(page.getByText(/2 community packages found on GitHub/)).toBeVisible()
   await page.getByRole('searchbox', { name: 'Search plugins' }).fill('portable-demo')
   const card = page.locator('.plugin-card').filter({ hasText: 'portable-demo' })
-  await expect(card.getByText('Schema conformant · unreviewed').first()).toBeVisible()
-  await expect(card).toContainText(`Immutable commit ${'a'.repeat(40)}`)
-  await expect(card).toContainText(`Manifest sha256:${'2'.repeat(64)}`)
+  await expect(card.getByText('Found on GitHub').first()).toBeVisible()
+  await expect(card).toContainText('★ 412 stars on repo')
+  await expect(card).not.toContainText('Immutable commit')
+  await expect(card).not.toContainText('Manifest sha256:')
   await card.getByRole('button', { name: /Choose clients for portable-demo:/ }).click()
   await page.getByRole('checkbox', { name: /Codex/ }).click()
   await page.keyboard.press('Escape')
@@ -187,17 +192,17 @@ test('loads, filters, and installs one signed unreviewed package without a site 
   await page.unroute('**/discovery/**')
   await page.route('**/discovery/**', route => route.abort('internetdisconnected'))
   await page.reload()
-  await expect(page.getByText(/last-known-good signed index 7/)).toBeVisible()
+  await expect(page.getByText(/Showing 2 recently found community packages/)).toBeVisible()
   await page.getByRole('searchbox', { name: 'Search plugins' }).fill('portable-demo')
   await expect(page.locator('.plugin-card').filter({ hasText: 'portable-demo' })).toBeVisible()
 })
 
 test('fails closed for an unavailable discovered package and renders the generated 404 page', async ({ page }) => {
   await page.goto('plugins')
-  await expect(page.getByText(/2 unreviewed packages from signed index 7/)).toBeVisible()
+  await expect(page.getByText(/2 community packages found on GitHub/)).toBeVisible()
   await page.getByRole('searchbox', { name: 'Search plugins' }).fill('unavailable-demo')
   const card = page.locator('.plugin-card').filter({ hasText: 'unavailable-demo' })
-  await expect(card.getByText('Unavailable · unreviewed')).toBeVisible()
+  await expect(card.getByText('Currently unavailable')).toBeVisible()
   await expect(card.getByText(/no install command is generated/)).toBeVisible()
   await expect(card.getByRole('button', { name: /Copy command/ })).toHaveCount(0)
 

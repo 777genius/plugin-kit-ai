@@ -46,8 +46,8 @@ const sourceOptions = [
 ]
 const trustOptions = [
   { value: 'all', label: 'All trust levels' },
-  { value: 'reviewed', label: 'Reviewed Directory' },
-  { value: 'conformant_unreviewed', label: 'Schema conformant · unreviewed' },
+  { value: 'reviewed', label: 'Reviewed plugins' },
+  { value: 'conformant_unreviewed', label: 'Community discovery' },
 ]
 const clientOptions = [
   { value: 'all', label: 'All agents' },
@@ -55,8 +55,8 @@ const clientOptions = [
 ]
 const authenticationOptions = [
   { value: 'all', label: 'All authentication' },
-  { value: 'none', label: 'No account required' },
-  { value: 'required_or_unknown', label: 'Auth required or unknown' },
+  { value: 'none', label: 'Works without sign-in' },
+  { value: 'required_or_unknown', label: 'May require sign-in' },
 ]
 const ownerOptions = computed(() => [
   { value: 'all', label: 'All owners' },
@@ -107,12 +107,12 @@ watch([query, category, component, source, trust, client, authentication, owner]
       <div>
         <div class="catalog-count" aria-live="polite">Showing {{ displayed.length }} of {{ visible.length }} matching plugins · {{ plugins.length }} total</div>
         <p class="discovery-status" :class="`discovery-status--${discovery.state}`">
-          <template v-if="discovery.state === 'loading'">Loading signed public Discovery Index…</template>
-          <template v-else-if="discovery.state === 'current'">{{ discovery.count }} unreviewed packages from signed index {{ discovery.sequence }} · updated {{ discovery.generatedAt }}</template>
-          <template v-else-if="discovery.state === 'cached'">{{ discovery.count }} unreviewed packages from last-known-good signed index {{ discovery.sequence }}</template>
-          <template v-else-if="discovery.state === 'stale'">Public Discovery Index is stale. Reviewed Directory remains available.</template>
-          <template v-else-if="discovery.state === 'unavailable'">Public Discovery Index is unavailable. Reviewed Directory remains available.</template>
-          <template v-else>Reviewed Directory ready.</template>
+          <template v-if="discovery.state === 'loading'">Finding more community plugins on GitHub…</template>
+          <template v-else-if="discovery.state === 'current'">{{ discovery.count }} community packages found on GitHub · popular repositories are mixed for variety</template>
+          <template v-else-if="discovery.state === 'cached'">Showing {{ discovery.count }} recently found community packages</template>
+          <template v-else-if="discovery.state === 'stale'">Community results are refreshing. Reviewed plugins remain available.</template>
+          <template v-else-if="discovery.state === 'unavailable'">Community results are temporarily unavailable. Reviewed plugins remain available.</template>
+          <template v-else>Reviewed plugins are ready.</template>
         </p>
       </div>
       <a class="button button--secondary catalog-submit" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">
