@@ -1101,7 +1101,8 @@ class DirectoryDomainTests(unittest.TestCase):
                 if (
                     distribution["status"] == "active"
                     and policy["status"] == "active"
-                    and distribution["id"] != "upstash/context7"
+                    and distribution["id"]
+                    not in {"upstash/context7", "777genius/cloudflare-docs", "777genius/github"}
                 ):
                     expected_minimum = "0.1.26"
                 self.assertEqual(policy["minimum_installer_version"], expected_minimum)

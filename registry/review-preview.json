@@ -1383,6 +1383,36 @@
             {
               "client": "kiro",
               "authentication": "not_required"
+            }
+          ],
+          "distribution_id": "777genius/cloudflare-docs-bridge",
+          "release_sequence": 1
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "not_required"
+            },
+            {
+              "client": "chatgpt",
+              "authentication": "not_required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "not_required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "not_required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "not_required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "not_required"
             },
             {
               "client": "claude",
@@ -1442,26 +1472,6 @@
             },
             {
               "client": "kiro",
-              "authentication": "not_required"
-            },
-            {
-              "client": "claude",
-              "authentication": "not_required"
-            },
-            {
-              "client": "gemini",
-              "authentication": "not_required"
-            },
-            {
-              "client": "opencode",
-              "authentication": "not_required"
-            },
-            {
-              "client": "cline",
-              "authentication": "not_required"
-            },
-            {
-              "client": "windsurf",
               "authentication": "not_required"
             }
           ],
@@ -3169,6 +3179,32 @@
             {
               "client": "kiro",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/github-bridge",
+          "release_sequence": 1
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
             },
             {
               "client": "claude",
@@ -3224,26 +3260,6 @@
             },
             {
               "client": "kiro",
-              "authentication": "required"
-            },
-            {
-              "client": "claude",
-              "authentication": "required"
-            },
-            {
-              "client": "gemini",
-              "authentication": "required"
-            },
-            {
-              "client": "opencode",
-              "authentication": "required"
-            },
-            {
-              "client": "cline",
-              "authentication": "required"
-            },
-            {
-              "client": "windsurf",
               "authentication": "required"
             }
           ],

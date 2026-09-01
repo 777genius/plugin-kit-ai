@@ -1650,7 +1650,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.26",
+          "minimum_installer_version": "0.1.8",
           "targets": [
             {
               "client": "codex",
@@ -1704,46 +1704,6 @@
                 "user"
               ],
               "delivery": "managed"
-            },
-            {
-              "client": "claude",
-              "authentication": "not_required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "gemini",
-              "authentication": "not_required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "opencode",
-              "authentication": "not_required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "cline",
-              "authentication": "not_required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "windsurf",
-              "authentication": "not_required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "prepared"
             }
           ],
           "current_evidence": []
@@ -2819,7 +2779,7 @@
         {
           "release_sequence": 1,
           "status": "active",
-          "minimum_installer_version": "0.1.26",
+          "minimum_installer_version": "0.1.8",
           "targets": [
             {
               "client": "codex",
@@ -2860,46 +2820,6 @@
                 "user"
               ],
               "delivery": "managed"
-            },
-            {
-              "client": "claude",
-              "authentication": "required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "gemini",
-              "authentication": "required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "opencode",
-              "authentication": "required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "cline",
-              "authentication": "required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "managed"
-            },
-            {
-              "client": "windsurf",
-              "authentication": "required",
-              "scopes": [
-                "user"
-              ],
-              "delivery": "prepared"
             }
           ],
           "current_evidence": []
