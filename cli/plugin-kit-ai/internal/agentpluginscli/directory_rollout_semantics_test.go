@@ -339,6 +339,25 @@ func TestInteractiveSharedSurfaceAddRequiresSignedPeerEligibilityBeforeAcquisiti
 	}
 }
 
+func TestInteractiveDirectoryAddOffersOnlyOneCompleteSignedTargetSet(t *testing.T) {
+	rollout := newRolloutDirectoryFixture(t,
+		[]domain.ClientID{domain.ClientCursor},
+		[]domain.ClientID{domain.ClientCursor})
+	rollout.cli.app.Detector = staticDetector{clients: []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex), fixtureClient(t, domain.ClientCursor),
+	}}
+	stdout, _, err := rollout.cli.executeInput(true, "\n", "add", "rollout-demo", "--dry-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Skipped installed clients that this package cannot install together: codex") {
+		t.Fatalf("package-aware Directory output = %q", stdout)
+	}
+	if rollout.acquirer.verifiedCalls != 1 {
+		t.Fatalf("Directory package acquired %d times, want exactly once after target selection", rollout.acquirer.verifiedCalls)
+	}
+}
+
 func TestDirectoryRepairRejectsRecordedTuplePackageSourceRebindBeforeAcquisition(t *testing.T) {
 	rollout := newRolloutDirectoryFixture(t, []domain.ClientID{domain.ClientCursor}, []domain.ClientID{domain.ClientCursor})
 	if _, _, err := rollout.cli.execute(false, "add", "rollout-demo", "--target", "cursor"); err != nil {

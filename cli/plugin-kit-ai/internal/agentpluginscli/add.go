@@ -27,9 +27,12 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 			}
 			var detectedClients []domain.DetectedClient
 			if strings.TrimSpace(opts.target) == "" && app.Terminal {
-				selection, clients, err := promptDetectedTargets(cmd.Context(), cmd, app)
+				selection, clients, preloaded, err := promptCompatibleDetectedTargets(cmd.Context(), cmd, app, args[0])
 				if err != nil {
 					return err
+				}
+				if preloaded != nil && preloaded.cleanup != nil {
+					defer preloaded.cleanup()
 				}
 				detectedClients = clients
 				opts.target = selection
@@ -46,13 +49,18 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
-				loaded, err := app.loadPackageFor(cmd.Context(), args[0], withDetectedClients(app.addResolutionRequest(args[0], targets), detected))
-				if err != nil {
-					return err
-				}
-				if loaded.cleanup != nil {
-					defer loaded.cleanup()
+				var loaded loadedPackage
+				if preloaded != nil {
+					loaded = *preloaded
+				} else {
+					writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
+					loaded, err = app.loadPackageFor(cmd.Context(), args[0], withDetectedClients(app.addResolutionRequest(args[0], targets), detected))
+					if err != nil {
+						return err
+					}
+					if loaded.cleanup != nil {
+						defer loaded.cleanup()
+					}
 				}
 				return runAddManyLoaded(cmd.Context(), cmd, app, opts, loaded, targets, activationComplete, authComplete, detectedClientValues(detected))
 			}
@@ -171,23 +179,21 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	return err
 }
 
-func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App) (string, []domain.DetectedClient, error) {
-	clients, err := app.Detector.Detect(ctx)
-	if err != nil {
-		return "", nil, fmt.Errorf("detect AI clients: %w", err)
-	}
-	var detected []domain.DetectedClient
-	for _, client := range clients {
-		if client.Status == domain.DetectionDetected && supportedTarget(client.ClientID) {
-			detected = append(detected, client)
-		}
-	}
+func promptTargetChoices(cmd *cobra.Command, detected, skipped, allClients []domain.DetectedClient) (string, []domain.DetectedClient, error) {
 	if len(detected) == 0 {
 		return "", nil, fmt.Errorf("no supported local AI client was detected; use --target chatgpt for ChatGPT, or install/detect another client")
 	}
 	sort.SliceStable(detected, func(i, j int) bool { return targetOrder(detected[i].ClientID) < targetOrder(detected[j].ClientID) })
+	sort.SliceStable(skipped, func(i, j int) bool { return targetOrder(skipped[i].ClientID) < targetOrder(skipped[j].ClientID) })
+	if len(skipped) > 0 {
+		names := make([]string, len(skipped))
+		for index, client := range skipped {
+			names[index] = client.DisplayName
+		}
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Skipped installed clients that this package cannot install together: %s\n", strings.Join(names, ", "))
+	}
 	if len(detected) == 1 {
-		return string(detected[0].ClientID), clients, nil
+		return string(detected[0].ClientID), allClients, nil
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Detected supported clients (all selected by default):")
 	for index, client := range detected {
@@ -204,7 +210,7 @@ func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App) (st
 		for index, client := range detected {
 			values[index] = string(client.ClientID)
 		}
-		return strings.Join(values, ","), clients, nil
+		return strings.Join(values, ","), allClients, nil
 	}
 	seen := make(map[int]struct{})
 	var values []string
@@ -219,7 +225,7 @@ func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App) (st
 		seen[choice] = struct{}{}
 		values = append(values, string(detected[choice-1].ClientID))
 	}
-	return strings.Join(values, ","), clients, nil
+	return strings.Join(values, ","), allClients, nil
 }
 
 // detectSelectedTargetsForLifecycleResolution keeps ambient discovery strictly
