@@ -17,9 +17,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	releaseDraftJob := yamlJob(t, releaseWorkflow, "stage-draft")
 	releaseProofJob := yamlJob(t, releaseWorkflow, "platform-proof")
 	releasePromoteJob := yamlJob(t, releaseWorkflow, "promote-release")
-	npmReleaseIdentityJob := yamlJob(t, npmWorkflow, "release-identity")
-	npmPrepublishConformanceJob := yamlJob(t, npmWorkflow, "prepublish-conformance")
-	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
+	npmAuditModeJob := yamlJob(t, npmWorkflow, "audit-mode")
 	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
 	runbook := readRepoFile(t, root, "docs", "agentplugins-release.md")
@@ -36,6 +34,15 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, makefile, want)
 	}
 
+	for _, want := range []string{
+		"producer_mode:",
+		"default: binary-only",
+		"options:\n          - binary-only",
+		"PRODUCER_MODE: ${{ inputs.producer_mode }}",
+		"unsupported agentplugins producer mode",
+	} {
+		mustContain(t, releaseWorkflow, want)
+	}
 	mustContain(t, releaseWorkflow, "actions/attest@")
 	mustContain(t, releaseWorkflow, "gh release create")
 	mustAppearBefore(t, releaseWorkflow, "actions/attest@", "gh release create")
@@ -88,34 +95,36 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, releaseWorkflow, name)
 	}
 
-	mustContain(t, npmReleaseIdentityJob, "if: ${{ !inputs.verify_only }}")
-	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"`)
-	mustContain(t, npmReleaseIdentityJob, `test "${WORKFLOW_REF}" = "refs/heads/main"`)
-	mustContain(t, npmReleaseIdentityJob, "npm publish workflow source does not match the exact tagged main commit")
-	mustContain(t, npmReleaseIdentityJob, `git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"`)
-	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"`)
-	mustContain(t, npmPrepublishConformanceJob, "needs: release-identity")
-	mustContain(t, npmPrepublishConformanceJob, "if: ${{ !inputs.verify_only }}")
-	mustContain(t, npmPrepublishConformanceJob, "allow_legacy_manifest: false")
-	mustContain(t, npmPrepublishConformanceJob, "contents: read")
 	for _, want := range []string{
-		"needs: [release-identity, prepublish-conformance]",
-		"if: ${{ !inputs.verify_only }}",
-		"environment: npm-agentplugins",
-		"id-token: write",
-		`package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"`,
-		`test "$(node -p 'require("./npm/agentplugins/package.json").bin.agentplugins')" = "bin/agentplugins.js"`,
-		`npm view "${package_name}" versions --json`,
-		"grep -q 'E404'",
-		"unable to prove whether ${package_name} already exists in npm",
-		"npm publish --access public --tag latest --provenance",
-		"trusted publishing only supports existing packages",
+		"name: Agentplugins NPM Historical Audit",
+		"verify_only:",
+		"default: true",
+		"only historical verification is supported",
 	} {
-		mustContain(t, npmPublishJob, want)
+		mustContain(t, npmWorkflow, want)
 	}
 	for _, want := range []string{
-		"needs: publish",
-		"always() && !cancelled() && (inputs.verify_only || needs.publish.result == 'success')",
+		"Enforce retired publisher boundary",
+		"VERIFY_ONLY: ${{ inputs.verify_only }}",
+		"npm publication is retired in plugin-kit-ai",
+		"dispatch with verify_only=true",
+	} {
+		mustContain(t, npmAuditModeJob, want)
+	}
+	for _, unwanted := range []string{
+		"release-identity:",
+		"prepublish-conformance:",
+		"publish:",
+		"npm publish",
+		"environment: npm-agentplugins",
+		"id-token: write",
+		"NPM_AGENTPLUGINS_PUBLISH_READY",
+		"uses: ./.github/workflows/agentplugins-platform-proof.yml",
+	} {
+		mustNotContain(t, npmWorkflow, unwanted)
+	}
+	for _, want := range []string{
+		"needs: audit-mode",
 		`ref: ${{ inputs.tag }}`,
 		"Resolve immutable verification target",
 		`NPM_PACKAGE: ${{ steps.verify-target.outputs.package_name }}`,
@@ -146,7 +155,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, npmVerifyJob, want)
 	}
 	mustContain(t, npmWorkflow, "verify_only:")
-	mustContain(t, npmWorkflow, "Verify an existing public version without publishing")
+	mustContain(t, npmWorkflow, "only historical verification is supported")
 	for _, unwanted := range []string{
 		"npm view agentplugins versions --json",
 		"npm view agentplugins version >/dev/null",
@@ -157,7 +166,6 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	} {
 		mustNotContain(t, npmWorkflow, unwanted)
 	}
-	mustNotContain(t, npmPublishJob, "Verify exact published stable lifecycle from a clean project")
 	mustNotContain(t, npmVerifyJob, "npm publish --access public --tag latest --provenance")
 	mustNotContain(t, npmVerifyJob, "environment: npm-agentplugins")
 	mustNotContain(t, npmVerifyJob, "id-token: write")
@@ -177,7 +185,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	for _, want := range []string{
 		"workflow_call:",
 		"allow_legacy_manifest:",
-		"Audit a schema-v1 historical release; never eligible as an npm publish gate",
+		"Audit a schema-v1 historical release; never eligible for the strict producer contract",
 		"native runtime E2E (${{ matrix.target }})",
 		"target: darwin-amd64",
 		"target: darwin-arm64",
@@ -248,11 +256,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 	mustNotContain(t, platformWorkflow, "target_commitish")
 	mustNotContain(t, platformWorkflow, `releases/tags/${TAG}`)
-	mustContain(t, npmWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
-	mustContain(t, npmWorkflow, "test \"${{ needs.prepublish-conformance.outputs.gate_eligible }}\" = \"true\"")
 	mustContain(t, readRepoFile(t, root, "npm", "agentplugins", "scripts", "platform-proof.js"), "assertPublicJSONPathFree")
-	mustAppearBefore(t, npmWorkflow, "prepublish-conformance:", "npm publish --access public --tag latest --provenance")
-	mustContain(t, npmWorkflow, "npm publish --access public --tag latest --provenance \"${TARBALL}\"")
 	mustNotContain(t, npmWorkflow, "add context7")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
@@ -268,18 +272,18 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"short-lived bootstrap",
 		"disallow bypass-2FA tokens",
 		"Do not add a bootstrap token back",
-		"publish through",
-		"GitHub OIDC with provenance",
-		"`latest` dist-tag resolves to the exact published version",
-		"returned to `false` immediately after the publish",
-		"dispatched with `verify_only=true`",
-		"historical tag after publication",
-		"skips release identity",
-		"schema-v2 six-platform proof",
-		"not require the tag to point to current `main`",
-		"public registry, provenance, and isolated",
+		"required `binary-only` producer mode",
+		"six assets plus `checksums.txt` and `release-manifest.json`",
+		"test input only and is never a release asset",
+		"retained at its historical",
+		"read-only audit workflow",
+		"`verify_only` input defaults to `true`",
+		"explicitly setting it to `false` fails",
+		"does not require the tag to point to current",
+		"does not rerun the schema-v2 six-platform release proof",
+		"manifest version, source commit, six filenames, byte sizes, SHA-256 digests",
 		"same-run frozen",
-		"normal anonymous GitHub release download",
+		"anonymous GitHub release download",
 	} {
 		mustContain(t, runbook, want)
 	}

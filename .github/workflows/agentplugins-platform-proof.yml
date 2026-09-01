@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       allow_legacy_manifest:
-        description: Audit a schema-v1 historical release; never eligible as an npm publish gate
+        description: Audit a schema-v1 historical release; never eligible for the strict producer contract
         required: false
         default: false
         type: boolean
@@ -76,7 +76,7 @@ on:
         description: Filename of the exact tested npm tarball
         value: ${{ jobs.prepare.outputs.tarball_file }}
       gate_eligible:
-        description: Whether the release uses the strict publish-gate manifest
+        description: Whether the release uses the strict schema-v2 producer manifest
         value: ${{ jobs.prepare.outputs.gate_eligible }}
       bootstrap_mode:
         description: Exact cold-bootstrap evidence source used by native jobs

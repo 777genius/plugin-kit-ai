@@ -1,7 +1,8 @@
 # Agentplugins stable release
 
-This runbook is for maintainers. Do not create a release, publish npm, or change
-the `latest` dist-tag without explicit owner approval for that exact version.
+This runbook is for maintainers. Do not create a release without explicit owner
+approval for that exact version. This repository must not publish the npm facade
+or change its `latest` dist-tag.
 
 ## Required gates
 
@@ -17,15 +18,12 @@ the `latest` dist-tag without explicit owner approval for that exact version.
   and runtime evidence cover the released package trees.
 - The catalog embedded in the `agentplugins` binary is byte-identical to that
   released catalog and its compiled SHA-256 pin matches.
-- `agentplugins-release` and `npm-agentplugins` require a reviewer and allow
-  deployment only from `main`. Dispatch both workflows from the exact `main`
-  commit referenced by the release tag; their source-commit guards reject a
-  newer or older workflow revision.
-- npm trusted publishing is bound to repository `777genius/plugin-kit-ai`,
-  workflow `agentplugins-npm-publish.yml`, environment `npm-agentplugins`, and
-  the `npm publish` permission.
-- `NPM_AGENTPLUGINS_PUBLISH_READY` stays `false` until the exact publish is
-  approved.
+- `agentplugins-release` requires a reviewer and allows deployment only from
+  `main`. Dispatch it from the exact `main` commit referenced by the release
+  tag; its source-commit guard rejects a newer or older workflow revision.
+- Select the required `binary-only` producer mode. This repository publishes
+  only the verified GitHub binary release; npm publication belongs to the UAP
+  facade release process outside this repository.
 
 For the first catalog release, merge its catalog PR with history preserved. If
 it is squash-merged or rebase-merged, regenerate the catalog from the resulting
@@ -36,7 +34,8 @@ project is tagged.
 
 1. Create the approved annotated stable tag on current `main` and push only that
    tag.
-2. Dispatch `Agentplugins Release Assets` with the exact tag.
+2. Dispatch `Agentplugins Release Assets` with the exact tag and the required
+   `binary-only` producer mode.
 3. Review the frozen commit and approve the `agentplugins-release`
    environment deployment.
 4. Confirm the workflow attests all six binaries, `checksums.txt`, and
@@ -52,8 +51,11 @@ project is tagged.
    it reverifies the draft identity, manifest, assets, and attestations.
    It promotes that exact draft only after all six native platform proofs succeed.
 7. Verify the resulting public release contains six platform binaries,
-   `checksums.txt`, and `release-manifest.json`, and verify GitHub attestations
-   before allowing npm publication.
+   `checksums.txt`, and `release-manifest.json`, and verify GitHub attestations.
+   This exact stable public release is the immutable producer handoff consumed
+   by the separately owned UAP npm facade workflow.
+   A standalone public-release platform proof continues to prove the normal
+   anonymous GitHub release download without changing publication ownership.
 
 The workflow rejects every existing public release. A rerun accepts an existing
 draft only when its tag, frozen commit, draft status, complete asset set, and
@@ -81,30 +83,27 @@ Do not add a bootstrap token back to the workflow. If the package disappears
 from npm, the registry preflight must fail closed instead of attempting to
 recreate it.
 
-## Later stable publications
+## Producer cutover and historical npm audits
 
-Use the same immutable asset workflow, temporarily open the publish-ready gate,
-then dispatch the npm workflow with the exact tag. Review and approve the
-`npm-agentplugins` environment deployment. The workflow must publish through
-GitHub OIDC with provenance and must pass the exact-version registry smoke
-after an exact-version, scripts-disabled install verifies both the registry
-signature and SLSA provenance attestation. Only then may it run `add`, `info`,
-read-only `doctor`, no-change `update`, `remove`, and final absent-state
-verification in an isolated HOME.
-The public-release platform proof uses a cold cache without the local draft
-override and therefore proves the normal anonymous GitHub release download.
-The publish-ready gate must be returned to `false` immediately after the publish
-job finishes, regardless of the verification result. Registry verification
-must still prove the `latest` dist-tag resolves to the exact published version
-and that JSON output contains no absolute runner paths. It runs as a separate
-job after publication, waits up to five minutes with online metadata refreshes,
-and can be retried without attempting to republish an immutable npm version.
-The same workflow can be dispatched with `verify_only=true` and the existing
-historical tag after publication. That mode skips release identity,
-schema-v2 six-platform proof, and the protected publish job entirely; it does
-not require the tag to point to current `main` or require opening the
-publish-ready gate, and only runs public registry, provenance, and isolated
-lifecycle verification.
+For this and later cutover releases, plugin-kit-ai remains the binary producer.
+The release workflow still builds, attests, draft-proves, and promotes the same
+six assets plus `checksums.txt` and `release-manifest.json`; it does not publish
+an npm package. The npm tarball created inside the platform proof is an ephemeral
+test input only and is never a release asset or registry publication artifact.
+
+`.github/workflows/agentplugins-npm-publish.yml` is retained at its historical
+path as a read-only audit workflow. It has no npm publishing job, protected npm
+environment, OIDC write permission, token, or publish-ready gate. Its
+`verify_only` input defaults to `true`; explicitly setting it to `false` fails
+closed. Dispatch it with `verify_only=true` and an existing historical tag to
+verify the public registry version, signature, provenance, and isolated
+lifecycle. Historical audit mode does not require the tag to point to current
+`main` and does not rerun the schema-v2 six-platform release proof.
+
+The UAP facade publisher must consume an exact public tag and verify the release
+manifest version, source commit, six filenames, byte sizes, SHA-256 digests, and
+GitHub artifact attestations before publication. Publisher implementation and
+npm authority are intentionally outside this repository.
 
 Never publish an empty placeholder, reuse a tag, overwrite release assets, or
 resolve a binary through an unpinned GitHub `latest` release.
