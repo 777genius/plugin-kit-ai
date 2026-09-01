@@ -106,7 +106,7 @@ async function fixtureEvidence(root) {
   record.transcript[3].argv = ["agentplugins", "update", record.package.name, "--target", targets, "--format", "json"];
   record.transcript[4].argv = ["agentplugins", "repair", record.package.name, "--target", targets, "--format", "json"];
   record.transcript[5].argv = ["agentplugins", "remove", record.package.name, "--target", targets, "--format", "json"];
-  const recordFixture = path.join(__dirname, "fixtures/historical-evidence/agentplugins-client-e2e-2026-08-30.json");
+  const recordFixture = path.join(__dirname, "fixtures/historical-evidence/evidence/agentplugins-client-e2e-2026-08-30.json");
   assert.deepEqual(record, JSON.parse(await fsp.readFile(recordFixture, "utf8")));
   const recordBody = await fsp.readFile(recordFixture);
   const recordDigest = crypto.createHash("sha256").update(recordBody).digest("hex");

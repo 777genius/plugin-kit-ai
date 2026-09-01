@@ -147,7 +147,8 @@ jobs:
           stage_root="$RUNNER_TEMP/npm-stage"
           cp -a npm/universal-agent-plugins "$stage_root"
           node "$stage_root/scripts/stage-release.js" "$stage_root" "$RUNNER_TEMP/plugin-kit-release" \
-            "$VERSION" "$PLUGIN_KIT_COMMIT" --evidence-root "$GITHUB_WORKSPACE"
+            "$VERSION" "$PLUGIN_KIT_COMMIT" --evidence-root \
+            "$GITHUB_WORKSPACE/npm/universal-agent-plugins/test/fixtures/historical-evidence"
           test "$(node -p "require('$stage_root/assets.json').repository")" = 777genius/plugin-kit-ai
           npm --prefix "$stage_root" test
           mkdir "$RUNNER_TEMP/npm-tarball"

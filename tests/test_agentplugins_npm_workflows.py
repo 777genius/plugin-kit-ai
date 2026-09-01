@@ -75,6 +75,10 @@ class AgentpluginsNpmWorkflowContractTests(unittest.TestCase):
         self.assertIn('test "$PLUGIN_KIT_TAG" = "agentplugins-v$VERSION"', body)
         self.assertIn('test "$GITHUB_REF" = "refs/tags/$UAP_TAG"', body)
         self.assertIn('test "$GITHUB_SHA" = "$(git rev-parse HEAD)"', body)
+        self.assertIn(
+            '"$GITHUB_WORKSPACE/npm/universal-agent-plugins/test/fixtures/historical-evidence"',
+            body,
+        )
 
     def test_caller_and_reusable_proof_require_public_main_ancestry(self):
         for path in (PUBLISH, PROOF):
