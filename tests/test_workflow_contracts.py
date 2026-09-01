@@ -1855,6 +1855,8 @@ sys.modules['catalog_process_isolation']=module
                          'GITHUB_SHA="$GITHUB_SHA" GITHUB_RUN_ID="$GITHUB_RUN_ID"',
                          'if isinstance(package, list):', 'assert len(package) == 1',
                          'assert isinstance(package, dict)',
+                         'GITHUB_SHA="$GITHUB_SHA"', 'GITHUB_RUN_ID="$GITHUB_RUN_ID"',
+                         'GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT"',
                          'assert data["read_only"] is True', 'assert snapshot() == before',
                          'data["installation_count"] == 0', 'data["open_operation_count"] == 0'):
             self.assertIn(required, body)
