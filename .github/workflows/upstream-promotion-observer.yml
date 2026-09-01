@@ -33,7 +33,6 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: universal-agent-plugins
           permission-contents: write
-          permission-pull-requests: write
 
       - name: Capture non-secret publisher identity for environment bootstrap
         if: github.event_name == 'workflow_dispatch'
