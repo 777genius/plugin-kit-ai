@@ -1,0 +1,245 @@
+name: Upstream promotion observer
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: upstream-promotion-observer
+  cancel-in-progress: false
+
+env:
+  AGENTPLUGINS_VERSION: "0.1.26"
+  AGENTPLUGINS_NPM_INTEGRITY: sha512-7aPo4aoulltyx9zTbhJLxjCpQSvjKN0/YW/ATF6AUl2tnpWMwZf440SZbXfTGeuPRo0Ol2K5epNJFOguaPj7WQ==
+
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Create bounded publisher token
+        id: app-token
+        uses: actions/create-github-app-token@f3ff1f704f62d7c09a7a0c8a45af2d7c67689c17 # v2.2.1
+        with:
+          app-id: ${{ secrets.DIRECTORY_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.DIRECTORY_PUBLISHER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: universal-agent-plugins
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Check out trusted observer source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
+
+      - name: Install pinned validator dependencies
+        run: python3 -m pip install jsonschema==4.25.1 PyYAML==6.0.3
+
+      - name: Select one exact merged upstream package
+        id: selection
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          python3 scripts/upstream_promotion.py select \
+            --watch registry/upstream-promotions.json \
+            --directory registry/directory.json \
+            --gh "$(command -v gh)" > "$RUNNER_TEMP/selection.json"
+          python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json, os, re, sys
+          from pathlib import Path
+          value = json.loads(Path(os.environ["RUNNER_TEMP"], "selection.json").read_text())
+          decision = value.get("decision")
+          if decision not in {"none", "promote"}:
+              raise SystemExit("invalid selection decision")
+          rows = {"decision": decision}
+          if decision == "promote":
+              entry, metadata = value["entry"], value["pr_metadata"]
+              rows.update({
+                  "product_id": entry["product_id"], "repository": entry["repository"],
+                  "package_path": entry["package_path"], "targets": ",".join(item["client"] for item in entry["targets"]),
+                  "head_sha": entry["reviewed_head_sha"], "merge_sha": metadata["merge_commit_oid"],
+                  "default_branch": metadata["default_branch"], "pr_number": str(entry["upstream_pr_number"]),
+              })
+              for key, text in rows.items():
+                  if "\n" in text or "\r" in text:
+                      raise SystemExit(f"unsafe output: {key}")
+          with open(sys.argv[1], "a", encoding="utf-8") as output:
+              for key, text in rows.items():
+                  output.write(f"{key}={text}\n")
+          PY
+
+      - name: Refuse a duplicate automation branch
+        if: steps.selection.outputs.decision == 'promote'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PRODUCT_ID: ${{ steps.selection.outputs.product_id }}
+          MERGE_SHA: ${{ steps.selection.outputs.merge_sha }}
+        run: |
+          branch="automation/upstream-promotion-${PRODUCT_ID}-${MERGE_SHA:0:12}"
+          test "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state all --json number --jq length)" = 0
+          if git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null 2>&1; then
+            echo "refusing to reuse an existing automation branch" >&2
+            exit 1
+          fi
+
+      - name: Acquire official PR and default-branch history
+        if: steps.selection.outputs.decision == 'promote'
+        env:
+          REPOSITORY: ${{ steps.selection.outputs.repository }}
+          PACKAGE_PATH: ${{ steps.selection.outputs.package_path }}
+          PR_NUMBER: ${{ steps.selection.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.selection.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ steps.selection.outputs.default_branch }}
+        run: |
+          env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone \
+            --filter=blob:none --no-checkout --single-branch --branch "$DEFAULT_BRANCH" \
+            "https://github.com/${REPOSITORY}.git" "$RUNNER_TEMP/official"
+          env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -C "$RUNNER_TEMP/official" -c credential.helper= fetch --no-tags origin \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" \
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pull/${PR_NUMBER}/head"
+          test "$(git -C "$RUNNER_TEMP/official" rev-parse "refs/remotes/origin/pull/${PR_NUMBER}/head^{commit}")" = "$HEAD_SHA"
+          if test "$PACKAGE_PATH" != .; then
+            git -C "$RUNNER_TEMP/official" sparse-checkout init --no-cone
+            git -C "$RUNNER_TEMP/official" sparse-checkout set --no-cone "/${PACKAGE_PATH}/"
+          fi
+          git -C "$RUNNER_TEMP/official" checkout --detach "$HEAD_SHA"
+
+      - name: Install exact released Agent Plugins CLI
+        if: steps.selection.outputs.decision == 'promote'
+        run: |
+          tools="$RUNNER_TEMP/tools"
+          mkdir -p "$tools"/{home,cache,tmp}
+          test "$(npm view "universal-agent-plugins@${AGENTPLUGINS_VERSION}" dist.integrity)" = "$AGENTPLUGINS_NPM_INTEGRITY"
+          env HOME="$tools/home" TMPDIR="$tools/tmp" NPM_CONFIG_CACHE="$tools/cache" \
+            npm install --prefix "$tools" --no-audit --no-fund "universal-agent-plugins@${AGENTPLUGINS_VERSION}"
+          test "$("$tools/node_modules/.bin/agentplugins" version)" = "agentplugins ${AGENTPLUGINS_VERSION}"
+
+      - name: Prove isolated add, inspect, doctor, remove, and cleanup
+        if: steps.selection.outputs.decision == 'promote'
+        id: evidence
+        env:
+          PRODUCT_ID: ${{ steps.selection.outputs.product_id }}
+          REPOSITORY: ${{ steps.selection.outputs.repository }}
+          MERGE_SHA: ${{ steps.selection.outputs.merge_sha }}
+          PACKAGE_PATH: ${{ steps.selection.outputs.package_path }}
+          TARGETS: ${{ steps.selection.outputs.targets }}
+        run: |
+          evidence_path="evidence/upstream-promotions/${PRODUCT_ID}/${MERGE_SHA}/materialization.json"
+          python3 scripts/run_upstream_promotion_materialization.py \
+            --cli "$RUNNER_TEMP/tools/node_modules/.bin/agentplugins" \
+            --installer-version "$AGENTPLUGINS_VERSION" \
+            --product-id "$PRODUCT_ID" --repository "$REPOSITORY" \
+            --revision "$MERGE_SHA" --path "$PACKAGE_PATH" --targets "$TARGETS" \
+            --sandbox "$RUNNER_TEMP/materialization" --output "$evidence_path" \
+            --run-repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" --source-sha "$GITHUB_SHA"
+          echo "path=$evidence_path" >> "$GITHUB_OUTPUT"
+
+      - name: Commit immutable materialization evidence locally
+        if: steps.selection.outputs.decision == 'promote'
+        id: evidence-commit
+        env:
+          PRODUCT_ID: ${{ steps.selection.outputs.product_id }}
+          MERGE_SHA: ${{ steps.selection.outputs.merge_sha }}
+          EVIDENCE_PATH: ${{ steps.evidence.outputs.path }}
+        run: |
+          branch="automation/upstream-promotion-${PRODUCT_ID}-${MERGE_SHA:0:12}"
+          git switch -c "$branch"
+          git config user.name "universal-agent-plugins[bot]"
+          git config user.email "universal-agent-plugins[bot]@users.noreply.github.com"
+          git add -- "$EVIDENCE_PATH"
+          git commit -m "test(directory): record upstream promotion evidence"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable observer evidence
+        if: steps.selection.outputs.decision == 'promote'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upstream-promotion-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.evidence.outputs.path }}
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
+      - name: Build and validate the exact promotion
+        if: steps.selection.outputs.decision == 'promote'
+        env:
+          PRODUCT_ID: ${{ steps.selection.outputs.product_id }}
+          MERGE_SHA: ${{ steps.selection.outputs.merge_sha }}
+          PACKAGE_PATH: ${{ steps.selection.outputs.package_path }}
+          EVIDENCE_PATH: ${{ steps.evidence.outputs.path }}
+          EVIDENCE_COMMIT: ${{ steps.evidence-commit.outputs.sha }}
+        run: |
+          audit="registry/upstream-promotion-audit/${PRODUCT_ID}/${MERGE_SHA}"
+          mkdir -p "$audit"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          selection = json.loads(Path(os.environ["RUNNER_TEMP"], "selection.json").read_text())
+          Path(os.environ["RUNNER_TEMP"], "pr-metadata.json").write_text(
+              json.dumps(selection["pr_metadata"], sort_keys=True, separators=(",", ":")) + "\n"
+          )
+          PY
+          python3 scripts/upstream_promotion.py review-record \
+            --selection "$RUNNER_TEMP/selection.json" --materialization "$EVIDENCE_PATH" \
+            --artifact-revision "$EVIDENCE_COMMIT" --artifact-path "$EVIDENCE_PATH" \
+            --workflow-revision "$GITHUB_SHA" --output "$audit/review-record.json"
+          python3 scripts/validate_review_journey.py promotion \
+            --repository "$RUNNER_TEMP/official" --pr-metadata "$RUNNER_TEMP/pr-metadata.json" \
+            --path "$PACKAGE_PATH" --review-record "$audit/review-record.json" \
+            --candidate-output "$audit/promotion-candidate.json"
+          python3 scripts/upstream_promotion.py apply \
+            --candidate "$audit/promotion-candidate.json" \
+            --review-record "$audit/review-record.json" --directory registry/directory.json
+          python3 scripts/build_registry.py
+          python3 scripts/build_registry.py --check
+          python3 scripts/validate_catalog.py
+
+      - name: Commit, push, and open the protected promotion PR
+        if: steps.selection.outputs.decision == 'promote'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PRODUCT_ID: ${{ steps.selection.outputs.product_id }}
+          REPOSITORY: ${{ steps.selection.outputs.repository }}
+          PR_NUMBER: ${{ steps.selection.outputs.pr_number }}
+          MERGE_SHA: ${{ steps.selection.outputs.merge_sha }}
+          BRANCH: ${{ steps.evidence-commit.outputs.branch }}
+        run: |
+          git add -- registry/directory.json registry/review-preview.json registry/review-search.json \
+            "registry/upstream-promotion-audit/${PRODUCT_ID}/${MERGE_SHA}"
+          git commit -m "feat(directory): promote ${PRODUCT_ID} upstream"
+          test "$(git rev-list --count "${GITHUB_SHA}..HEAD")" = 2
+          git push origin "HEAD:refs/heads/$BRANCH"
+          body="$RUNNER_TEMP/promotion-pr.md"
+          python3 - "$body" <<'PY'
+          import os, sys
+          from pathlib import Path
+          Path(sys.argv[1]).write_text(
+              "<!-- upstream-promotion-automation:v1 -->\n\n"
+              f"Promotes `{os.environ['PRODUCT_ID']}` from the merged official package "
+              f"`{os.environ['REPOSITORY']}@{os.environ['MERGE_SHA']}`.\n\n"
+              f"Upstream PR: https://github.com/{os.environ['REPOSITORY']}/pull/{os.environ['PR_NUMBER']}\n\n"
+              f"Observer evidence: GitHub Actions run `{os.environ['GITHUB_RUN_ID']}` attempt `{os.environ['GITHUB_RUN_ATTEMPT']}`.\n\n"
+              "Existing bridge installations remain sticky; only new short-name resolutions use the reviewed upstream default.\n"
+          )
+          PY
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+            --title "feat(directory): promote ${PRODUCT_ID} upstream" --body-file "$body"

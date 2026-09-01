@@ -1,0 +1,91 @@
+name: Upstream promotion auto-merge
+
+on:
+  workflow_run:
+    workflows: [Upstream promotion policy]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-promotion-auto-merge-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  enable:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Find an exact promotion verdict
+        id: verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POLICY_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${POLICY_RUN_ID}/artifacts" > "$RUNNER_TEMP/artifacts.json"
+          python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json, os, re, sys
+          from pathlib import Path
+          values = json.loads(Path(os.environ["RUNNER_TEMP"], "artifacts.json").read_text()).get("artifacts", [])
+          matches = [item for item in values if re.fullmatch(r"upstream-promotion-verdict-[1-9][0-9]*-[0-9a-f]{40}", str(item.get("name", ""))) and item.get("expired") is False]
+          if not matches:
+              with open(sys.argv[1], "a", encoding="utf-8") as output:
+                  output.write("promotion=false\n")
+              raise SystemExit(0)
+          if len(matches) != 1:
+              raise SystemExit("policy run contains multiple promotion verdicts")
+          with open(sys.argv[1], "a", encoding="utf-8") as output:
+              output.write("promotion=true\n")
+              output.write(f"artifact={matches[0]['name']}\n")
+          PY
+
+      - name: Read the exact trusted verdict
+        id: current
+        if: steps.verdict.outputs.promotion == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POLICY_RUN_ID: ${{ github.event.workflow_run.id }}
+          ARTIFACT: ${{ steps.verdict.outputs.artifact }}
+        run: |
+          gh run download "$POLICY_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT" --dir "$RUNNER_TEMP/verdict"
+          python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json, os, re, sys
+          from pathlib import Path
+          files = [path for path in Path(os.environ["RUNNER_TEMP"], "verdict").rglob("*") if path.is_file()]
+          if len(files) != 1:
+              raise SystemExit("verdict artifact must contain exactly one file")
+          value = json.loads(files[0].read_text())
+          number, head = value.get("pr_number"), value.get("head_sha")
+          if type(number) is not int or number < 1 or not isinstance(head, str) or re.fullmatch(r"[0-9a-f]{40}", head) is None:
+              raise SystemExit("verdict PR identity is invalid")
+          with open(sys.argv[1], "a", encoding="utf-8") as output:
+              output.write(f"pr_number={number}\nhead_sha={head}\n")
+          PY
+
+      - name: Recheck current PR head and enable protected auto-merge
+        if: steps.verdict.outputs.promotion == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.current.outputs.pr_number }}
+          EXPECTED_HEAD: ${{ steps.current.outputs.head_sha }}
+        run: |
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json state,isDraft,headRefOid,headRefName,headRepository > "$RUNNER_TEMP/pr.json"
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          value = json.loads(Path(os.environ["RUNNER_TEMP"], "pr.json").read_text())
+          repository = (value.get("headRepository") or {}).get("nameWithOwner")
+          if not (
+              value.get("state") == "OPEN" and value.get("isDraft") is False
+              and value.get("headRefOid") == os.environ["EXPECTED_HEAD"]
+              and repository == os.environ["GITHUB_REPOSITORY"]
+              and re.fullmatch(r"automation/upstream-promotion-[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{12}", value.get("headRefName", ""))
+          ):
+              raise SystemExit("promotion PR changed after the trusted verdict")
+          PY
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash --delete-branch

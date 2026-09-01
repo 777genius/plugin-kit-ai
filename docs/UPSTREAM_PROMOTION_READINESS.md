@@ -1,5 +1,50 @@
 # Upstream promotion readiness
 
+## Protected automatic promotion
+
+`Upstream promotion observer` checks the reviewed upstream PR cohort every six
+hours and can also be started manually. It does not merge upstream PRs. When an
+upstream maintainer merges an exact watched head, the workflow:
+
+1. binds the public PR head, merge commit, current default branch, package path,
+   and official repository;
+2. installs the exact merge commit in disposable Codex, Cursor, and Kiro homes,
+   then runs add, info, doctor, remove, and cleanup;
+3. commits the sanitized materialization evidence separately;
+4. reproduces the existing readiness validator and opens a two-commit Directory
+   promotion PR without pushing to `main`;
+5. leaves existing bridge installations bound to their recorded distribution.
+
+`Upstream promotion policy` is an independent, read-only PR check. It runs only
+the validator from the trusted base revision, authenticates the original
+observer run and uploaded evidence, rechecks the official merged PR, restricts
+the changed paths, and reproduces the Directory projections. A successful
+verdict lets `Upstream promotion auto-merge` enable GitHub's protected squash
+auto-merge. Main rules, required checks, unresolved conversations, and strict
+up-to-date checks still apply. No workflow uses an admin merge bypass.
+
+If the upstream PR head changes, the observer records `reviewed_head_changed`
+and does nothing until the watch entry and exact-head evidence are reviewed
+again. Existing or partially created automation branches are never reused.
+
+The reviewed cohort lives in `registry/upstream-promotions.json`. It currently
+watches Chrome DevTools, Cloudflare Docs, and GitHub MCP Server. The root package
+path `.` is supported explicitly for repositories such as Chrome DevTools; it
+does not weaken traversal or ambiguous-path rejection.
+
+Chrome DevTools is currently `observe_only`: its official manifest launches
+live `npx` without the content-addressed runtime closure required by Directory
+eligibility. Its merge is still observed, but it cannot block automatic
+promotion of the other entries and cannot silently weaken runtime policy. The
+reviewed bridge remains the short-name default until that package boundary is
+closed or a separately reviewed policy replaces this restriction.
+
+The feature requires repository auto-merge to be enabled and the
+`upstream-promotion-policy` check to be required on `main`. Those repository
+settings are configured once after this workflow lands.
+
+## Manual readiness tool
+
 The manual `Upstream promotion readiness` workflow produces review input; it
 does not publish, edit the Directory, open a pull request, or merge one. Its
 only permission is `contents: read`. Its artifact contains bounded PR metadata,

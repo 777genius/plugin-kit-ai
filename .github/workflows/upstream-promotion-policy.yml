@@ -1,0 +1,181 @@
+name: Upstream promotion policy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: upstream-promotion-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: upstream-promotion-policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Classify the pull request
+        id: classify
+        env:
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          python3 - "$GITHUB_OUTPUT" <<'PY'
+          import os, re, sys
+          branch = os.environ["HEAD_BRANCH"]
+          internal = os.environ["HEAD_REPOSITORY"] == os.environ["GITHUB_REPOSITORY"]
+          named = re.fullmatch(r"automation/upstream-promotion-[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{12}", branch) is not None
+          promotion = internal and named
+          if named and not promotion:
+              raise SystemExit("automated promotion must use an internal reserved branch")
+          with open(sys.argv[1], "a", encoding="utf-8") as output:
+              output.write(f"promotion={'true' if promotion else 'false'}\n")
+          PY
+
+      - name: Check out trusted base validators
+        if: steps.classify.outputs.promotion == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted
+          persist-credentials: false
+
+      - name: Check out candidate bytes as untrusted data
+        if: steps.classify.outputs.promotion == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: steps.classify.outputs.promotion == 'true'
+        with:
+          python-version: "3.13"
+
+      - name: Install pinned trusted validator dependencies
+        if: steps.classify.outputs.promotion == 'true'
+        run: python3 -m pip install jsonschema==4.25.1 PyYAML==6.0.3
+
+      - name: Verify exact two-commit promotion and deterministic Directory projection
+        if: steps.classify.outputs.promotion == 'true'
+        id: verify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          python3 trusted/scripts/upstream_promotion.py verify-pr \
+            --repository candidate --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" \
+            --branch "$HEAD_BRANCH" > "$RUNNER_TEMP/verdict.json"
+          python3 - "$GITHUB_OUTPUT" <<'PY'
+          import json, os, re, sys
+          from pathlib import Path
+          path = Path(os.environ["RUNNER_TEMP"], "verdict.json")
+          value = json.loads(path.read_text())
+          if value.get("outcome") != "verified" or value.get("head_sha") != os.environ["HEAD_SHA"]:
+              raise SystemExit("trusted verifier did not bind the current PR head")
+          value["pr_number"] = int(os.environ["PR_NUMBER"])
+          path.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n")
+          outputs = {
+              "run_id": str(value["observer_run_id"]), "run_attempt": str(value["observer_run_attempt"]),
+              "source_sha": value["observer_source_sha"], "materialization_path": value["materialization_path"],
+              "materialization_digest": value["materialization_digest"], "upstream_repository": value["upstream_repository"],
+              "upstream_pr_number": str(value["upstream_pr_number"]), "upstream_reviewed_head": value["upstream_reviewed_head"],
+              "upstream_merge_sha": value["upstream_merge_sha"],
+          }
+          for key in ("run_id", "run_attempt", "upstream_pr_number"):
+              if re.fullmatch(r"[1-9][0-9]*", outputs[key]) is None:
+                  raise SystemExit(f"invalid numeric verifier output: {key}")
+          for key, text in outputs.items():
+              if "\n" in text or "\r" in text:
+                  raise SystemExit(f"unsafe verifier output: {key}")
+          with open(sys.argv[1], "a", encoding="utf-8") as output:
+              for key, text in outputs.items():
+                  output.write(f"{key}={text}\n")
+          PY
+
+      - name: Recheck official merged PR identity
+        if: steps.classify.outputs.promotion == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_REPOSITORY: ${{ steps.verify.outputs.upstream_repository }}
+          UPSTREAM_PR_NUMBER: ${{ steps.verify.outputs.upstream_pr_number }}
+          REVIEWED_HEAD: ${{ steps.verify.outputs.upstream_reviewed_head }}
+          MERGE_SHA: ${{ steps.verify.outputs.upstream_merge_sha }}
+        run: |
+          gh pr view "$UPSTREAM_PR_NUMBER" --repo "$UPSTREAM_REPOSITORY" \
+            --json state,isDraft,headRefOid,mergeCommit,url > "$RUNNER_TEMP/upstream-pr.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          value = json.loads(Path(os.environ["RUNNER_TEMP"], "upstream-pr.json").read_text())
+          merge = value.get("mergeCommit") or {}
+          expected_url = f"https://github.com/{os.environ['UPSTREAM_REPOSITORY']}/pull/{os.environ['UPSTREAM_PR_NUMBER']}"
+          if not (
+              value.get("state") == "MERGED" and value.get("isDraft") is False
+              and value.get("headRefOid") == os.environ["REVIEWED_HEAD"]
+              and merge.get("oid") == os.environ["MERGE_SHA"] and value.get("url") == expected_url
+          ):
+              raise SystemExit("official PR identity changed or is not the exact reviewed merge")
+          PY
+
+      - name: Authenticate the observer run and immutable uploaded evidence
+        if: steps.classify.outputs.promotion == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.verify.outputs.run_id }}
+          RUN_ATTEMPT: ${{ steps.verify.outputs.run_attempt }}
+          SOURCE_SHA: ${{ steps.verify.outputs.source_sha }}
+          EXPECTED_DIGEST: ${{ steps.verify.outputs.materialization_digest }}
+        run: |
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json workflowName,event,headBranch,headSha,status,conclusion > "$RUNNER_TEMP/observer-run.json"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/artifacts" > "$RUNNER_TEMP/observer-artifacts.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          run = json.loads(Path(os.environ["RUNNER_TEMP"], "observer-run.json").read_text())
+          if not (
+              run.get("workflowName") == "Upstream promotion observer"
+              and run.get("event") in {"schedule", "workflow_dispatch"}
+              and run.get("headBranch") == "main" and run.get("headSha") == os.environ["SOURCE_SHA"]
+              and (run.get("status") == "in_progress" or (run.get("status") == "completed" and run.get("conclusion") == "success"))
+          ):
+              raise SystemExit("observer run identity is not trusted")
+          artifacts = json.loads(Path(os.environ["RUNNER_TEMP"], "observer-artifacts.json").read_text()).get("artifacts", [])
+          expected = f"upstream-promotion-evidence-{os.environ['RUN_ID']}-{os.environ['RUN_ATTEMPT']}"
+          matches = [item for item in artifacts if item.get("name") == expected and item.get("expired") is False]
+          if len(matches) != 1:
+              raise SystemExit("exact observer evidence artifact is unavailable")
+          Path(os.environ["RUNNER_TEMP"], "artifact-name.txt").write_text(expected)
+          PY
+          artifact_name=$(cat "$RUNNER_TEMP/artifact-name.txt")
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir "$RUNNER_TEMP/uploaded-evidence"
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          files = [path for path in Path(os.environ["RUNNER_TEMP"], "uploaded-evidence").rglob("*") if path.is_file()]
+          if len(files) != 1:
+              raise SystemExit("observer artifact must contain exactly one evidence file")
+          digest = "sha256:" + hashlib.sha256(files[0].read_bytes()).hexdigest()
+          if digest != os.environ["EXPECTED_DIGEST"]:
+              raise SystemExit("uploaded observer evidence differs from the promotion commit")
+          PY
+
+      - name: Upload exact auto-merge verdict
+        if: steps.classify.outputs.promotion == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upstream-promotion-verdict-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/verdict.json
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: false

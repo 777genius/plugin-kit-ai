@@ -278,8 +278,9 @@ def acquire_external(repository: str, revision: str, package_path: str, override
 
     try:
         git("init", "--quiet", str(checkout))
-        git("-C", str(checkout), "sparse-checkout", "init", "--no-cone")
-        git("-C", str(checkout), "sparse-checkout", "set", "--no-cone", f"/{package_path}/")
+        if package_path != ".":
+            git("-C", str(checkout), "sparse-checkout", "init", "--no-cone")
+            git("-C", str(checkout), "sparse-checkout", "set", "--no-cone", f"/{package_path}/")
         git(
             "-C", str(checkout), "-c", "protocol.file.allow=always", "fetch", "--quiet",
             "--no-tags", "--no-recurse-submodules", "--depth=1", "--filter=blob:none", source, revision,
@@ -291,9 +292,17 @@ def acquire_external(repository: str, revision: str, package_path: str, override
         for entry in entries:
             if not entry:
                 continue
-            metadata = entry.split(b"\t", 1)[0].split()
-            require(metadata[:2] != [b"160000", b"commit"], f"{repository}@{revision}//{package_path}: Git submodule content is unsupported")
-        kind = git("-C", str(checkout), "cat-file", "-t", f"FETCH_HEAD:{package_path}", text=True).stdout.strip()
+            metadata, raw_path = entry.split(b"\t", 1)
+            if metadata.split()[:2] == [b"160000", b"commit"]:
+                path = raw_path.decode("utf-8", "strict")
+                relative = path if package_path == "." else path.removeprefix(package_path.rstrip("/") + "/")
+                component_owned = relative in {"plugin.json", "mcp.json", "skills"} or relative.startswith("skills/")
+                require(
+                    package_path == "." and not component_owned,
+                    f"{repository}@{revision}//{package_path}: Git submodule content is unsupported",
+                )
+        package_object = "FETCH_HEAD^{tree}" if package_path == "." else f"FETCH_HEAD:{package_path}"
+        kind = git("-C", str(checkout), "cat-file", "-t", package_object, text=True).stdout.strip()
         require(kind == "tree", f"{repository}@{revision}//{package_path}: package path is unavailable")
         git("-C", str(checkout), "checkout", "--quiet", "--detach", "--no-recurse-submodules", "FETCH_HEAD")
         inspect_plugin_root(checkout / package_path, f"{repository}@{revision}//{package_path}")

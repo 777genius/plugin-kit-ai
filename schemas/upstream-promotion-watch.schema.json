@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-plugins.org/schemas/upstream-promotion-watch.schema.json",
+  "title": "Reviewed upstream promotion watch list",
+  "type": "object",
+  "required": ["schema_version", "entries"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "entries": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "target": {
+      "type": "object",
+      "required": ["client", "scopes", "delivery", "authentication"],
+      "properties": {
+        "client": {"enum": ["codex", "cursor", "kiro"]},
+        "scopes": {"const": ["user"]},
+        "delivery": {"const": "managed"},
+        "authentication": {"enum": ["not_required", "required", "unknown"]}
+      },
+      "additionalProperties": false
+    },
+    "entry": {
+      "type": "object",
+      "required": [
+        "product_id", "repository", "upstream_pr_number", "package_path",
+        "reviewed_head_sha", "distribution_id", "release_sequence",
+        "minimum_installer_version", "targets", "promotion_mode"
+      ],
+      "properties": {
+        "product_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "upstream_pr_number": {"type": "integer", "minimum": 1},
+        "package_path": {"type": "string", "pattern": "^(?:\\.|(?!/)(?!.*(?:^|/)\\.\\.?/)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)$"},
+        "reviewed_head_sha": {"$ref": "#/$defs/sha"},
+        "distribution_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "release_sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "minimum_installer_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "targets": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"$ref": "#/$defs/target"}},
+        "promotion_mode": {"enum": ["automatic", "observe_only"]},
+        "block_reason": {"type": "string", "minLength": 1, "maxLength": 240}
+      },
+      "additionalProperties": false,
+      "allOf": [{
+        "if": {"properties": {"promotion_mode": {"const": "observe_only"}}, "required": ["promotion_mode"]},
+        "then": {"required": ["block_reason"]},
+        "else": {"not": {"required": ["block_reason"]}}
+      }]
+    }
+  },
+  "additionalProperties": false
+}

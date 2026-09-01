@@ -70,7 +70,7 @@ def validate_url(value: object, field: str) -> None:
     require(parsed.scheme == "https" or loopback, f"{field}: non-loopback URL must use HTTPS")
 
 
-def validate_plugin_manifest(plugin_root: Path) -> dict[str, object]:
+def validate_plugin_manifest(plugin_root: Path, *, require_directory_name: bool = True) -> dict[str, object]:
     path = plugin_root / "plugin.json"
     require(path.is_file(), f"{plugin_root}: missing plugin.json")
     manifest = load_json(path)
@@ -80,7 +80,8 @@ def validate_plugin_manifest(plugin_root: Path) -> dict[str, object]:
     name = manifest.get("name")
     require(isinstance(name, str) and 1 <= len(name) <= 64, f"{path}: invalid name length")
     require(bool(PLUGIN_NAME.fullmatch(name)), f"{path}: invalid plugin name {name!r}")
-    require(name == plugin_root.name, f"{path}: name must match package directory")
+    if require_directory_name:
+        require(name == plugin_root.name, f"{path}: name must match package directory")
     version = manifest.get("version")
     require(isinstance(version, str) and bool(SEMVER.fullmatch(version)), f"{path}: catalog requires SemVer")
     require(isinstance(manifest.get("description"), str) and manifest["description"], f"{path}: description required")
@@ -230,7 +231,7 @@ def validate_skills(plugin_root: Path) -> int:
     return count
 
 
-def validate_plugin(plugin_root: Path) -> tuple[int, int]:
+def validate_plugin(plugin_root: Path, *, require_directory_name: bool = True) -> tuple[int, int]:
     require(not plugin_root.is_symlink(), f"{plugin_root}: plugin root cannot be a symlink")
     try:
         validate_tree(plugin_root)
@@ -238,7 +239,7 @@ def validate_plugin(plugin_root: Path) -> tuple[int, int]:
         raise ValidationError(f"{plugin_root}: {exc}") from exc
     for path in plugin_root.rglob("*"):
         require(not path.is_symlink(), f"{path}: symlinks are forbidden in portable packages")
-    validate_plugin_manifest(plugin_root)
+    validate_plugin_manifest(plugin_root, require_directory_name=require_directory_name)
     require((plugin_root / "README.md").is_file(), f"{plugin_root}: package README required")
     forbidden = [plugin_root / ".mcp.json", plugin_root / ".codex-plugin"]
     require(not any(path.exists() for path in forbidden), f"{plugin_root}: client-specific files are forbidden in portable core")

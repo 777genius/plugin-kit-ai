@@ -518,7 +518,7 @@ def validate_schema(document: object, document_path: Path, schema_name: str) -> 
         raise RegistryError(f"{document_path}: Agent Plugins 1.0 schema error at {location}: {error.message}")
 
 
-def validated_package_facts(root: Path) -> dict[str, object]:
+def validated_package_facts(root: Path, *, require_directory_name: bool = True) -> dict[str, object]:
     """Validate package data without executing it and return manifest-derived facts."""
     # json.load silently accepts duplicate object keys. Parse every submitted
     # JSON file with the registry's fail-closed reader before schema validation.
@@ -532,14 +532,15 @@ def validated_package_facts(root: Path) -> dict[str, object]:
         validate_schema(read_object(mcp_path), mcp_path, "mcp")
     try:
         if "version" in manifest:
-            mcp_count, skill_count = validate_plugin(root)
+            mcp_count, skill_count = validate_plugin(root, require_directory_name=require_directory_name)
         else:
             # Agent Plugins 1.0 permits an absent version. Reuse the catalog's
             # component validators while retaining its portable package boundary.
             require(not root.is_symlink(), f"{root}: plugin root cannot be a symlink")
             from portable_paths import validate_tree
             validate_tree(root)
-            require(manifest["name"] == root.name, f"{manifest_path}: name must match package directory")
+            if require_directory_name:
+                require(manifest["name"] == root.name, f"{manifest_path}: name must match package directory")
             require(
                 isinstance(manifest.get("description"), str) and bool(manifest["description"]),
                 f"{manifest_path}: description required",
@@ -1384,7 +1385,7 @@ def validate_release_package(
         and digest_bytes(manifest_path.read_bytes()) == release["manifest_digest"],
         f"{identity}: reacquired manifest digest differs from submitted metadata",
     )
-    facts = validated_package_facts(package_root)
+    facts = validated_package_facts(package_root, require_directory_name=package_path != ".")
     manifest = read_object(manifest_path)
     require(
         canonical_manifest_repository(manifest.get("repository")) == source_repository,

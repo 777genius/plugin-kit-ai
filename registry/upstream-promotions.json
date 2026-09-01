@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "product_id": "chrome-devtools",
+      "repository": "ChromeDevTools/chrome-devtools-mcp",
+      "upstream_pr_number": 2623,
+      "package_path": ".",
+      "reviewed_head_sha": "59380dd5c1af79973081d7b594262e86e24eb0b3",
+      "distribution_id": "chromedevtools/chrome-devtools",
+      "release_sequence": 1,
+      "minimum_installer_version": "0.1.26",
+      "promotion_mode": "observe_only",
+      "block_reason": "The official package uses live npx without a content-addressed runtime closure.",
+      "targets": [
+        {"client": "codex", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"},
+        {"client": "cursor", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"},
+        {"client": "kiro", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"}
+      ]
+    },
+    {
+      "product_id": "cloudflare-docs",
+      "repository": "cloudflare/mcp-server-cloudflare",
+      "upstream_pr_number": 465,
+      "package_path": "apps/docs-ai-search/agent-plugin",
+      "reviewed_head_sha": "3897acdb389b453205c559e2b79acc8bd5909bfa",
+      "distribution_id": "cloudflare/cloudflare-docs",
+      "release_sequence": 1,
+      "minimum_installer_version": "0.1.26",
+      "promotion_mode": "automatic",
+      "targets": [
+        {"client": "codex", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"},
+        {"client": "cursor", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"},
+        {"client": "kiro", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"}
+      ]
+    },
+    {
+      "product_id": "github",
+      "repository": "github/github-mcp-server",
+      "upstream_pr_number": 3169,
+      "package_path": "agent-plugin",
+      "reviewed_head_sha": "14092de9940741511d224e0d7071ac02910bda11",
+      "distribution_id": "github/github",
+      "release_sequence": 1,
+      "minimum_installer_version": "0.1.26",
+      "promotion_mode": "automatic",
+      "targets": [
+        {"client": "codex", "scopes": ["user"], "delivery": "managed", "authentication": "required"},
+        {"client": "cursor", "scopes": ["user"], "delivery": "managed", "authentication": "required"},
+        {"client": "kiro", "scopes": ["user"], "delivery": "managed", "authentication": "required"}
+      ]
+    }
+  ]
+}

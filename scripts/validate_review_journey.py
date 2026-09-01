@@ -173,7 +173,8 @@ def official_default_history(repository: Path, reference: str, candidate: str) -
 
 
 def git_tree(repository: Path, revision: str, source: str) -> str | None:
-    result = git(repository, "rev-parse", f"{revision}:{source}", allow_failure=True)
+    object_name = f"{revision}^{{tree}}" if source == "." else f"{revision}:{source}"
+    result = git(repository, "rev-parse", object_name, allow_failure=True)
     if result.returncode:
         return None
     value = result.stdout.decode().strip()
@@ -204,7 +205,7 @@ def classify_candidate_bytes(repository: Path, reviewed_revision: str, candidate
 def materialize(repository: Path, revision: str, source: str, destination: Path) -> None:
     safe_git_path(source)
     records = git(repository, "ls-tree", "-rz", "-r", revision, "--", source).stdout.split(b"\0")
-    prefix = source.rstrip("/") + "/"
+    prefix = "" if source == "." else source.rstrip("/") + "/"
     entries: list[tuple[str, str, str, int]] = []
     total_bytes = 0
     for record in records:
@@ -235,10 +236,10 @@ def materialize(repository: Path, revision: str, source: str, destination: Path)
         target.chmod(0o755 if mode == "100755" else 0o644)
 
 
-def package_facts(package: Path) -> dict[str, Any]:
+def package_facts(package: Path, *, require_directory_name: bool = True) -> dict[str, Any]:
     manifest_body = (package / "plugin.json").read_bytes()
     manifest = json.loads(manifest_body)
-    validated = validated_package_facts(package)
+    validated = validated_package_facts(package, require_directory_name=require_directory_name)
     return {
         "manifest_name": manifest["name"], "package_version": manifest.get("version", ""),
         "agent_plugins_schema": manifest["$schema"],
@@ -347,19 +348,19 @@ def promotion(args: argparse.Namespace) -> dict[str, Any]:
         gate("default_history", {"reference": default_ref, "tip_revision": default_tip, "candidate_revision": candidate_revision}),
     ]
     with tempfile.TemporaryDirectory(prefix="promotion-review-") as reviewed_tmp, tempfile.TemporaryDirectory(prefix="promotion-candidate-") as candidate_tmp:
-        package_name = PurePosixPath(args.path).name
+        package_name = record["manifest_name"] if args.path == "." else PurePosixPath(args.path).name
         reviewed_root, candidate_root = Path(reviewed_tmp) / package_name, Path(candidate_tmp) / package_name
         reviewed_root.mkdir()
         candidate_root.mkdir()
         materialize(args.repository, reviewed_revision, args.path, reviewed_root)
-        reviewed = package_facts(reviewed_root)
+        reviewed = package_facts(reviewed_root, require_directory_name=args.path != ".")
         require(reviewed["tree_digest"] == record["reviewed_tree_digest"], "reviewed package tree digest differs from the review record")
         require(reviewed["manifest_digest"] == record["reviewed_manifest_digest"], "reviewed manifest digest differs from the review record")
         require(reviewed["manifest_name"] == record["manifest_name"], "reviewed manifest name differs from the Directory product manifest name")
         require(reviewed["manifest_repository"] is not None and reviewed["manifest_repository"].casefold() == repository_id.casefold(), "reviewed manifest repository differs from the official repository")
         gates.append(gate("reviewed_identity", {"revision": reviewed_revision, **reviewed}))
         materialize(args.repository, candidate_revision, args.path, candidate_root)
-        candidate = package_facts(candidate_root)
+        candidate = package_facts(candidate_root, require_directory_name=args.path != ".")
         require(candidate["manifest_name"] == record["manifest_name"], "candidate manifest name differs from the Directory product manifest name")
         require(candidate["manifest_repository"] is not None and candidate["manifest_repository"].casefold() == repository_id.casefold(), "candidate manifest repository differs from the official repository")
         require(set(enforced_components).issubset(candidate["components"]), "candidate is missing product minimum capabilities")

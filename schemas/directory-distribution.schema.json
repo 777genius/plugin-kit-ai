@@ -26,7 +26,7 @@
       "properties": {
         "repository": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"},
         "revision": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}$"},
-        "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?/)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"}
+        "path": {"type": "string", "pattern": "^(?:\\.|(?!/)(?!.*(?:^|/)\\.\\.?/)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)$"}
       },
       "additionalProperties": false
     },
