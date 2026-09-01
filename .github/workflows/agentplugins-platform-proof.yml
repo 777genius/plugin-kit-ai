@@ -142,6 +142,8 @@ jobs:
           set -euo pipefail
           proof_root="$RUNNER_TEMP/public-npm-acquisition"
           mkdir -p "$proof_root"/{home,cache,tmp,tarball}
+          npm install --global npm@12.0.2
+          test "$(npm --version)" = 12.0.2
           metadata_ready=false
           for delay in 0 10 20 40 80 160; do
             sleep "$delay"
@@ -190,15 +192,24 @@ jobs:
             NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
             npm install --prefix "$proof_root/audit" --ignore-scripts --no-audit --no-fund \
               --save-exact "universal-agent-plugins@$VERSION"
-          env -i PATH="$PATH" HOME="$proof_root/home" USERPROFILE="$proof_root/home" \
-            XDG_CONFIG_HOME="$proof_root/config" XDG_CACHE_HOME="$proof_root/xdg-cache" \
-            TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
-            NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
-            NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
-            npm audit signatures --prefix "$proof_root/audit" --json --include-attestations \
-              > "$proof_root/audit.json"
-          node npm/universal-agent-plugins/scripts/npm-public-contract.js audit \
-            "$proof_root/audit.json" "$proof_root/attestations.json" "$VERSION"
+          audit_ready=false
+          for delay in 0 10 20 40 80 160; do
+            sleep "$delay"
+            if env -i PATH="$PATH" HOME="$proof_root/home" USERPROFILE="$proof_root/home" \
+                XDG_CONFIG_HOME="$proof_root/config" XDG_CACHE_HOME="$proof_root/xdg-cache" \
+                TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
+                NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
+                NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
+                npm audit signatures --prefix "$proof_root/audit" --json --include-attestations \
+                  > "$proof_root/audit.json" && \
+              node npm/universal-agent-plugins/scripts/npm-public-contract.js audit \
+                "$proof_root/audit.json" "$proof_root/attestations.json" "$VERSION"; then
+              audit_ready=true
+              break
+            fi
+            rm -f "$proof_root/audit.json"
+          done
+          test "$audit_ready" = true
       - name: Run native launcher, binary, catalog, and lifecycle proof
         shell: bash
         env:
