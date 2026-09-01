@@ -154,7 +154,13 @@ func TestWindsurfSkillsOnlyAndDevinOnlyRemainManual(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome.Activation != domain.ActivationManual || len(outcome.UserActions) == 0 || !strings.Contains(strings.Join(outcome.LocalActions, " "), "never changed automatically") {
+	userActions := strings.Join(outcome.UserActions, " ")
+	localActions := strings.Join(outcome.LocalActions, " ")
+	if outcome.Activation != domain.ActivationManual ||
+		!strings.Contains(userActions, "does not claim automatic skill activation") ||
+		strings.Contains(userActions, "MCP") ||
+		!strings.Contains(localActions, filepath.Join(request.Delivery.ActivePath, "skills")) ||
+		!strings.Contains(localActions, "never changed automatically") {
 		t.Fatalf("Devin-only activation = %+v", outcome)
 	}
 }
