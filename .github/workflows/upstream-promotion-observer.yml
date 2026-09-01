@@ -25,7 +25,7 @@ jobs:
     steps:
       - name: Create bounded publisher token
         id: app-token
-        uses: actions/create-github-app-token@f3ff1f704f62d7c09a7a0c8a45af2d7c67689c17 # v2.2.1
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.DIRECTORY_PUBLISHER_APP_ID }}
           private-key: ${{ secrets.DIRECTORY_PUBLISHER_APP_PRIVATE_KEY }}

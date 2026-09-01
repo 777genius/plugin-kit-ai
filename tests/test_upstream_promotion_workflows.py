@@ -21,7 +21,7 @@ class UpstreamPromotionWorkflowTests(unittest.TestCase):
         self.assertEqual(value["concurrency"]["cancel-in-progress"], "false")
         self.assertEqual(value["permissions"], {"actions": "read", "contents": "read", "pull-requests": "read"})
         body = OBSERVER.read_text()
-        self.assertIn("actions/create-github-app-token@f3ff1f704f62d7c09a7a0c8a45af2d7c67689c17", body)
+        self.assertIn("actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1", body)
         self.assertIn("scripts/run_upstream_promotion_materialization.py", body)
         self.assertIn("scripts/validate_review_journey.py promotion", body)
         self.assertIn('git push origin "HEAD:refs/heads/$BRANCH"', body)
