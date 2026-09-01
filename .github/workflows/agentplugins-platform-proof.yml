@@ -1,0 +1,221 @@
+name: Agentplugins six-platform proof
+
+on:
+  workflow_call:
+    inputs:
+      uap_tag:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      plugin_kit_tag:
+        type: string
+        required: true
+      plugin_kit_commit:
+        type: string
+        required: true
+      package_source:
+        type: string
+        required: true
+      tarball_artifact:
+        type: string
+        required: false
+        default: ""
+      release_artifact:
+        type: string
+        required: false
+        default: ""
+      expected_integrity:
+        type: string
+        required: true
+      expected_shasum:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      uap_tag:
+        description: Exact stable UAP tag (vX.Y.Z)
+        type: string
+        required: true
+      version:
+        description: Exact stable npm version (X.Y.Z)
+        type: string
+        required: true
+      plugin_kit_tag:
+        description: Exact public plugin-kit-ai tag (agentplugins-vX.Y.Z)
+        type: string
+        required: true
+      plugin_kit_commit:
+        description: Exact lowercase plugin-kit-ai source commit
+        type: string
+        required: true
+      expected_integrity:
+        description: Exact staged npm pack SHA-512 integrity
+        type: string
+        required: true
+      expected_shasum:
+        description: Exact staged npm pack lowercase SHA-1 shasum
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  native-proof:
+    name: ${{ matrix.target }} / ${{ inputs.package_source || 'public_npm' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-amd64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-15
+          - target: linux-amd64
+            runner: ubuntu-24.04
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: windows-amd64
+            runner: windows-2025
+          - target: windows-arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.uap_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+      - name: Validate exact release inputs and checked-out UAP tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UAP_TAG: ${{ inputs.uap_tag }}
+          VERSION: ${{ inputs.version }}
+          PLUGIN_KIT_TAG: ${{ inputs.plugin_kit_tag }}
+          PLUGIN_KIT_COMMIT: ${{ inputs.plugin_kit_commit }}
+          PACKAGE_SOURCE: ${{ inputs.package_source || 'public_npm' }}
+          EXPECTED_INTEGRITY: ${{ inputs.expected_integrity }}
+          EXPECTED_SHASUM: ${{ inputs.expected_shasum }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$UAP_TAG" = "v$VERSION"
+          test "$PLUGIN_KIT_TAG" = "agentplugins-v$VERSION"
+          [[ "$PLUGIN_KIT_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          case "$PACKAGE_SOURCE" in staged_artifact|public_npm) ;; *) exit 1;; esac
+          test "$GITHUB_REF" = "refs/tags/$UAP_TAG"
+          test "$(git rev-parse "refs/tags/$UAP_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test "$GITHUB_REPOSITORY" = "777genius/universal-agent-plugins"
+          test "$(gh api repos/777genius/universal-agent-plugins --jq .default_branch)" = main
+          git fetch --no-tags --force https://github.com/777genius/universal-agent-plugins.git \
+            refs/heads/main:refs/remotes/public/main
+          git merge-base --is-ancestor HEAD refs/remotes/public/main
+          [[ "$EXPECTED_INTEGRITY" =~ ^sha512-[A-Za-z0-9+/]{86}==$ ]]
+          [[ "$EXPECTED_SHASUM" =~ ^[0-9a-f]{40}$ ]]
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: ${{ inputs.package_source == 'staged_artifact' }}
+        with:
+          name: ${{ inputs.tarball_artifact }}
+          path: ${{ runner.temp }}/npm-tarball
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: ${{ inputs.package_source == 'staged_artifact' }}
+        with:
+          name: ${{ inputs.release_artifact }}
+          path: ${{ runner.temp }}/plugin-kit-release
+      - name: Validate exact public npm identity and provenance anonymously
+        if: ${{ inputs.package_source != 'staged_artifact' }}
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_INTEGRITY: ${{ inputs.expected_integrity }}
+          EXPECTED_SHASUM: ${{ inputs.expected_shasum }}
+          UAP_TAG: ${{ inputs.uap_tag }}
+        run: |
+          set -euo pipefail
+          proof_root="$RUNNER_TEMP/public-npm-acquisition"
+          mkdir -p "$proof_root"/{home,cache,tmp,tarball}
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+            "https://registry.npmjs.org/universal-agent-plugins/$VERSION" \
+            > "$proof_root/metadata.json"
+          node npm/universal-agent-plugins/scripts/npm-public-contract.js metadata \
+            "$proof_root/metadata.json" "$VERSION" "$EXPECTED_INTEGRITY" "$EXPECTED_SHASUM"
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+            "https://registry.npmjs.org/-/npm/v1/attestations/universal-agent-plugins@$VERSION" \
+            > "$proof_root/attestations.json"
+          node npm/universal-agent-plugins/scripts/npm-public-contract.js attestation \
+            "$proof_root/attestations.json" "$VERSION" "$EXPECTED_INTEGRITY" \
+            "$UAP_TAG" "$GITHUB_SHA"
+          env -i PATH="$PATH" HOME="$proof_root/home" USERPROFILE="$proof_root/home" \
+            XDG_CONFIG_HOME="$proof_root/config" XDG_CACHE_HOME="$proof_root/xdg-cache" \
+            TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
+            NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
+            NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
+            npm pack "universal-agent-plugins@$VERSION" --ignore-scripts --json \
+              --pack-destination "$proof_root/tarball" > "$proof_root/pack.json"
+          test "$(find "$proof_root/tarball" -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')" = 1
+          node npm/universal-agent-plugins/scripts/npm-public-contract.js download \
+            "$proof_root/pack.json" "$proof_root/tarball" "$VERSION" \
+            "$EXPECTED_INTEGRITY" "$EXPECTED_SHASUM"
+          mkdir "$proof_root/audit"
+          env -i PATH="$PATH" HOME="$proof_root/home" USERPROFILE="$proof_root/home" \
+            XDG_CONFIG_HOME="$proof_root/config" XDG_CACHE_HOME="$proof_root/xdg-cache" \
+            TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
+            NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
+            NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
+            npm install --prefix "$proof_root/audit" --ignore-scripts --no-audit --no-fund \
+              --save-exact "universal-agent-plugins@$VERSION"
+          env -i PATH="$PATH" HOME="$proof_root/home" USERPROFILE="$proof_root/home" \
+            XDG_CONFIG_HOME="$proof_root/config" XDG_CACHE_HOME="$proof_root/xdg-cache" \
+            TMPDIR="$proof_root/tmp" TEMP="$proof_root/tmp" TMP="$proof_root/tmp" \
+            NPM_CONFIG_CACHE="$proof_root/cache" NPM_CONFIG_USERCONFIG="$proof_root/home/.npmrc" \
+            NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
+            npm audit signatures --prefix "$proof_root/audit" --json --include-attestations \
+              > "$proof_root/audit.json"
+          node npm/universal-agent-plugins/scripts/npm-public-contract.js audit \
+            "$proof_root/audit.json" "$proof_root/attestations.json" "$VERSION"
+      - name: Run native launcher, binary, catalog, and lifecycle proof
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          PLUGIN_KIT_COMMIT: ${{ inputs.plugin_kit_commit }}
+          TARGET: ${{ matrix.target }}
+          PACKAGE_SOURCE: ${{ inputs.package_source || 'public_npm' }}
+        run: |
+          set -euo pipefail
+          if test "$PACKAGE_SOURCE" = staged_artifact; then
+            tarball_root="$RUNNER_TEMP/npm-tarball"
+            bootstrap=local_frozen_asset
+            release_root="$RUNNER_TEMP/plugin-kit-release"
+          else
+            tarball_root="$RUNNER_TEMP/public-npm-acquisition/tarball"
+            bootstrap=public_release_download
+            release_root=-
+          fi
+          tarball=$(find "$tarball_root" -maxdepth 1 -type f -name '*.tgz' | head -n 1)
+          test -n "$tarball"
+          test "$(find "$tarball_root" -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')" = 1
+          node npm/universal-agent-plugins/scripts/platform-proof.js \
+            "$tarball" "$VERSION" "$TARGET" true \
+            "$RUNNER_TEMP/proof-$TARGET.json" "$PLUGIN_KIT_COMMIT" "$bootstrap" "$release_root"
+          node - "$RUNNER_TEMP/proof-$TARGET.json" <<'NODE'
+          const fs = require("node:fs");
+          const proof = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (proof.schema_version !== 1 || proof.target !== process.env.TARGET ||
+              proof.proofs?.installed_npm_shim_executed !== true) {
+            throw new Error("six-platform evidence did not prove installed npm shim execution");
+          }
+          NODE
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agentplugins-${{ inputs.version }}-${{ inputs.package_source || 'public-npm' }}-${{ matrix.target }}-proof
+          path: ${{ runner.temp }}/proof-${{ matrix.target }}.json
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,305 @@
+name: Publish universal-agent-plugins to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      uap_tag:
+        description: Exact stable UAP tag to publish (vX.Y.Z)
+        type: string
+        required: true
+      version:
+        description: Exact stable npm version (X.Y.Z)
+        type: string
+        required: true
+      plugin_kit_tag:
+        description: Exact public plugin-kit-ai release tag (agentplugins-vX.Y.Z)
+        type: string
+        required: true
+      plugin_kit_commit:
+        description: Exact lowercase 40-character plugin-kit-ai source commit
+        type: string
+        required: true
+      verify_only:
+        description: Run every pre-publication gate without publishing
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  attestations: read
+  contents: read
+
+concurrency:
+  group: agentplugins-npm-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      tarball_artifact: ${{ steps.names.outputs.tarball_artifact }}
+      release_artifact: ${{ steps.names.outputs.release_artifact }}
+      tarball_integrity: ${{ steps.pack.outputs.tarball_integrity }}
+      tarball_shasum: ${{ steps.pack.outputs.tarball_shasum }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.uap_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+      - name: Fail closed on release identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UAP_TAG: ${{ inputs.uap_tag }}
+          VERSION: ${{ inputs.version }}
+          PLUGIN_KIT_TAG: ${{ inputs.plugin_kit_tag }}
+          PLUGIN_KIT_COMMIT: ${{ inputs.plugin_kit_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$UAP_TAG" = "v$VERSION"
+          test "$PLUGIN_KIT_TAG" = "agentplugins-v$VERSION"
+          [[ "$PLUGIN_KIT_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_REF" = "refs/tags/$UAP_TAG"
+          test "$(git rev-parse "refs/tags/$UAP_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test "$GITHUB_REPOSITORY" = "777genius/universal-agent-plugins"
+          test "$(gh api repos/777genius/universal-agent-plugins --jq .default_branch)" = main
+          git fetch --no-tags --force https://github.com/777genius/universal-agent-plugins.git \
+            refs/heads/main:refs/remotes/public/main
+          git merge-base --is-ancestor HEAD refs/remotes/public/main
+          object_type=$(gh api "repos/777genius/plugin-kit-ai/git/ref/tags/$PLUGIN_KIT_TAG" --jq .object.type)
+          object_sha=$(gh api "repos/777genius/plugin-kit-ai/git/ref/tags/$PLUGIN_KIT_TAG" --jq .object.sha)
+          while test "$object_type" = tag; do
+            object_type=$(gh api "repos/777genius/plugin-kit-ai/git/tags/$object_sha" --jq .object.type)
+            object_sha=$(gh api "repos/777genius/plugin-kit-ai/git/tags/$object_sha" --jq .object.sha)
+          done
+          test "$object_type" = commit
+          test "$object_sha" = "$PLUGIN_KIT_COMMIT"
+      - name: Download the exact immutable plugin-kit-ai release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          PLUGIN_KIT_TAG: ${{ inputs.plugin_kit_tag }}
+        run: |
+          set -euo pipefail
+          release_root="$RUNNER_TEMP/plugin-kit-release"
+          mkdir "$release_root"
+          gh api "repos/777genius/plugin-kit-ai/releases/tags/$PLUGIN_KIT_TAG" > "$RUNNER_TEMP/release.json"
+          RELEASE_JSON="$RUNNER_TEMP/release.json" node <<'NODE'
+          const fs = require("node:fs");
+          const release = JSON.parse(fs.readFileSync(process.env.RELEASE_JSON, "utf8"));
+          const version = process.env.VERSION;
+          const expected = [
+            `agentplugins_${version}_darwin_amd64`, `agentplugins_${version}_darwin_arm64`,
+            `agentplugins_${version}_linux_amd64`, `agentplugins_${version}_linux_arm64`,
+            `agentplugins_${version}_windows_amd64.exe`, `agentplugins_${version}_windows_arm64.exe`,
+            "checksums.txt", "release-manifest.json"
+          ].sort();
+          const names = release.assets.map((asset) => asset.name).sort();
+          if (release.tag_name !== process.env.PLUGIN_KIT_TAG || release.draft || release.prerelease ||
+              release.immutable !== true || names.join("\n") !== expected.join("\n") ||
+              release.assets.some((asset) => !Number.isSafeInteger(asset.size) || asset.size <= 0 ||
+                asset.browser_download_url !== `https://github.com/777genius/plugin-kit-ai/releases/download/${process.env.PLUGIN_KIT_TAG}/${asset.name}`)) {
+            throw new Error("plugin-kit-ai release identity, immutability, names, sizes, or URLs do not match");
+          }
+          NODE
+          gh release download "$PLUGIN_KIT_TAG" --repo 777genius/plugin-kit-ai --dir "$release_root"
+      - name: Verify manifest, checksums, sizes, hashes, and every attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLUGIN_KIT_TAG: ${{ inputs.plugin_kit_tag }}
+          PLUGIN_KIT_COMMIT: ${{ inputs.plugin_kit_commit }}
+        run: |
+          set -euo pipefail
+          release_root="$RUNNER_TEMP/plugin-kit-release"
+          node npm/universal-agent-plugins/scripts/release-assets.js verify \
+            "$release_root" "$PLUGIN_KIT_TAG" "$PLUGIN_KIT_COMMIT"
+          node - "$RUNNER_TEMP/release.json" "$release_root" <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const release = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          for (const asset of release.assets) {
+            if (fs.statSync(path.join(process.argv[3], asset.name)).size !== asset.size) {
+              throw new Error(`GitHub API size mismatch: ${asset.name}`);
+            }
+          }
+          NODE
+          for asset in "$release_root"/*; do
+            gh attestation verify "$asset" \
+              --repo 777genius/plugin-kit-ai \
+              --signer-workflow 777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml \
+              --source-ref refs/heads/main \
+              --source-digest "$PLUGIN_KIT_COMMIT" \
+              --deny-self-hosted-runners
+          done
+      - name: Stage and test the npm package without changing the source tree
+        id: pack
+        env:
+          VERSION: ${{ inputs.version }}
+          PLUGIN_KIT_COMMIT: ${{ inputs.plugin_kit_commit }}
+        run: |
+          set -euo pipefail
+          stage_root="$RUNNER_TEMP/npm-stage"
+          cp -a npm/universal-agent-plugins "$stage_root"
+          node "$stage_root/scripts/stage-release.js" "$stage_root" "$RUNNER_TEMP/plugin-kit-release" \
+            "$VERSION" "$PLUGIN_KIT_COMMIT" --evidence-root "$GITHUB_WORKSPACE"
+          test "$(node -p "require('$stage_root/assets.json').repository")" = 777genius/plugin-kit-ai
+          npm --prefix "$stage_root" test
+          mkdir "$RUNNER_TEMP/npm-tarball"
+          npm pack "$stage_root" --ignore-scripts --json --pack-destination "$RUNNER_TEMP/npm-tarball" \
+            > "$RUNNER_TEMP/npm-tarball/pack.json"
+          node npm/universal-agent-plugins/scripts/npm-public-contract.js stage-outputs \
+            "$RUNNER_TEMP/npm-tarball/pack.json" "$GITHUB_OUTPUT" "$VERSION"
+      - name: Inspect the exact tarball and reject embedded binaries or lifecycle scripts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tarball=$(find "$RUNNER_TEMP/npm-tarball" -maxdepth 1 -type f -name '*.tgz' | head -n 1)
+          test -n "$tarball"
+          test "$(find "$RUNNER_TEMP/npm-tarball" -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')" = 1
+          inspect="$RUNNER_TEMP/tarball-inspect"
+          mkdir "$inspect"
+          tar -tzf "$tarball" > "$RUNNER_TEMP/tarball-files.txt"
+          if grep -Eq '(^/|(^|/)\.\.(/|$))' "$RUNNER_TEMP/tarball-files.txt"; then
+            echo "tarball contains an absolute or parent-traversing path" >&2
+            exit 1
+          fi
+          tar -xzf "$tarball" -C "$inspect"
+          PACKAGE_ROOT="$inspect/package" node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const root = process.env.PACKAGE_ROOT;
+          const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+          const assets = JSON.parse(fs.readFileSync(path.join(root, "assets.json"), "utf8"));
+          if (pkg.name !== "universal-agent-plugins" || pkg.version !== process.env.VERSION ||
+              pkg.scripts?.preinstall || pkg.scripts?.install || pkg.scripts?.postinstall ||
+              assets.repository !== "777genius/plugin-kit-ai" || assets.version !== process.env.VERSION ||
+              Object.keys(assets.assets || {}).length !== 6) throw new Error("tarball contract mismatch");
+          const walk = (dir) => fs.readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
+            const file = path.join(dir, entry.name);
+            return entry.isDirectory() ? walk(file) : [path.relative(root, file).replaceAll("\\", "/")];
+          });
+          for (const file of walk(root)) {
+            if (/agentplugins_[0-9].*(?:\.exe)?$/.test(file)) throw new Error(`vendored binary: ${file}`);
+          }
+          NODE
+      - name: Prove npm version and stable tag are unused without mutating npm
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          npm view universal-agent-plugins versions --json > "$RUNNER_TEMP/npm-versions.json"
+          npm dist-tag ls universal-agent-plugins > "$RUNNER_TEMP/npm-tags.txt"
+          node - "$RUNNER_TEMP/npm-versions.json" "$RUNNER_TEMP/npm-tags.txt" <<'NODE'
+          const fs = require("node:fs");
+          const versions = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          const all = Array.isArray(versions) ? versions : [versions];
+          if (all.includes(process.env.VERSION)) throw new Error("npm version already exists and is immutable");
+          const latestLine = fs.readFileSync(process.argv[3], "utf8").split(/\r?\n/).find((line) => line.startsWith("latest: "));
+          if (!latestLine) throw new Error("the existing stable latest tag is missing");
+          const latest = latestLine.slice(8).split(".").map(Number);
+          const next = process.env.VERSION.split(".").map(Number);
+          for (let i = 0; i < 3; i++) {
+            if (next[i] > latest[i]) break;
+            if (next[i] < latest[i] || i === 2) throw new Error("refusing to overwrite or move the stable npm tag backward");
+          }
+          NODE
+      - id: names
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          echo "tarball_artifact=agentplugins-$VERSION-npm-tarball" >> "$GITHUB_OUTPUT"
+          echo "release_artifact=agentplugins-$VERSION-plugin-kit-release" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.names.outputs.tarball_artifact }}
+          path: |
+            ${{ runner.temp }}/npm-tarball/*.tgz
+            ${{ runner.temp }}/npm-tarball/pack.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.names.outputs.release_artifact }}
+          path: ${{ runner.temp }}/plugin-kit-release
+          if-no-files-found: error
+          retention-days: 7
+
+  six-platform-proof:
+    needs: stage
+    uses: ./.github/workflows/agentplugins-platform-proof.yml
+    with:
+      uap_tag: ${{ inputs.uap_tag }}
+      version: ${{ inputs.version }}
+      plugin_kit_tag: ${{ inputs.plugin_kit_tag }}
+      plugin_kit_commit: ${{ inputs.plugin_kit_commit }}
+      package_source: staged_artifact
+      tarball_artifact: ${{ needs.stage.outputs.tarball_artifact }}
+      release_artifact: ${{ needs.stage.outputs.release_artifact }}
+      expected_integrity: ${{ needs.stage.outputs.tarball_integrity }}
+      expected_shasum: ${{ needs.stage.outputs.tarball_shasum }}
+
+  publish:
+    if: ${{ inputs.verify_only == false }}
+    needs: [stage, six-platform-proof]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: npm
+    concurrency:
+      group: agentplugins-npm-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.stage.outputs.tarball_artifact }}
+          path: ${{ runner.temp }}/npm-tarball
+      - name: Recheck immutable npm state and publish with trusted provenance
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test -z "${NPM_TOKEN:-}"
+          test -z "${NODE_AUTH_TOKEN:-}"
+          tarball=$(find "$RUNNER_TEMP/npm-tarball" -maxdepth 1 -type f -name '*.tgz' | head -n 1)
+          test -n "$tarball"
+          test "$(find "$RUNNER_TEMP/npm-tarball" -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')" = 1
+          npm view universal-agent-plugins versions --json > "$RUNNER_TEMP/npm-versions.json"
+          node -e 'const v=require(process.argv[1]); if ((Array.isArray(v)?v:[v]).includes(process.env.VERSION)) process.exit(1)' "$RUNNER_TEMP/npm-versions.json"
+          npm dist-tag ls universal-agent-plugins > "$RUNNER_TEMP/npm-tags.txt"
+          node - "$RUNNER_TEMP/npm-tags.txt" <<'NODE'
+          const fs = require("node:fs");
+          const line = fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/).find((item) => item.startsWith("latest: "));
+          if (!line) throw new Error("the existing stable latest tag is missing");
+          const latest = line.slice(8).split(".").map(Number);
+          const next = process.env.VERSION.split(".").map(Number);
+          for (let i = 0; i < 3; i++) {
+            if (next[i] > latest[i]) break;
+            if (next[i] < latest[i] || i === 2) throw new Error("refusing to move latest backward");
+          }
+          NODE
+          npm publish "$tarball" --access public --provenance --tag latest
+
+  public-six-platform-proof:
+    if: ${{ inputs.verify_only == false }}
+    needs: [stage, publish]
+    uses: ./.github/workflows/agentplugins-platform-proof.yml
+    with:
+      uap_tag: ${{ inputs.uap_tag }}
+      version: ${{ inputs.version }}
+      plugin_kit_tag: ${{ inputs.plugin_kit_tag }}
+      plugin_kit_commit: ${{ inputs.plugin_kit_commit }}
+      package_source: public_npm
+      expected_integrity: ${{ needs.stage.outputs.tarball_integrity }}
+      expected_shasum: ${{ needs.stage.outputs.tarball_shasum }}

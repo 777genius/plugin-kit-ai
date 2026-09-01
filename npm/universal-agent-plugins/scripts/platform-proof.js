@@ -116,6 +116,21 @@ function frozenReleaseAsset(releaseAssetsRoot, expectedCommit, version, expected
   return file;
 }
 
+function assertAssetManifest(manifest, version, expectedCommit, expectedTarget) {
+  if (!manifest || manifest.schema_version !== 2 || manifest.version !== version ||
+      manifest.npm_package !== "universal-agent-plugins" ||
+      manifest.repository !== "777genius/plugin-kit-ai" ||
+      manifest.tag !== `agentplugins-v${version}` ||
+      manifest.producer?.repository !== "777genius/plugin-kit-ai" ||
+      manifest.producer.tag !== `agentplugins-v${version}` ||
+      manifest.producer.commit !== expectedCommit) {
+    fail("npm asset manifest does not match the exact package, producer tag, and expected commit");
+  }
+  const pinned = manifest.assets?.[expectedTarget];
+  if (!pinned) fail(`tarball has no exact pin for ${expectedTarget}`);
+  return pinned;
+}
+
 function lifecycleCommands(synthetic) {
   return [
     ["add", synthetic, "--target", "cursor"],
@@ -143,6 +158,26 @@ function lifecycleResult(output, command, target) {
     fail(`agentplugins ${command} did not return exactly one successful ${target} lifecycle result`);
   }
   return targets[0].output.result;
+}
+
+function assertContext7Search(output) {
+  if (output?.schema_version !== 1 || output.command !== "search" || output.result !== "success" ||
+      !output.data || typeof output.data !== "object" || !Array.isArray(output.data.results) ||
+      !output.data.results.some((result) => result?.product_id === "context7" &&
+        result.distribution_id === "777genius/context7")) {
+    fail("public catalog search did not contain the expected context7 product and distribution");
+  }
+}
+
+function assertSyntheticInfo(output) {
+  const clients = output?.data?.clients;
+  if (output?.schema_version !== 1 || output.command !== "info" || output.result !== "success" ||
+      !output.data || typeof output.data !== "object" || output.data.name !== "platform-proof-synthetic" ||
+      output.data.version !== "1.0.0" || !Array.isArray(clients) || clients.length !== 1 ||
+      clients[0]?.client_id !== "cursor" || clients[0].activation !== "active" ||
+      clients[0].package_revision?.version !== "1.0.0") {
+    fail("isolated synthetic info did not prove identity, Cursor target, installed version, and active state");
+  }
 }
 
 function main() {
@@ -221,8 +256,7 @@ function main() {
     fail("installed tarball version or no-install-script invariant is invalid");
   }
   const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, "assets.json"), "utf8"));
-  const pinned = manifest.assets?.[expectedTarget];
-  if (!pinned || manifest.version !== version) fail(`tarball has no exact pin for ${expectedTarget}`);
+  const pinned = assertAssetManifest(manifest, version, expectedCommit, expectedTarget);
   if (fs.existsSync(cache)) fail("binary cache was not cold before the launcher ran");
 
   if (bootstrapMode === "local_frozen_asset") {
@@ -265,12 +299,14 @@ function main() {
   const firstMtime = stat.mtimeMs;
   const list = invokeJSON(["list"]);
   const doctor = invokeJSON(["doctor"]);
+  const search = invokeJSON(["search", "context7"]);
   if (list.schema_version !== 1 || list.command !== "list" || list.data.installations.length !== 0) {
     fail("clean list contract failed");
   }
   if (doctor.schema_version !== 1 || doctor.command !== "doctor" || doctor.data.read_only !== true) {
     fail("read-only doctor contract failed");
   }
+  assertContext7Search(search);
   const dryRun = invokeJSON(["add", synthetic, "--target", "cursor", "--dry-run"]);
   if (dryRun.schema_version !== 1 || dryRun.command !== "add" || dryRun.data.dry_run !== true) {
     fail("synthetic add dry-run contract failed");
@@ -283,10 +319,12 @@ function main() {
     const [addCommand, completeCommand, updateCommand, removeCommand] = lifecycleCommands(synthetic);
     const add = invokeJSON(addCommand);
     const complete = invokeJSON(completeCommand);
+    const info = invokeJSON(["info", "platform-proof-synthetic", "--target", "cursor"]);
     const update = invokeJSON(updateCommand);
     const remove = invokeJSON(removeCommand);
     const addResult = lifecycleResult(add, "add", "cursor");
     const completeResult = lifecycleResult(complete, "add", "cursor");
+    assertSyntheticInfo(info);
     const updateResult = lifecycleResult(update, "update", "cursor");
     const removeResult = lifecycleResult(remove, "remove", "cursor");
     if (addResult.mutated !== true || addResult.activation.authentication !== "not_checked" ||
@@ -319,10 +357,11 @@ function main() {
       version: true,
       list: true,
       doctor_read_only: true,
+      public_catalog_search: true,
       synthetic_add_dry_run: true,
       warm_cache: true,
       warm_cache_without_proof_source: true,
-      isolated_add_update_remove: lifecycle
+      isolated_add_info_update_remove: lifecycle
     }
   };
   mkdir(path.dirname(path.resolve(resultArg)));
@@ -340,4 +379,17 @@ if (require.main === module) {
   }
 }
 
-module.exports = { assertInstalledShimInvocation, assertPublicJSONPathFree, frozenReleaseAsset, installedShimInvocation, lifecycleCommands, lifecycleResult, npmInvocation, parseBootstrapMode, parseLifecycle };
+module.exports = {
+  assertAssetManifest,
+  assertContext7Search,
+  assertInstalledShimInvocation,
+  assertPublicJSONPathFree,
+  assertSyntheticInfo,
+  frozenReleaseAsset,
+  installedShimInvocation,
+  lifecycleCommands,
+  lifecycleResult,
+  npmInvocation,
+  parseBootstrapMode,
+  parseLifecycle
+};
