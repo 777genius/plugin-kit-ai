@@ -281,6 +281,16 @@ class ChromeFiveClientLifecycleTests(unittest.TestCase):
         rendered = json.dumps(job, sort_keys=True)
         self.assertIn("universal-agent-plugins@${AGENTPLUGINS_VERSION}", rendered)
         self.assertIn("@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}", rendered)
+        install = next(
+            step for step in job["steps"]
+            if step.get("name") == "Install and authenticate exact public npm clients"
+        )["run"]
+        audit = 'npm audit signatures --prefix "$TOOLS_ROOT"'
+        version = "require('${TOOLS_ROOT}/node_modules/@anthropic-ai/claude-code/package.json').version"
+        postinstall = 'node "$TOOLS_ROOT/node_modules/@anthropic-ai/claude-code/install.cjs"'
+        self.assertIn(postinstall, install)
+        self.assertLess(install.index(audit), install.index(version))
+        self.assertLess(install.index(version), install.index(postinstall))
         self.assertIn("run_chrome_five_client_lifecycle.py", rendered)
         self.assertIn("chrome-five-client-evidence", rendered)
         self.assertIn('(cd "$EVIDENCE_ROOT" && sha256sum evidence.json > evidence.sha256)', workflow_source)

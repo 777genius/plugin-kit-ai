@@ -1852,6 +1852,8 @@ sys.modules['catalog_process_isolation']=module
         body = commands(job)
         for required in ("npm@12.0.2", 'test "$(npm --version)" = 12.0.2',
                          'env -i PATH="$PATH"', '["npm", "audit", "signatures"',
+                         'if isinstance(package, list):', 'assert len(package) == 1',
+                         'assert isinstance(package, dict)',
                          'assert data["read_only"] is True', 'assert snapshot() == before',
                          'data["installation_count"] == 0', 'data["open_operation_count"] == 0'):
             self.assertIn(required, body)

@@ -127,6 +127,10 @@ jobs:
 
           metadata = invoke(["npm", "view", f"universal-agent-plugins@{version}", "--json"])
           package = json.loads(metadata.stdout)
+          if isinstance(package, list):
+              assert len(package) == 1
+              package = package[0]
+          assert isinstance(package, dict)
           assert package["version"] == version and package["dist"]["integrity"] == integrity
           invoke(["npm", "install", "--prefix", str(tools), "--no-audit", "--no-fund",
                   f"universal-agent-plugins@{version}"])
@@ -579,6 +583,7 @@ jobs:
           test "$(node -p "require('${TOOLS_ROOT}/node_modules/universal-agent-plugins/package.json').version")" = "$AGENTPLUGINS_VERSION"
           test "$(node -p "require('${TOOLS_ROOT}/node_modules/@anthropic-ai/claude-code/package.json').version")" = "$CLAUDE_CODE_VERSION"
           test "$("$TOOLS_ROOT/node_modules/.bin/agentplugins" version)" = "agentplugins ${AGENTPLUGINS_VERSION}"
+          node "$TOOLS_ROOT/node_modules/@anthropic-ai/claude-code/install.cjs"
           test "$("$TOOLS_ROOT/node_modules/.bin/claude" --version | cut -d ' ' -f 1)" = "$CLAUDE_CODE_VERSION"
       - name: Run the exact five-client lifecycle in fresh isolated roots
         env:
