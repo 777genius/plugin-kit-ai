@@ -180,7 +180,9 @@ See [SECURITY.md](SECURITY.md) for reporting and security boundaries.
 ## Contributing
 
 Contributions and Agent Plugins 1.0 package submissions are welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](CONTRIBUTING.md). Project decisions also follow the
+[ecosystem and governance guardrails](docs/ECOSYSTEM_GUARDRAILS.md), including
+standard fidelity, neutrality, interoperability, and honest evidence boundaries.
 
 Universal Agent Plugins is an independent community project maintained by
 777genius. It is not affiliated with or endorsed by OpenAI or the vendors shown
