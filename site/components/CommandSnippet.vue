@@ -10,10 +10,12 @@ const props = withDefaults(defineProps<{
   label?: string
   kind?: CommandKind
   compact?: boolean
+  inline?: boolean
 }>(), {
   label: 'Terminal',
   kind: 'terminal',
   compact: false,
+  inline: false,
 })
 const copied = ref(false)
 const visibleCommand = computed(() => {
@@ -45,9 +47,9 @@ async function copyCommand() {
 </script>
 
 <template>
-  <div class="command-snippet" :class="[`command-snippet--${kind}`, { 'command-snippet--compact': compact }]">
+  <div class="command-snippet" :class="[`command-snippet--${kind}`, { 'command-snippet--compact': compact, 'command-snippet--inline': inline }]">
     <div class="command-snippet__header">
-      <span class="command-snippet__label">
+      <span v-if="!inline" class="command-snippet__label">
         <svg class="command-snippet__label-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <template v-if="kind === 'add'">
             <path d="M12 5v14M5 12h14" />

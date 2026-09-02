@@ -8,7 +8,7 @@ const reviewedCount = computed(() => registry.plugins.filter(plugin => plugin.tr
 const discoveryCount = computed(() => registry.plugins.length - reviewedCount.value)
 const { current, expired, published } = useDirectoryStatus()
 const { asset, repositoryUrl } = useSite()
-const preferredDemoNames = ['cloudflare-docs', 'agent-code-navigator']
+const preferredDemoNames = ['chrome-devtools', 'context7', 'cloudflare-docs', 'agent-code-navigator']
 const demoPlugin = computed(() => {
   const ranked = [
     ...preferredDemoNames.flatMap(name => registry.plugins.filter(item => item.name === name)),
@@ -47,9 +47,7 @@ const autoDetectOption = {
   description: 'Detected when you run the command',
 }
 const selectedHeroClients = computed(() => heroTargets.value.filter(client => heroTargetIDs.value.includes(client.id)))
-const selectedHeroNames = computed(() => heroAutoDetect.value
-  ? 'all installed agents'
-  : selectedHeroClients.value.map(client => heroClientLabel(client.id, client.name)).join(' + '))
+const heroPluginName = computed(() => demoPlugin.value.name === 'chrome-devtools' ? 'Chrome DevTools' : demoPlugin.value.display_name)
 const heroResolution = computed(() => resolveDistribution(demoPlugin.value, selectedHeroClients.value.map(client => client.id)))
 const heroCommand = computed(() => !current.value || (!heroAutoDetect.value && !heroResolution.value.distribution) ? '' : pluginCommands(demoPlugin.value, heroAutoDetect.value ? undefined : selectedHeroClients.value.map(client => client.id)).add)
 const description = 'Install one Agent Plugins 1.0 package into your selected installed clients, then inspect, update, repair, switch, or remove it with the same community CLI.'
@@ -109,26 +107,30 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
       </div>
       <div class="hero__demo">
         <div class="hero__window">
-          <div class="hero__window-top"><b>Quick start</b></div>
           <div class="hero__window-body">
-            <p>Install {{ demoPlugin.display_name }} for {{ selectedHeroNames }}</p>
-            <div class="hero-command-row">
-              <div class="hero-agent-select"><span>Choose your agents</span><AppMultiSelect :model-value="heroTargetIDs" :auto-selected="heroAutoDetect" :auto-option="autoDetectOption" label="Choose target clients" :options="heroTargetOptions" @update:auto-selected="updateHeroAutoDetect" @update:model-value="updateHeroTargets" /></div>
-              <CommandSnippet v-if="heroCommand" :command="heroCommand" />
-              <p v-else class="install-panel__notice" role="status"><strong>Command unavailable{{ expired ? ': stale Directory' : !published ? ': review preview' : '' }}.</strong> {{ expired ? 'Browse historical package information while a fresh signed snapshot is published.' : !published ? 'Production commands require a published signed Directory snapshot.' : heroResolution.unavailable_reason }}</p>
+            <div class="hero-quick-start__header">
+              <h2>Install a plugin</h2>
+              <a href="https://agent-plugins.org/specification" target="_blank" rel="noreferrer">Agent Plugins 1.0</a>
             </div>
-            <p v-if="!heroAutoDetect && heroResolution.fallback_reason && !expired" class="hero__fine-print">{{ heroResolution.fallback_reason }}</p>
-            <p v-else-if="!heroAutoDetect && heroResolution.unavailable_reason && !expired" class="hero__fine-print">{{ heroResolution.unavailable_reason }}</p>
-            <div v-if="heroCommand" class="hero__success">
-              <span>✓</span>
-              <div><strong>{{ heroAutoDetect ? 'Interactive installer ready' : `Command ready for ${selectedHeroClients.length === 1 ? selectedHeroNames : `${selectedHeroClients.length} agents`}` }}</strong><small>{{ heroAutoDetect ? 'The CLI checks package support, skips incompatible installed agents, and lets you confirm the targets.' : 'The CLI configures the selected agents and shows any remaining setup steps.' }}</small></div>
+            <ol class="hero-quick-start__steps">
+              <li class="hero-quick-start__step">
+                <span class="hero-quick-start__number">1</span>
+                <span class="hero-quick-start__label"><strong>Choose agents</strong><small>Select one or many</small></span>
+                <AppMultiSelect :model-value="heroTargetIDs" :auto-selected="heroAutoDetect" :auto-option="autoDetectOption" label="Choose target clients" :options="heroTargetOptions" @update:auto-selected="updateHeroAutoDetect" @update:model-value="updateHeroTargets" />
+              </li>
+              <li class="hero-quick-start__step">
+                <span class="hero-quick-start__number hero-quick-start__number--run">2</span>
+                <span class="hero-quick-start__label"><strong>Copy and run</strong><small>{{ heroPluginName }}</small></span>
+                <CommandSnippet v-if="heroCommand" :command="heroCommand" kind="add" inline />
+                <p v-else class="install-panel__notice" role="status"><strong>Command unavailable{{ expired ? ': stale Directory' : !published ? ': review preview' : '' }}.</strong> {{ expired ? 'Browse historical package information while a fresh signed snapshot is published.' : !published ? 'Production commands require a published signed Directory snapshot.' : heroResolution.unavailable_reason }}</p>
+              </li>
+            </ol>
+            <div class="hero-quick-start__footer">
+              <p><span aria-hidden="true">✓</span> Incompatible agents are skipped</p>
+              <p v-if="!heroAutoDetect && heroResolution.fallback_reason && !expired">{{ heroResolution.fallback_reason }}</p>
+              <p v-else-if="!heroAutoDetect && heroResolution.unavailable_reason && !expired">{{ heroResolution.unavailable_reason }}</p>
             </div>
           </div>
-        </div>
-        <div class="hero__float hero__float--schema"><span>✓</span> Schema validated</div>
-        <div class="hero__float hero__float--standard">
-          <a href="https://agent-plugins.org/specification" target="_blank" rel="noreferrer">Agent Plugins 1.0</a>
-          <span>standard</span>
         </div>
       </div>
     </section>

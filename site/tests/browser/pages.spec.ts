@@ -55,6 +55,30 @@ test('hydrates finalized CSP pages without runtime or layout failures', async ({
   expect(failures).toEqual([])
 })
 
+test('presents Chrome DevTools as a compact two-step quick start', async ({ page }) => {
+  const failures = observeFailures(page)
+  await page.goto('./')
+
+  const quickStart = page.locator('.hero__window')
+  await expect(quickStart.getByRole('heading', { name: 'Install a plugin' })).toBeVisible()
+  await expect(quickStart.locator('.hero-quick-start__step')).toHaveCount(2)
+  await expect(quickStart.getByText('Choose agents', { exact: true })).toBeVisible()
+  await expect(quickStart.getByText('Copy and run', { exact: true })).toBeVisible()
+  await expect(quickStart.getByText('Chrome DevTools', { exact: true })).toBeVisible()
+  await expect(quickStart.getByRole('button', { name: /Choose target clients: All installed agents/ })).toBeVisible()
+  const command = quickStart.locator('.command-snippet code')
+  if (await command.count()) await expect(command).toHaveText('npx universal-agent-plugins add chrome-devtools')
+  else await expect(quickStart.getByText(/Command unavailable: review preview/)).toBeVisible()
+  await expect(quickStart.getByText(/Incompatible agents are skipped/)).toBeVisible()
+  await expect(quickStart.getByText(/Interactive installer ready|Schema validated|Quick start/)).toHaveCount(0)
+
+  const box = await quickStart.boundingBox()
+  expect(box).not.toBeNull()
+  expect(box!.height).toBeLessThanOrEqual(page.viewportSize()!.width <= 720 ? 440 : 330)
+  await expectNoHorizontalOverflow(page)
+  expect(failures).toEqual([])
+})
+
 test('operates the target multi-select entirely by keyboard', async ({ page }) => {
   const failures = observeFailures(page)
   await page.goto('./')
