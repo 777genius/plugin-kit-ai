@@ -14,6 +14,7 @@ import (
 func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.T) {
 	t.Parallel()
 	envelope := stagingEnvelope(t)
+	writeTestFile(t, filepath.Join(envelope.SnapshotRoot, "hooks", "hooks.json"), "{}\n")
 	plan := stagingPlan(t, domain.ClientCodex, domain.PackageProjection)
 	delivery, err := (Stager{}).Stage(context.Background(), envelope, plan, "operation-1", domain.CompatibilityHints{
 		OpenAIMCPAuth: map[string]domain.OpenAIMCPAuthHint{
@@ -33,6 +34,10 @@ func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.
 	if _, ok := portableManifest["extensions"]; !ok {
 		t.Fatal("source snapshot was mutated")
 	}
+	if _, err := os.Stat(filepath.Join(envelope.SnapshotRoot, "hooks", "hooks.json")); err != nil {
+		t.Fatalf("source hooks were mutated: %v", err)
+	}
+	assertMissing(t, filepath.Join(delivery.StagingPath, "hooks"))
 	stagedManifest := readObject(t, filepath.Join(delivery.StagingPath, "plugin.json"))
 	if _, ok := stagedManifest["extensions"]; ok {
 		t.Fatal("unsupported extension survived staged standard manifest")
@@ -60,6 +65,33 @@ func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.
 	standardServers := standardMCP["mcpServers"].(map[string]any)
 	if _, exists := standardServers["broken"]; exists {
 		t.Fatal("invalid MCP server survived staging")
+	}
+}
+
+func TestStagerRemovesReportedIgnoredV1Extensions(t *testing.T) {
+	t.Parallel()
+	envelope := stagingEnvelope(t)
+	writeTestFile(t, filepath.Join(envelope.SnapshotRoot, "plugin.json"), `{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "demo",
+  "extensions": []
+}`)
+	envelope.Manifest.Extensions = nil
+	envelope.Diagnostics = []domain.Diagnostic{{
+		Severity: domain.SeverityWarning,
+		Boundary: domain.BoundaryPlugin,
+		Code:     "plugin_extensions_ignored",
+		Path:     "plugin.json",
+		Item:     "extensions",
+	}}
+	plan := stagingPlan(t, domain.ClientCursor, domain.PackageNative)
+	delivery, err := (Stager{}).Stage(context.Background(), envelope, plan, "ignored-extensions", domain.CompatibilityHints{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := readObject(t, filepath.Join(delivery.StagingPath, "plugin.json"))
+	if _, exists := manifest["extensions"]; exists {
+		t.Fatal("reported-and-ignored extensions survived staging")
 	}
 }
 
@@ -311,13 +343,16 @@ func TestStagerProjectsCursorNativeManifestAndRuntimeContract(t *testing.T) {
 
 func TestStagerResolvesBundledStdioCommandForNativeProjection(t *testing.T) {
 	t.Parallel()
-	config := map[string]any{"command": "./bin/server"}
-	pluginRoot, dataPath := filepath.Join(t.TempDir(), "plugin"), filepath.Join(t.TempDir(), "data")
+	config := map[string]any{"command": "./bin/server", "args": []any{"${PLUGIN_ROOT}/config"}}
+	pluginRoot, dataPath := filepath.Join(t.TempDir(), "plugin", "${PLUGIN_DATA}"), filepath.Join(t.TempDir(), "data")
 	if err := applyStdioDataContract(config, pluginRoot, dataPath); err != nil {
 		t.Fatal(err)
 	}
 	if config["command"] != filepath.Join(pluginRoot, "bin", "server") || config["cwd"] != pluginRoot {
 		t.Fatalf("projected stdio config = %+v", config)
+	}
+	if got := config["args"].([]any)[0]; got != filepath.Join(pluginRoot, "config") || strings.Contains(got.(string), dataPath) {
+		t.Fatalf("replacement text was recursively expanded: %v", got)
 	}
 }
 

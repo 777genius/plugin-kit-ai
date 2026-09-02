@@ -483,24 +483,20 @@ func windsurfServer(server domain.MCPServer, packageRoot, dataRoot string) (nati
 }
 
 func resolveWindsurfPlaceholders(server nativeconfig.Server, packageRoot, dataRoot string) (nativeconfig.Server, error) {
+	if server.Type != "stdio" {
+		return server, nil
+	}
 	resolve := func(value string) (string, error) {
-		for _, replacement := range []struct{ token, value string }{{"${PLUGIN_ROOT}", packageRoot}, {"${package.root}", packageRoot}, {"${PLUGIN_DATA}", dataRoot}} {
+		for _, replacement := range []struct{ token, value string }{{"${PLUGIN_ROOT}", packageRoot}, {"${PLUGIN_DATA}", dataRoot}} {
 			if strings.Contains(value, replacement.token) {
 				if strings.TrimSpace(replacement.value) == "" {
 					return "", fmt.Errorf("explicit value for %s is required", replacement.token)
 				}
-				value = strings.ReplaceAll(value, replacement.token, replacement.value)
 			}
 		}
-		if strings.Contains(value, "${") {
-			return "", fmt.Errorf("unresolved placeholder in %q", value)
-		}
-		return value, nil
+		return strings.NewReplacer("${PLUGIN_ROOT}", packageRoot, "${PLUGIN_DATA}", dataRoot).Replace(value), nil
 	}
 	var err error
-	if server.Command, err = resolve(server.Command); err != nil {
-		return server, err
-	}
 	for index := range server.Args {
 		if server.Args[index], err = resolve(server.Args[index]); err != nil {
 			return server, err
@@ -508,14 +504,6 @@ func resolveWindsurfPlaceholders(server nativeconfig.Server, packageRoot, dataRo
 	}
 	for key, value := range server.Env {
 		if server.Env[key], err = resolve(value); err != nil {
-			return server, err
-		}
-	}
-	if server.URL, err = resolve(server.URL); err != nil {
-		return server, err
-	}
-	for key, value := range server.Headers {
-		if server.Headers[key], err = resolve(value); err != nil {
 			return server, err
 		}
 	}

@@ -190,6 +190,45 @@ func TestWindsurfSSEUsesLegacyURLKey(t *testing.T) {
 	}
 }
 
+func TestWindsurfExpandsOnlyPortableStdioValues(t *testing.T) {
+	t.Parallel()
+	packageRoot := filepath.Join(t.TempDir(), "plugin", "${PLUGIN_DATA}")
+	dataRoot := filepath.Join(t.TempDir(), "data")
+	stdio, err := windsurfServer(domain.MCPServer{
+		Type: "stdio",
+		Decoded: map[string]any{
+			"type":    "stdio",
+			"command": "${PLUGIN_ROOT}",
+			"args":    []any{"${PLUGIN_ROOT}/run.js", "${PLUGIN_CACHE}/literal"},
+			"env":     map[string]any{"DATA": "${PLUGIN_DATA}/state", "UNKNOWN": "${HOME}"},
+		},
+	}, packageRoot, dataRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stdio.Command != "${PLUGIN_ROOT}" || stdio.Args[0] != filepath.Join(packageRoot, "run.js") || stdio.Args[1] != "${PLUGIN_CACHE}/literal" || stdio.Env["DATA"] != filepath.Join(dataRoot, "state") || stdio.Env["UNKNOWN"] != "${HOME}" {
+		t.Fatalf("Windsurf stdio placeholder projection = %+v", stdio)
+	}
+	if strings.Contains(stdio.Args[0], dataRoot) {
+		t.Fatalf("Windsurf recursively expanded replacement text: %+v", stdio.Args)
+	}
+
+	remote, err := windsurfServer(domain.MCPServer{
+		Type: "streamable-http",
+		Decoded: map[string]any{
+			"type":    "streamable-http",
+			"url":     "https://example.test/${PLUGIN_ROOT}",
+			"headers": map[string]any{"X-Path": "${PLUGIN_DATA}"},
+		},
+	}, packageRoot, dataRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remote.URL != "https://example.test/${PLUGIN_ROOT}" || remote.Headers["X-Path"] != "${PLUGIN_DATA}" {
+		t.Fatalf("Windsurf remote literals were expanded: %+v", remote)
+	}
+}
+
 func TestWindsurfStagerRejectsUnsupportedCWDWithoutChangingProjection(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

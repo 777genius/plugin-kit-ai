@@ -354,6 +354,9 @@ func validatePlanPaths(plan domain.DeliveryPlan) error {
 }
 
 func sanitizePackage(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
+	if err := removeUnsupportedPortableHooks(root); err != nil {
+		return err
+	}
 	if err := removeInvalidAndUnsupportedSkills(root, envelope, plan); err != nil {
 		return err
 	}
@@ -363,7 +366,27 @@ func sanitizePackage(root string, envelope domain.PackageEnvelope, plan domain.D
 	if err := writeSanitizedApp(root, envelope, plan); err != nil {
 		return err
 	}
-	return writeSanitizedExtensions(root, plan)
+	return writeSanitizedExtensions(root, envelope, plan)
+}
+
+func removeUnsupportedPortableHooks(root string) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return fmt.Errorf("inspect staged package root: %w", err)
+	}
+	for _, entry := range entries {
+		if !strings.EqualFold(entry.Name(), "hooks") {
+			continue
+		}
+		candidate := filepath.Join(root, entry.Name())
+		if err := pathpolicy.RequireContainedChild(root, candidate); err != nil {
+			return fmt.Errorf("unsafe staged hooks path: %w", err)
+		}
+		if err := os.RemoveAll(candidate); err != nil {
+			return fmt.Errorf("remove unsupported staged hooks: %w", err)
+		}
+	}
+	return nil
 }
 
 func writeSanitizedApp(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
@@ -438,14 +461,21 @@ func writeSanitizedMCP(root string, envelope domain.PackageEnvelope, plan domain
 	return writeJSON(path, document)
 }
 
-func writeSanitizedExtensions(root string, plan domain.DeliveryPlan) error {
+func writeSanitizedExtensions(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
 	var unsupported []string
 	for _, component := range plan.Components {
 		if component.Kind == domain.ComponentExtension && component.Support == domain.SupportUnsupported {
 			unsupported = append(unsupported, component.Name)
 		}
 	}
-	if len(unsupported) == 0 {
+	ignoredInvalid := false
+	for _, diagnostic := range envelope.Diagnostics {
+		if diagnostic.Code == "plugin_extensions_ignored" {
+			ignoredInvalid = true
+			break
+		}
+	}
+	if len(unsupported) == 0 && !ignoredInvalid {
 		return nil
 	}
 	path := filepath.Join(root, "plugin.json")
@@ -456,6 +486,10 @@ func writeSanitizedExtensions(root string, plan domain.DeliveryPlan) error {
 	var document map[string]json.RawMessage
 	if err := json.Unmarshal(body, &document); err != nil {
 		return fmt.Errorf("decode staged plugin.json: %w", err)
+	}
+	if ignoredInvalid {
+		delete(document, "extensions")
+		return writeJSON(path, document)
 	}
 	var extensions map[string]json.RawMessage
 	if raw := document["extensions"]; len(raw) > 0 {
@@ -753,10 +787,7 @@ func cloneJSONValue(value any) any {
 }
 
 func applyStdioDataContract(config map[string]any, pluginRoot, dataPath string) error {
-	expand := func(value string) string {
-		value = strings.ReplaceAll(value, "${PLUGIN_ROOT}", pluginRoot)
-		return strings.ReplaceAll(value, "${PLUGIN_DATA}", dataPath)
-	}
+	expand := strings.NewReplacer("${PLUGIN_ROOT}", pluginRoot, "${PLUGIN_DATA}", dataPath).Replace
 	switch env := config["env"].(type) {
 	case map[string]any:
 		if _, exists := env["PLUGIN_ROOT"]; exists {

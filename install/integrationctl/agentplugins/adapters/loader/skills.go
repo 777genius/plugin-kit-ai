@@ -38,15 +38,44 @@ func loadSkills(root string) (map[string]domain.Skill, []string, bool, []domain.
 	var invalid []string
 	var diagnostics []domain.Diagnostic
 	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 {
+			candidate := filepath.Join(root, entry.Name())
+			resolved, resolveErr := filepath.EvalSymlinks(candidate)
+			if resolveErr != nil || !pathContained(filepath.Dir(root), resolved) {
+				invalid = append(invalid, entry.Name())
+				diagnostics = append(diagnostics, skillDiagnostic("skill_path_unsafe", entry.Name(), "skill entry resolves outside the plugin root", resolveErr))
+			}
+			continue
+		}
 		if !entry.IsDir() {
 			continue
 		}
 		name := entry.Name()
 		skillPath := filepath.Join(root, name, "SKILL.md")
-		body, exists, readErr := readRegularFile(skillPath)
-		if readErr != nil || !exists {
+		skillInfo, statErr := os.Lstat(skillPath)
+		if os.IsNotExist(statErr) {
+			continue
+		}
+		if statErr != nil {
 			invalid = append(invalid, name)
-			diagnostics = append(diagnostics, skillDiagnostic("skill_missing", name, "skill directory requires an immediate SKILL.md", readErr))
+			diagnostics = append(diagnostics, skillDiagnostic("skill_read_failed", name, "inspect immediate SKILL.md", statErr))
+			continue
+		}
+		if skillInfo.Mode()&os.ModeSymlink != 0 {
+			resolved, resolveErr := filepath.EvalSymlinks(skillPath)
+			if resolveErr != nil || !pathContained(filepath.Dir(root), resolved) {
+				invalid = append(invalid, name)
+				diagnostics = append(diagnostics, skillDiagnostic("skill_path_unsafe", name, "SKILL.md resolves outside the plugin root", resolveErr))
+			}
+			continue
+		}
+		if !skillInfo.Mode().IsRegular() {
+			continue
+		}
+		body, readErr := os.ReadFile(skillPath)
+		if readErr != nil {
+			invalid = append(invalid, name)
+			diagnostics = append(diagnostics, skillDiagnostic("skill_read_failed", name, "read immediate SKILL.md", readErr))
 			continue
 		}
 		skill, parseErr := parseSkill(name, body)
@@ -59,6 +88,14 @@ func loadSkills(root string) (map[string]domain.Skill, []string, bool, []domain.
 	}
 	sort.Strings(invalid)
 	return skills, invalid, false, diagnostics
+}
+
+func pathContained(root, candidate string) bool {
+	if root == "" || candidate == "" {
+		return false
+	}
+	relative, err := filepath.Rel(root, candidate)
+	return err == nil && relative != ".." && !filepath.IsAbs(relative) && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func parseSkill(directoryName string, body []byte) (domain.Skill, error) {
