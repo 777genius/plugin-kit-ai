@@ -2,206 +2,175 @@
 
 # Universal Agent Plugins
 
+[![npm](https://img.shields.io/npm/v/universal-agent-plugins?color=7257FF)](https://www.npmjs.com/package/universal-agent-plugins)
 [![Validate](https://github.com/777genius/universal-agent-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/777genius/universal-agent-plugins/actions/workflows/validate.yml)
 [![Live E2E](https://github.com/777genius/universal-agent-plugins/actions/workflows/live-e2e.yml/badge.svg)](https://github.com/777genius/universal-agent-plugins/actions/workflows/live-e2e.yml)
 [![Agent Plugins 1.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-7257FF)](https://agent-plugins.org/specification)
 [![License](https://img.shields.io/badge/license-Apache--2.0-20A4C8)](LICENSE)
 
-**One CLI can add, update, remove, repair, and deliberately switch an Agent
-Plugins 1.0 package across one or several explicitly selected supported
-clients.** A prepared package, manual activation, runtime check, and OAuth are
-reported as separate outcomes—never collapsed into “installed.”
-
-Pick from 26 ready-made abilities: search current documentation, navigate code,
-debug browsers, work with cloud tools, and more. Install one plugin and add
-others only when you need them.
-
-This repository is the product home and public source for the npm facade.
-`universal-agent-plugins` is the npm package; `agentplugins` is the installed
-command. The repository also contains 26 open-source plugins packaged for the
-[Agent Plugins 1.0](https://agent-plugins.org/specification) standard.
-Portable packages use a root `plugin.json`. For OpenAI hosts, CI generates
-official-layout `.codex-plugin/plugin.json` packages under
-[`compat/openai`](compat/openai), validates them with OpenAI's `plugin-creator`,
-and follows the [OpenAI plugin build guide](https://developers.openai.com/plugins/build/plugins).
-The installer below is a community CLI, not an OpenAI product.
-
-The [`universal-agent-plugins` npm package](npm/universal-agent-plugins) is
-maintained here and installs the `agentplugins` binary. Its thin Node.js
-launcher selects, downloads, verifies, and caches the matching platform binary.
-[`plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai) owns and releases
-the shared Go implementation engine; it reads standard `plugin.json` packages
-and uses client-specific adapters for Codex, ChatGPT, Cursor, GitHub Copilot/VS
-Code, Kiro, Claude Code, Gemini CLI, OpenCode, Cline, and Windsurf. The engine is
-not duplicated in this repository.
-Both `npx universal-agent-plugins` and a
-global `agentplugins` command run that same installer and lifecycle manager,
-not separate engines.
-
-Browse the [plugin directory](https://777genius.github.io/universal-agent-plugins/)
-or [submit a plugin](registry/README.md#submit-an-external-package) through a Git-native
-pull request. This community directory is not an official OpenAI registry.
-
-## Try one plugin
-
-Cloudflare Docs is an easy first choice. It searches current Cloudflare
-documentation and requires no account. You need Node.js 22 or newer:
+**Install an [Agent Plugins 1.0](https://agent-plugins.org/specification)
+package across one or several AI agents with one CLI.**
 
 ```bash
-npx universal-agent-plugins add cloudflare-docs
+npx universal-agent-plugins add context7 --target codex,cursor,kiro
 ```
 
-In an interactive terminal the CLI detects installed supported agents, skips
-clients the package cannot serve from one release, and selects the compatible
-set for you to confirm. ChatGPT is included when its desktop app is detected
-and the package provides a verified connection; you can also select it
-explicitly. The npm launcher requires Node.js 22+. In scripts and other
-non-interactive use, pass every target explicitly as one comma-separated value:
+The CLI downloads and verifies the plugin once, prepares it for every selected
+client, and tells you if an agent needs a restart, import, sign-in, or OAuth
+confirmation. It also updates, repairs, switches, and removes plugins without
+making you edit each agent's configuration by hand.
+
+## Quick start
+
+You need [Node.js 22+](https://nodejs.org/). Context7 is a useful first plugin:
+it finds current library documentation and needs no account.
 
 ```bash
-npx universal-agent-plugins add cloudflare-docs --target cursor
-npx universal-agent-plugins add cloudflare-docs --target codex,cursor
-npx universal-agent-plugins add cloudflare-docs --target codex,cursor,kiro
+npx universal-agent-plugins add context7
 ```
 
-The CLI resolves and verifies one immutable package once, preflights the whole
-target set, and then reports each client outcome. It never mixes package sources
-between clients in one operation.
-
-The same CLI manages the rest of the plugin lifecycle:
+In an interactive terminal, the CLI detects installed supported agents and lets
+you select one or several. In scripts, choose targets explicitly:
 
 ```bash
-npx universal-agent-plugins update cloudflare-docs --target cursor
-npx universal-agent-plugins repair cloudflare-docs --target cursor
-npx universal-agent-plugins remove cloudflare-docs --target cursor
+npx universal-agent-plugins add context7 --target cursor
+npx universal-agent-plugins add context7 --target codex,cursor
+npx universal-agent-plugins add context7 --target codex,cursor,kiro
 ```
 
-Switching source is deliberate. For example, an existing Cloudflare Docs
-installation can move from its bridge to the qualified community distribution:
+Open a new chat in the selected agent and ask it to use Context7 for current
+documentation. That's it.
+
+## One CLI for the whole lifecycle
 
 ```bash
+npx universal-agent-plugins update context7 --target codex,cursor,kiro
+npx universal-agent-plugins repair context7 --target codex,cursor,kiro
+npx universal-agent-plugins remove context7 --target codex,cursor,kiro
 npx universal-agent-plugins switch cloudflare-docs --to 777genius/cloudflare-docs
 ```
 
-Open a new chat or session in the client you selected and ask:
+| Command | What it does |
+| --- | --- |
+| `add` | Installs or prepares a plugin for the selected agents |
+| `update` | Updates it from the same recorded source |
+| `repair` | Restores missing or changed managed files |
+| `remove` | Removes only files managed by the CLI |
+| `switch` | Deliberately changes to another publisher or distribution |
+| `doctor` | Checks the CLI, supported clients, and local state |
 
-```text
-Use Cloudflare Docs to explain the current Workers environment variable and secret storage guidance with source links.
-```
+## Supported agents
 
-That's it. Every plugin is independent, so you never need to install the whole
-Directory or follow a chain of plugins. Client activation and OAuth can still
-require a visible confirmation; see the short [client setup guide](docs/QUICKSTART.md).
+| Agent | CLI integration |
+| --- | --- |
+| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> Codex | Prepares the official plugin layout and prints any activation step |
+| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | Prepares a verified app connection; confirmation stays visible in ChatGPT |
+| <img src="assets/client-icons/cursor.svg" width="20" height="20" alt=""> Cursor | Installs the native Agent Plugin |
+| <img src="assets/client-icons/github-copilot.svg" width="20" height="20" alt=""> GitHub Copilot CLI | Installs and verifies the native plugin |
+| <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | Uses Copilot setup when available or prints the exact setting |
+| <img src="assets/client-icons/kiro.svg" width="20" height="20" alt=""> Kiro | Prepares the native package and prints the import step |
+| <img src="site/public/client-icons/claude.svg" width="20" height="20" alt=""> Claude Code | Manages the plugin and MCP configuration |
+| <img src="site/public/client-icons/gemini.svg" width="20" height="20" alt=""> Gemini CLI | Manages the MCP configuration |
+| <img src="site/public/client-icons/opencode.svg" width="20" height="20" alt=""> OpenCode | Manages the MCP configuration |
+| <img src="site/public/client-icons/cline.svg" width="20" height="20" alt=""> Cline | Manages the MCP configuration and prints reload guidance |
+| <img src="site/public/client-icons/windsurf.svg" width="20" height="20" alt=""> Windsurf | Prepares supported components and prints the activation step |
 
-## Install any Agent Plugin
+Agent activation and service authentication remain client-specific. The CLI
+shows those steps instead of silently claiming that a prepared package is
+already running.
 
-The CLI is not limited to this Directory. Install any valid Agent Plugins 1.0
-package from a local directory or an immutable GitHub revision:
+## Find a plugin
+
+Search more than **2500 Agent Plugins** discovered from public GitHub
+repositories, plus 26 reviewed starter packages maintained here:
 
 ```bash
 npx universal-agent-plugins search docs
+npx universal-agent-plugins info context7
+npx universal-agent-plugins add cloudflare-docs --target codex,cursor,kiro
+```
+
+Browse the optional [web directory](https://777genius.github.io/universal-agent-plugins/)
+when you want a visual search experience. The Directory is an additional source
+for short names, not the product's core: the CLI works without copying every
+plugin into this repository.
+
+## Install any Agent Plugin
+
+The CLI is not limited to this Directory. It accepts a local Agent Plugins 1.0
+package or an immutable GitHub source:
+
+```bash
 npx universal-agent-plugins validate ./my-plugin
 npx universal-agent-plugins add ./my-plugin --target cursor
 npx universal-agent-plugins add \
   777genius/universal-agent-plugins@2ddbb99dd190c1792b79904f9875e6322bccd243//plugins/cloudflare-docs \
   --target cursor
-npx universal-agent-plugins outdated --all
-npx universal-agent-plugins update --all
 ```
 
-The package can use the portable root `plugin.json` layout or the official
-`.codex-plugin/plugin.json` layout with its declared sidecars. Pin GitHub
-sources to a full commit SHA so every install is reproducible. Short names such
-as `cloudflare-docs` resolve through this repository's reviewed Directory; external
-packages do not need to be copied into it.
+External packages do not need to be copied into it. Pin GitHub sources to a full
+commit SHA so the installed bytes are reproducible.
 
-Search combines the reviewed Directory with a signed Discovery Index of public,
-schema-conformant packages. Discovery results are labelled **unreviewed** and
-use a publisher-qualified selector such as
-`discovery:owner/repository//plugins/example`; the CLI resolves it to the exact
-indexed commit and revalidates the package before changing any client. The
-index signature proves the metadata came from this project, not that package
-code or runtime behavior was endorsed. Existing installations keep their
-recorded source, and `update --all` never silently switches publishers.
+Source labels stay explicit:
 
-Directory source labels describe provenance, not endorsement. **Upstream**
-means the complete package is pinned in its upstream owner's repository;
-**community bridge** means a community-built package reproducibly combines
-pinned upstream content with a reviewed overlay; and **community** means an
-independently community-authored or packaged distribution. A full-SHA GitHub
-reference or local path is a **direct source** that bypasses Directory source
-selection. Community and community-bridge packages are not official vendor
-packages.
+- **upstream**: the package lives in its owner's repository;
+- **community bridge**: reviewed metadata is combined with pinned upstream content;
+- **community**: a community-authored distribution;
+- **direct source**: a local path or exact GitHub reference that bypasses short-name lookup.
 
-## All plugins
+Community packages and bridges are not official vendor packages. Search results
+from automatic discovery are marked **unreviewed**, pinned to an exact commit,
+and validated again before the CLI changes any client.
 
-| Plugins |  |  |
-| --- | --- | --- |
-| <img src="assets/icon.png" width="20" height="20" alt=""> [Agent Code Navigator](plugins/agent-code-navigator) | <img src="assets/plugin-icons/atlassian.svg" width="20" height="20" alt=""> [Atlassian](plugins/atlassian) | <img src="assets/plugin-icons/googlechrome.svg" width="20" height="20" alt=""> [Chrome DevTools](plugins/chrome-devtools) |
-| <img src="assets/plugin-icons/cloudflare.svg" width="20" height="20" alt=""> [Cloudflare](plugins/cloudflare) | <img src="assets/plugin-icons/cloudflare.svg" width="20" height="20" alt=""> [Cloudflare Bindings](plugins/cloudflare-bindings) | <img src="assets/plugin-icons/cloudflare.svg" width="20" height="20" alt=""> [Cloudflare Docs](plugins/cloudflare-docs) |
-| <img src="assets/plugin-icons/cloudflare.svg" width="20" height="20" alt=""> [Cloudflare Observability](plugins/cloudflare-observability) | <img src="assets/plugin-icons/cloudflare.svg" width="20" height="20" alt=""> [Cloudflare Radar](plugins/cloudflare-radar) | <img src="assets/plugin-icons/context7.png" width="20" height="20" alt=""> [Context7](plugins/context7) |
-| <img src="assets/plugin-icons/docker.svg" width="20" height="20" alt=""> [Docker Hub](plugins/docker-hub) | <img src="assets/plugin-icons/figma.svg" width="20" height="20" alt=""> [Figma](plugins/figma) | <img src="assets/plugin-icons/firebase.svg" width="20" height="20" alt=""> [Firebase](plugins/firebase) |
-| <img src="assets/plugin-icons/github.svg" width="20" height="20" alt=""> [GitHub](plugins/github) | <img src="assets/plugin-icons/gitlab.svg" width="20" height="20" alt=""> [GitLab](plugins/gitlab) | <img src="assets/plugin-icons/greptile.png" width="20" height="20" alt=""> [Greptile](plugins/greptile) |
-| <img src="assets/plugin-icons/heroku.png" width="20" height="20" alt=""> [Heroku](plugins/heroku) | <img src="assets/plugin-icons/hubspot.svg" width="20" height="20" alt=""> [HubSpot CRM](plugins/hubspot-crm) | <img src="assets/plugin-icons/hubspot.svg" width="20" height="20" alt=""> [HubSpot Developer](plugins/hubspot-developer) |
-| <img src="assets/plugin-icons/linear.svg" width="20" height="20" alt=""> [Linear](plugins/linear) | <img src="assets/plugin-icons/neon.svg" width="20" height="20" alt=""> [Neon](plugins/neon) | <img src="assets/plugin-icons/notion.svg" width="20" height="20" alt=""> [Notion](plugins/notion) |
-| <img src="assets/plugin-icons/sentry.svg" width="20" height="20" alt=""> [Sentry](plugins/sentry) | <img src="assets/plugin-icons/statsig.png" width="20" height="20" alt=""> [Statsig](plugins/statsig) | <img src="assets/plugin-icons/stripe.svg" width="20" height="20" alt=""> [Stripe](plugins/stripe) |
-| <img src="assets/plugin-icons/supabase.svg" width="20" height="20" alt=""> [Supabase](plugins/supabase) | <img src="assets/plugin-icons/vercel.svg" width="20" height="20" alt=""> [Vercel](plugins/vercel) |  |
+## How it works
 
-Each one installs separately. See [plugins to try first](docs/HERO_PLUGINS.md)
-for copy-ready examples. Exact authentication and test status are in the
-[test matrix](docs/TEST_MATRIX.md).
+```text
+npx universal-agent-plugins
+        ↓
+verified Agent Plugins 1.0 package
+        ↓
+one installation plan for the selected agents
+        ↓
+client-specific adapters + clear activation guidance
+```
 
-## Use them with your agent
+This repository is the product home and public source for the npm facade.
+`universal-agent-plugins` is the npm package; `agentplugins` is the installed
+command. The facade installs the `agentplugins` binary, verifies its SHA-256,
+and caches the correct build for the current platform.
 
-Agent Plugins 1.0 gives every package a shared structure. Compatible clients can
-reuse the parts they support, while installation, permissions, and OAuth remain
-client-specific.
+[`plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai) is the shared Go
+implementation engine. It contains the package loader, lifecycle, and client
+adapters; that engine is not duplicated in this repository.
 
-| Client | Delivery | Activation |
-| --- | --- | --- |
-| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> Codex | Official-layout `.codex-plugin` package | CLI prints the exact activation steps |
-| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | Prepares the package when a verified ChatGPT connection is available | Select the app in ChatGPT and complete any OAuth consent |
-| <img src="assets/client-icons/cursor.svg" width="20" height="20" alt=""> Cursor | Native Agent Plugin | Reload, then verify discovery |
-| <img src="assets/client-icons/github-copilot.svg" width="20" height="20" alt=""> GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
-| <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | Shared Copilot plugin when its CLI is available | Automatic; otherwise the exact setting is shown |
-| <img src="assets/client-icons/kiro.svg" width="20" height="20" alt=""> Kiro | Native folder package | Follow the exact Power import hint |
-| <img src="assets/client-icons/claude.svg" width="20" height="20" alt=""> Claude Code | Managed plugin and MCP configuration | Installed automatically; follow any client restart hint |
-| <img src="assets/client-icons/gemini.svg" width="20" height="20" alt=""> Gemini CLI | Managed MCP configuration | Installed automatically; account access is separate from plugin setup |
-| <img src="assets/client-icons/opencode.svg" width="20" height="20" alt=""> OpenCode | Managed MCP configuration | Installed automatically |
-| <img src="assets/client-icons/cline.svg" width="20" height="20" alt=""> Cline | Managed MCP configuration | Installed automatically; reload the extension if prompted |
-| <img src="assets/client-icons/windsurf.svg" width="20" height="20" alt=""> Windsurf | Prepared MCP or skills package | Follow the exact manual activation hint |
+## Trust and current evidence
 
-All 26 packages pass standard schema validation; that is schema-only evidence.
-Historical evidence includes 15/15 runtime checks for five starter packages
-across Codex, Cursor, and Kiro, with Notion OAuth tested in those three clients;
-Figma OAuth was tested separately in Codex only. A materialized or installed
-package does not by itself prove activation, tool runtime, or OAuth. ChatGPT and
-Copilot claims are narrower and are not generalized from other clients.
+All 26 packages pass standard schema validation. Historical evidence includes
+15/15 runtime checks for five starter packages across Codex, Cursor, and Kiro,
+with Notion OAuth tested in those three clients; Figma OAuth was tested
+separately in Codex only. A materialized or installed package does not by itself
+prove activation, tool runtime, or OAuth. ChatGPT and Copilot claims are narrower
+and are not generalized from other clients.
 
-Current Directory identity comes from
-[`registry/directory.json`](registry/directory.json), not copied release IDs or
-digests in this launch overview. Installation coverage is broader than runtime
-coverage, and the standard itself is not a universal marketplace. See the
+Installation coverage is broader than runtime coverage. See the
 [test matrix](docs/TEST_MATRIX.md), [verification report](docs/VERIFICATION.md),
-and [compatibility guide](docs/COMPATIBILITY.md) for the exact schema-only,
-materialized, runtime-tested, OAuth-tested, read-only, and not-proven boundaries.
+and [compatibility guide](docs/COMPATIBILITY.md) for exact runtime-tested,
+OAuth-tested, read-only, and not-proven boundaries.
 
 ## Safety
 
-- Review a plugin's tools and scopes before enabling it.
+- Review a plugin's tools and permissions before enabling it.
 - Start with read-only tasks, especially after OAuth.
 - Never place tokens in `plugin.json`, `mcp.json`, or committed headers.
-- A valid package can still expose destructive tools.
+- A valid plugin can still expose destructive tools.
 
 See [SECURITY.md](SECURITY.md) for reporting and security boundaries.
 
-## About this project
+## Contributing
 
-This repository rebuilds the portable subset of
-[`universal-plugins-for-ai-agents`](https://github.com/777genius/universal-plugins-for-ai-agents)
-without `plugin-kit-ai` as its authoring layer. Contributions are welcome; see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+You can improve the CLI, submit an Agent Plugins 1.0 package, or propose an
+external package by pull request. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
-This is an independent community project maintained by 777genius. It is not
-affiliated with or endorsed by OpenAI or the vendors represented in the Directory.
-Original project material is licensed under [Apache 2.0](LICENSE).
+Universal Agent Plugins is an independent community project maintained by
+777genius. It is not affiliated with or endorsed by OpenAI or the vendors shown
+above. Original project material is licensed under [Apache 2.0](LICENSE).

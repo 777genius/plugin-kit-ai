@@ -9,7 +9,7 @@ if ! command -v rsvg-convert >/dev/null 2>&1; then
 fi
 
 rsvg-convert -w 512 -h 512 "$repo_root/assets/logo.svg" -o "$repo_root/assets/logo.png"
-rsvg-convert -w 1600 -h 840 "$repo_root/assets/hero.svg" -o "$repo_root/assets/hero.png"
+rsvg-convert -w 1600 -h 420 "$repo_root/assets/hero.svg" -o "$repo_root/assets/hero.png"
 rsvg-convert -w 128 -h 128 "$repo_root/assets/logo.svg" -o "$repo_root/assets/icon.png"
 
 printf 'Generated logo.png, icon.png, and hero.png\n'
