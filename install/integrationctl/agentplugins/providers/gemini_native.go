@@ -486,9 +486,6 @@ func geminiNativeServer(server domain.MCPServer) (nativeconfig.Server, error) {
 		if err != nil {
 			return result, err
 		}
-		if strings.HasPrefix(result.Command, "./") {
-			result.Command = "${PLUGIN_ROOT}/" + strings.TrimPrefix(result.Command, "./")
-		}
 		result.CWD, err = getString("cwd")
 		if err != nil {
 			return result, err
@@ -562,12 +559,9 @@ func materializeGeminiServer(server nativeconfig.Server, packageRoot, dataRoot s
 	if server.Type != "stdio" {
 		return server, nil
 	}
-	resolve := func(value string) string {
-		value = strings.ReplaceAll(value, "${PLUGIN_ROOT}", packageRoot)
-		return strings.ReplaceAll(value, "${PLUGIN_DATA}", dataRoot)
-	}
-	if strings.Contains(server.Command, "${PLUGIN_ROOT}") {
-		server.Command = filepath.Clean(resolve(server.Command))
+	resolve := strings.NewReplacer("${PLUGIN_ROOT}", packageRoot, "${PLUGIN_DATA}", dataRoot).Replace
+	if strings.HasPrefix(server.Command, "./") {
+		server.Command = filepath.Clean(filepath.Join(packageRoot, filepath.FromSlash(strings.TrimPrefix(server.Command, "./"))))
 		if !pathContainedBy(packageRoot, server.Command) {
 			return server, fmt.Errorf("stdio command escapes PLUGIN_ROOT")
 		}

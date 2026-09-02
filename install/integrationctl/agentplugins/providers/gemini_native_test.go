@@ -177,13 +177,26 @@ func TestGeminiNativeLifecycleRejectsCollisionsAndUserChanges(t *testing.T) {
 
 func TestGeminiTransportProjection(t *testing.T) {
 	t.Parallel()
-	stdio, err := geminiNativeServer(domain.MCPServer{Name: "local", Type: "stdio", Decoded: map[string]any{"type": "stdio", "command": "node", "args": []any{"${PLUGIN_ROOT}/server.js"}, "env": map[string]any{"DATA": "${PLUGIN_DATA}"}, "cwd": "./workspace"}})
-	if err != nil || stdio.CWD != "${PLUGIN_ROOT}/workspace" {
+	stdio, err := geminiNativeServer(domain.MCPServer{Name: "local", Type: "stdio", Decoded: map[string]any{"type": "stdio", "command": "${PLUGIN_ROOT}", "args": []any{"${PLUGIN_ROOT}/server.js", "${PLUGIN_CACHE}"}, "env": map[string]any{"DATA": "${PLUGIN_DATA}", "UNKNOWN": "${HOME}"}, "cwd": "./${PLUGIN_CACHE}"}})
+	if err != nil || stdio.CWD != "${PLUGIN_ROOT}/${PLUGIN_CACHE}" {
 		t.Fatalf("stdio projection = %+v, %v", stdio, err)
 	}
+	packageRoot := filepath.Join(t.TempDir(), "plugin", "${PLUGIN_DATA}")
+	dataRoot := filepath.Join(t.TempDir(), "data")
+	stdio, err = materializeGeminiServer(stdio, packageRoot, dataRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stdio.Command != "${PLUGIN_ROOT}" || stdio.CWD != filepath.Join(packageRoot, "${PLUGIN_CACHE}") {
+		t.Fatalf("Gemini command/cwd projection = %+v", stdio)
+	}
+	if strings.Contains(stdio.CWD, dataRoot) {
+		t.Fatalf("Gemini recursively expanded replacement text: %+v", stdio)
+	}
 	for _, transport := range []string{"streamable-http", "sse"} {
-		server, err := geminiNativeServer(domain.MCPServer{Name: "remote", Type: transport, Decoded: map[string]any{"type": transport, "url": "https://example.test"}})
-		if err != nil || server.Type != "remote" || server.RemoteTransport != transport {
+		server, err := geminiNativeServer(domain.MCPServer{Name: "remote", Type: transport, Decoded: map[string]any{"type": transport, "url": "https://example.test/${PLUGIN_ROOT}", "headers": map[string]any{"X-Path": "${PLUGIN_DATA}"}}})
+		server, materializeErr := materializeGeminiServer(server, packageRoot, dataRoot)
+		if err != nil || materializeErr != nil || server.Type != "remote" || server.RemoteTransport != transport || server.URL != "https://example.test/${PLUGIN_ROOT}" || server.Headers["X-Path"] != "${PLUGIN_DATA}" {
 			t.Fatalf("%s projection = %+v, %v", transport, server, err)
 		}
 	}

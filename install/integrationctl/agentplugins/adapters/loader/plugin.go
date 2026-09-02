@@ -63,20 +63,29 @@ func (loader Loader) loadPluginManifest(path string) (domain.PluginManifest, []d
 	extensions := map[string]json.RawMessage{}
 	var rawExtensions json.RawMessage
 	if raw, exists := rawFields["extensions"]; exists {
-		rawExtensions = append(json.RawMessage(nil), raw...)
 		var extensionFields map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &extensionFields); err != nil || extensionFields == nil {
-			return domain.PluginManifest{}, diagnostics, "", domain.FatalLoad("plugin_schema_invalid", "plugin.json", "plugin.json extensions must be an object", err)
-		}
-		for namespace, extensionRaw := range extensionFields {
-			var extensionValue any
-			if err := decodeJSON(extensionRaw, &extensionValue); err != nil {
-				return domain.PluginManifest{}, diagnostics, "", domain.FatalLoad("plugin_schema_invalid", "plugin.json", fmt.Sprintf("plugin extension %q is malformed", namespace), err)
+			delete(validationDocument, "extensions")
+			diagnostics = append(diagnostics, domain.Diagnostic{
+				Severity: domain.SeverityWarning,
+				Boundary: domain.BoundaryPlugin,
+				Code:     "plugin_extensions_ignored",
+				Path:     "plugin.json",
+				Item:     "extensions",
+				Message:  "plugin.json extensions was reported and ignored because it is not an object",
+			})
+		} else {
+			rawExtensions = append(json.RawMessage(nil), raw...)
+			for namespace, extensionRaw := range extensionFields {
+				var extensionValue any
+				if err := decodeJSON(extensionRaw, &extensionValue); err != nil {
+					return domain.PluginManifest{}, diagnostics, "", domain.FatalLoad("plugin_schema_invalid", "plugin.json", fmt.Sprintf("plugin extension %q is malformed", namespace), err)
+				}
+				if _, object := extensionValue.(map[string]any); !object {
+					return domain.PluginManifest{}, diagnostics, "", domain.FatalLoad("plugin_schema_invalid", "plugin.json", fmt.Sprintf("plugin extension %q must be an object", namespace), nil)
+				}
+				extensions[namespace] = append(json.RawMessage(nil), extensionRaw...)
 			}
-			if _, object := extensionValue.(map[string]any); !object {
-				return domain.PluginManifest{}, diagnostics, "", domain.FatalLoad("plugin_schema_invalid", "plugin.json", fmt.Sprintf("plugin extension %q must be an object", namespace), nil)
-			}
-			extensions[namespace] = append(json.RawMessage(nil), extensionRaw...)
 		}
 	}
 	if err := loader.Registry.Validate(schemaURI, validationDocument); err != nil {

@@ -2387,7 +2387,7 @@ func TestOfficialHooksFailClosedBeforeDryRunOrMutation(t *testing.T) {
 	}
 }
 
-func TestImplicitPortableHooksFailClosedBeforeDryRunOrMutation(t *testing.T) {
+func TestImplicitPortableHooksAreIgnoredAndNotStaged(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}})
 	plugin := writeCLIPlugin(t)
@@ -2397,20 +2397,29 @@ func TestImplicitPortableHooksFailClosedBeforeDryRunOrMutation(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(plugin, "hooks", "hooks.json"), []byte(`{}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt", "--dry-run", "--format", "json"); err == nil {
-		t.Fatal("implicit hook dry-run succeeded")
-	} else {
-		var loadErr *domain.LoadError
-		if !errors.As(err, &loadErr) || loadErr.Diagnostic.Code != "official_hooks_unsupported" || !strings.Contains(err.Error(), "remove the hooks directory") {
-			t.Fatalf("implicit hook dry-run error = %v", err)
-		}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt", "--dry-run", "--format", "json"); err != nil {
+		t.Fatalf("portable package with unsupported root directory failed validation: %v", err)
 	}
 	state, err := fixture.store.Load()
 	if err != nil || len(state.Installations) != 0 {
-		t.Fatalf("implicit hook dry-run mutated state: %+v, %v", state, err)
+		t.Fatalf("dry-run mutated state: %+v, %v", state, err)
 	}
 	if _, err := os.Stat(fixture.app.ManagedRoot); !os.IsNotExist(err) {
-		t.Fatalf("implicit hook dry-run mutated managed filesystem: %v", err)
+		t.Fatalf("dry-run mutated managed filesystem: %v", err)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt"); err != nil {
+		t.Fatalf("install portable package with ignored hooks: %v", err)
+	}
+	state, err = fixture.store.Load()
+	if err != nil || len(state.Installations) != 1 {
+		t.Fatalf("installed state = %+v, %v", state, err)
+	}
+	installed := onlyCLIClient(state.Installations[0]).TargetLocator
+	if _, err := os.Lstat(filepath.Join(installed, "hooks")); !os.IsNotExist(err) {
+		t.Fatalf("unsupported hooks survived staging: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(plugin, "hooks", "hooks.json")); err != nil {
+		t.Fatalf("source package was mutated: %v", err)
 	}
 }
 

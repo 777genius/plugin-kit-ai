@@ -23,7 +23,7 @@ func TestMCPServersAddPreservesUnrelatedConfigAndResolvesExplicitPaths(t *testin
 		Codec:        CodecMCPServers,
 		Action:       ActionAdd,
 		Name:         "owned",
-		Server:       Server{Type: "stdio", Command: "node", Args: []string{"${PLUGIN_ROOT}/server.js", "--data=${PLUGIN_DATA}"}, Env: map[string]string{"ROOT": "${package.root}"}},
+		Server:       Server{Type: "stdio", Command: "node", Args: []string{"${PLUGIN_ROOT}/server.js", "--data=${PLUGIN_DATA}"}, Env: map[string]string{"ROOT": "${PLUGIN_ROOT}"}},
 		Placeholders: Placeholders{PackageRoot: "/explicit/pkg", DataRoot: "/explicit/data"},
 	})
 	if err != nil {
@@ -326,7 +326,6 @@ func TestPlaceholdersAndSchemaValidationFailBeforeWrite(t *testing.T) {
 	before := mustRead(t, path)
 	cases := []Server{
 		{Type: "stdio", Command: "node", Args: []string{"${PLUGIN_ROOT}/run.js"}},
-		{Type: "stdio", Command: "node", Args: []string{"${HOME}/run.js"}},
 		{Type: "stdio", Command: "node", Headers: map[string]string{"X": "ignored"}},
 		{Type: "remote", URL: "https://mcp.test", Command: "node"},
 		{Type: "stdio", Command: "", URL: "https://mcp.test"},
@@ -337,6 +336,57 @@ func TestPlaceholdersAndSchemaValidationFailBeforeWrite(t *testing.T) {
 			t.Fatalf("expected projection failure for %#v", server)
 		}
 		assertBytes(t, path, before)
+	}
+}
+
+func TestProjectionExpandsOnlyPortableStdioValueVariables(t *testing.T) {
+	placeholders := Placeholders{PackageRoot: "/pkg", DataRoot: "/data"}
+	stdio, err := projectServer(CodecMCPServers, Server{
+		Type:    "stdio",
+		Command: "${PLUGIN_ROOT}",
+		Args:    []string{"${PLUGIN_ROOT}/run.js", "${PLUGIN_CACHE}/literal"},
+		Env:     map[string]string{"CACHE": "${PLUGIN_DATA}/state", "UNKNOWN": "${HOME}"},
+		CWD:     "${PLUGIN_ROOT}/work",
+	}, placeholders)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stdio["command"] != "${PLUGIN_ROOT}" || stdio["cwd"] != "/pkg/work" {
+		t.Fatalf("stdio command/cwd = %+v", stdio)
+	}
+	args := stdio["args"].([]string)
+	if args[0] != "/pkg/run.js" || args[1] != "${PLUGIN_CACHE}/literal" {
+		t.Fatalf("stdio args = %+v", args)
+	}
+	env := stdio["env"].(map[string]string)
+	if env["CACHE"] != "/data/state" || env["UNKNOWN"] != "${HOME}" {
+		t.Fatalf("stdio env = %+v", env)
+	}
+
+	remote, err := projectServer(CodecMCPServers, Server{
+		Type:    "remote",
+		URL:     "https://example.test/${PLUGIN_ROOT}",
+		Headers: map[string]string{"X-Path": "${PLUGIN_DATA}"},
+	}, placeholders)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remote["url"] != "https://example.test/${PLUGIN_ROOT}" {
+		t.Fatalf("remote URL was expanded: %+v", remote)
+	}
+	headers := remote["headers"].(map[string]string)
+	if headers["X-Path"] != "${PLUGIN_DATA}" {
+		t.Fatalf("remote headers were expanded: %+v", headers)
+	}
+
+	nonRecursive, err := projectServer(CodecMCPServers, Server{
+		Type: "stdio", Command: "node", Args: []string{"${PLUGIN_ROOT}/run.js"},
+	}, Placeholders{PackageRoot: "/pkg/${PLUGIN_DATA}", DataRoot: "/data"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := nonRecursive["args"].([]string)[0]; got != "/pkg/${PLUGIN_DATA}/run.js" {
+		t.Fatalf("replacement text was recursively expanded: %q", got)
 	}
 }
 

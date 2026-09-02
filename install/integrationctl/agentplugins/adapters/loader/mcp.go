@@ -3,6 +3,8 @@ package loader
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,7 +15,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
-func (loader Loader) loadMCP(filename, pluginSchema string, executableFiles []string) (domain.MCPComponent, []domain.Diagnostic) {
+func (loader Loader) loadMCP(filename, pluginSchema string) (domain.MCPComponent, []domain.Diagnostic) {
 	body, exists, err := readRegularFile(filename)
 	if !exists {
 		return domain.MCPComponent{}, nil
@@ -83,8 +85,11 @@ func (loader Loader) loadMCP(filename, pluginSchema string, executableFiles []st
 		var requirement *domain.StdioRequirement
 		if decodeErr == nil {
 			typeName, _ := decodedServer["type"].(string)
-			if typeName == "stdio" {
-				requirement, decodeErr = validateStdioServer(filepath.Dir(filename), decodedServer, executableFiles)
+			switch typeName {
+			case "stdio":
+				requirement, decodeErr = validateStdioServer(filepath.Dir(filename), decodedServer)
+			case "streamable-http", "sse":
+				decodeErr = validateRemoteServer(decodedServer)
 			}
 		}
 		if decodeErr != nil {
@@ -125,7 +130,7 @@ func schemaVersion(uri string) string {
 	return ""
 }
 
-func validateStdioServer(root string, config map[string]any, executableFiles []string) (*domain.StdioRequirement, error) {
+func validateStdioServer(root string, config map[string]any) (*domain.StdioRequirement, error) {
 	command, _ := config["command"].(string)
 	if command == "" {
 		return nil, fmt.Errorf("stdio command must be a non-empty executable token")
@@ -137,32 +142,8 @@ func validateStdioServer(root string, config map[string]any, executableFiles []s
 			return nil, err
 		}
 		candidate := filepath.Join(root, filepath.FromSlash(relative))
-		resolved, err := filepath.EvalSymlinks(candidate)
-		if err != nil {
-			return nil, fmt.Errorf("resolve bundled stdio command %q: %w", command, err)
-		}
-		contained, err := filepath.Rel(root, resolved)
-		if err != nil || contained == ".." || filepath.IsAbs(contained) || strings.HasPrefix(contained, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("bundled stdio command %q resolves outside the plugin root", command)
-		}
-		info, err := os.Stat(resolved)
-		if err != nil || !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("bundled stdio command %q must name a regular file in the plugin root", command)
-		}
-		resolvedRelative, err := filepath.Rel(root, resolved)
-		if err != nil {
-			return nil, fmt.Errorf("resolve bundled stdio command %q relative to the plugin root: %w", command, err)
-		}
-		resolvedRelative = filepath.ToSlash(resolvedRelative)
-		executable := false
-		for _, item := range executableFiles {
-			if item == relative || item == resolvedRelative {
-				executable = true
-				break
-			}
-		}
-		if !executable {
-			return nil, fmt.Errorf("bundled stdio command %q is not marked executable", command)
+		if err := validateExistingCommandAncestor(root, candidate, command); err != nil {
+			return nil, err
 		}
 		requirement.Kind, requirement.BundledRelativePath = domain.ExecutableBundled, relative
 	}
@@ -194,9 +175,6 @@ func validateStdioServer(root string, config map[string]any, executableFiles []s
 		values = append(values, cwd)
 	}
 	for _, value := range values {
-		if err := validateReservedPlaceholders(value); err != nil {
-			return nil, err
-		}
 		if strings.Contains(value, "${PLUGIN_ROOT}") {
 			requirement.UsesPluginRoot = true
 		}
@@ -205,6 +183,96 @@ func validateStdioServer(root string, config map[string]any, executableFiles []s
 		}
 	}
 	return requirement, nil
+}
+
+func validateExistingCommandAncestor(root, candidate, command string) error {
+	current := candidate
+	for {
+		if _, err := os.Lstat(current); err == nil {
+			resolved, resolveErr := filepath.EvalSymlinks(current)
+			if resolveErr != nil {
+				return fmt.Errorf("resolve bundled stdio command %q: %w", command, resolveErr)
+			}
+			contained, relativeErr := filepath.Rel(root, resolved)
+			if relativeErr != nil || contained == ".." || filepath.IsAbs(contained) || strings.HasPrefix(contained, ".."+string(filepath.Separator)) {
+				return fmt.Errorf("bundled stdio command %q resolves outside the plugin root", command)
+			}
+			return nil
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("inspect bundled stdio command %q: %w", command, err)
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return fmt.Errorf("bundled stdio command %q has no resolvable plugin-root ancestor", command)
+		}
+		current = parent
+	}
+}
+
+func validateRemoteServer(config map[string]any) error {
+	rawURL, _ := config["url"].(string)
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Opaque != "" {
+		return fmt.Errorf("remote MCP URL must be an absolute HTTP or HTTPS URL")
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("remote MCP URL must use HTTP or HTTPS")
+	}
+	if parsed.User != nil || strings.Contains(rawURL, "#") {
+		return fmt.Errorf("remote MCP URL must not contain user information or a fragment")
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return fmt.Errorf("remote MCP URL requires a host")
+	}
+	if scheme == "http" && !strings.EqualFold(host, "localhost") {
+		address := net.ParseIP(host)
+		if address == nil || !address.IsLoopback() {
+			return fmt.Errorf("non-loopback remote MCP URLs must use HTTPS")
+		}
+	}
+	headers, _ := config["headers"].(map[string]any)
+	seen := make(map[string]struct{}, len(headers))
+	for name, rawValue := range headers {
+		value, _ := rawValue.(string)
+		if !validHTTPHeaderName(name) || !validHTTPHeaderValue(value) {
+			return fmt.Errorf("remote MCP header %q is not a valid HTTP field", name)
+		}
+		folded := strings.ToLower(name)
+		if _, duplicate := seen[folded]; duplicate {
+			return fmt.Errorf("remote MCP header %q is duplicated with different casing", name)
+		}
+		seen[folded] = struct{}{}
+	}
+	return nil
+}
+
+func validHTTPHeaderName(value string) bool {
+	if value == "" {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if !((character >= 'a' && character <= 'z') ||
+			(character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') ||
+			strings.ContainsRune("!#$%&'*+-.^_`|~", rune(character))) {
+			return false
+		}
+	}
+	return true
+}
+
+func validHTTPHeaderValue(value string) bool {
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if (character < 0x20 && character != '\t') || character == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 func bundledCommandPath(command string) (string, error) {
@@ -237,7 +305,7 @@ func validateCWD(value string) error {
 	default:
 		return fmt.Errorf("stdio cwd must be ./-, PLUGIN_ROOT-, or PLUGIN_DATA-rooted")
 	}
-	if suffix == "" || path.IsAbs(suffix) || strings.Contains(suffix, `\\`) || strings.Contains(suffix, "${PLUGIN_") || path.Clean(suffix) != suffix || strings.HasPrefix(suffix, "../") {
+	if suffix == "" || path.IsAbs(suffix) || strings.Contains(suffix, `\\`) || path.Clean(suffix) != suffix || strings.HasPrefix(suffix, "../") {
 		return fmt.Errorf("stdio cwd escapes its declared root")
 	}
 	for _, segment := range strings.Split(suffix, "/") {
@@ -246,25 +314,6 @@ func validateCWD(value string) error {
 		}
 	}
 	return nil
-}
-
-func validateReservedPlaceholders(value string) error {
-	for offset := 0; ; {
-		index := strings.Index(value[offset:], "${PLUGIN_")
-		if index < 0 {
-			return nil
-		}
-		index += offset
-		end := strings.IndexByte(value[index:], '}')
-		if end < 0 {
-			return fmt.Errorf("unterminated reserved PLUGIN placeholder")
-		}
-		placeholder := value[index : index+end+1]
-		if placeholder != "${PLUGIN_ROOT}" && placeholder != "${PLUGIN_DATA}" {
-			return fmt.Errorf("unsupported reserved placeholder %q", placeholder)
-		}
-		offset = index + end + 1
-	}
 }
 
 func (loader Loader) loadOpenAIMCP(path string, declared bool) (domain.MCPComponent, []domain.Diagnostic) {

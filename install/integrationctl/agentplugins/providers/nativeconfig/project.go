@@ -44,7 +44,6 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 	resolve := func(value string) (string, error) {
 		replacements := []struct{ token, value string }{
 			{"${PLUGIN_ROOT}", placeholders.PackageRoot},
-			{"${package.root}", placeholders.PackageRoot},
 			{"${PLUGIN_DATA}", placeholders.DataRoot},
 		}
 		for _, replacement := range replacements {
@@ -52,13 +51,12 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 				if strings.TrimSpace(replacement.value) == "" {
 					return "", fmt.Errorf("explicit value for %s is required", replacement.token)
 				}
-				value = strings.ReplaceAll(value, replacement.token, replacement.value)
 			}
 		}
-		if strings.Contains(value, "${") {
-			return "", fmt.Errorf("unresolved placeholder in %q", value)
-		}
-		return value, nil
+		return strings.NewReplacer(
+			"${PLUGIN_ROOT}", placeholders.PackageRoot,
+			"${PLUGIN_DATA}", placeholders.DataRoot,
+		).Replace(value), nil
 	}
 	projectStrings := func(values []string) ([]string, error) {
 		out := make([]string, len(values))
@@ -77,27 +75,17 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 		}
 		out := make(map[string]string, len(values))
 		for key, value := range values {
-			resolvedKey, err := resolve(key)
-			if err != nil {
-				return nil, err
-			}
 			resolvedValue, err := resolve(value)
 			if err != nil {
 				return nil, err
 			}
-			if _, exists := out[resolvedKey]; exists {
-				return nil, fmt.Errorf("placeholder expansion produced duplicate key %q", resolvedKey)
-			}
-			out[resolvedKey] = resolvedValue
+			out[key] = resolvedValue
 		}
 		return out, nil
 	}
 
 	if serverType == "stdio" {
-		command, err := resolve(server.Command)
-		if err != nil {
-			return nil, err
-		}
+		command := server.Command
 		if strings.TrimSpace(command) == "" || server.URL != "" || len(server.Headers) > 0 || server.RemoteTransport != "" {
 			return nil, fmt.Errorf("stdio MCP server requires command and forbids remote fields")
 		}
@@ -153,16 +141,16 @@ func projectServer(codec Codec, server Server, placeholders Placeholders) (map[s
 		return entry, nil
 	}
 
-	url, err := resolve(server.URL)
-	if err != nil {
-		return nil, err
-	}
+	url := server.URL
 	if strings.TrimSpace(url) == "" || server.Command != "" || len(server.Args) > 0 || len(server.Env) > 0 || server.CWD != "" {
 		return nil, fmt.Errorf("remote MCP server requires url and forbids local process fields")
 	}
-	headers, err := projectMap(server.Headers)
-	if err != nil {
-		return nil, err
+	var headers map[string]string
+	if len(server.Headers) > 0 {
+		headers = make(map[string]string, len(server.Headers))
+		for key, value := range server.Headers {
+			headers[key] = value
+		}
 	}
 	urlKey := "url"
 	if codec == CodecGemini {
