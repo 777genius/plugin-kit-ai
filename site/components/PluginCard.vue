@@ -15,6 +15,8 @@ const availableClients = computed(() => clients.filter(client => props.plugin.cl
 const initialTarget = availableClients.value.find(client => client.id === 'cursor')?.id ?? availableClients.value[0]?.id
 const targets = ref<(typeof clients)[number]['id'][]>(initialTarget ? [initialTarget] : [])
 const autoDetect = ref(true)
+const installExpanded = ref(false)
+const installPanelId = `plugin-install-${props.plugin.install_source.replace(/[^a-z0-9_-]+/gi, '-')}`
 const resolution = computed(() => resolveDistribution(props.plugin, targets.value))
 const selectedDistribution = computed(() => isDiscovered.value || current.value ? resolution.value.distribution : undefined)
 const canInstall = computed(() => isDiscovered.value
@@ -67,7 +69,7 @@ function updateAutoDetect(value: boolean) {
 </script>
 
 <template>
-  <article class="plugin-card">
+  <article class="plugin-card" :class="{ 'plugin-card--expanded': installExpanded }">
     <span v-if="!isDiscovered" class="plugin-card__ribbon" :class="{ 'plugin-card__ribbon--muted': !canInstall }">{{ canInstall ? 'Reviewed plugin' : expired ? 'Temporarily paused' : !published ? 'Preview only' : 'Not available' }}</span>
     <div class="plugin-card__identity" :class="{ 'plugin-card__identity--no-icon': !iconURL, 'plugin-card__identity--with-ribbon': !isDiscovered }">
       <span v-if="iconURL" class="plugin-card__icon"><img :src="iconURL" alt="" width="32" height="32" loading="lazy" /></span>
@@ -79,27 +81,42 @@ function updateAutoDetect(value: boolean) {
     </div>
     <p v-if="isDiscovered" class="plugin-card__author plugin-card__popularity" title="Stars belong to the GitHub repository, not this individual package"><span aria-hidden="true">★</span> {{ repositoryStars }} stars on repo · Agent Plugins 1.0</p>
     <p class="plugin-card__description">{{ plugin.description }}</p>
-    <p v-if="!autoDetect && selectedDistribution" class="plugin-card__author">By {{ selectedDistribution.publisher }} · <a :href="isDiscovered ? provenanceURL : githubSourceUrl(plugin, selectedDistribution)" target="_blank" rel="noreferrer">View source <span class="sr-only">for {{ plugin.name }}</span></a></p>
-    <p v-if="!autoDetect && resolution.fallback_reason && current" class="plugin-card__author">{{ resolution.fallback_reason }}</p>
-    <p v-if="showAuthentication" class="plugin-card__auth">{{ authLabel }}</p>
     <div class="plugin-card__bottom">
-      <ul v-if="!autoDetect && selectedDistribution" class="badge-list" aria-label="Install candidate components">
-        <li v-for="component in selectedDistribution.components" :key="component">{{ component }}</li>
-      </ul>
-      <div class="plugin-card__install">
-        <AppMultiSelect
-          v-if="targets.length"
-          :model-value="targets"
-          :auto-selected="autoDetect"
-          :auto-option="autoOption"
-          :label="`Choose clients for ${plugin.display_name}`"
-          :options="targetOptions"
-          @update:auto-selected="updateAutoDetect"
-          @update:model-value="updateTargets"
-        />
-        <CommandSnippet v-if="canInstall" label="Add" kind="add" :command="command" compact />
-        <span v-else class="plugin-card__author">{{ isDiscovered ? 'Unavailable at its indexed source; no install command is generated.' : expired ? 'Commands disabled because the Directory is temporarily stale.' : !published ? 'Commands disabled in preview.' : resolution.unavailable_reason }}</span>
-      </div>
+      <button
+        v-if="canInstall"
+        type="button"
+        class="plugin-card__install-toggle"
+        :aria-controls="installPanelId"
+        :aria-expanded="installExpanded"
+        :aria-label="`Install ${plugin.display_name}`"
+        @click="installExpanded = !installExpanded"
+      >
+        Install
+      </button>
+      <span v-else class="plugin-card__unavailable">{{ isDiscovered ? 'Unavailable at its indexed source; no install command is generated.' : expired ? 'Commands disabled because the Directory is temporarily stale.' : !published ? 'Commands disabled in preview.' : resolution.unavailable_reason }}</span>
+      <Transition name="plugin-install">
+        <div v-if="installExpanded && canInstall" :id="installPanelId" class="plugin-card__install-panel">
+          <p v-if="!autoDetect && selectedDistribution" class="plugin-card__author">By {{ selectedDistribution.publisher }} · <a :href="isDiscovered ? provenanceURL : githubSourceUrl(plugin, selectedDistribution)" target="_blank" rel="noreferrer">View source <span class="sr-only">for {{ plugin.name }}</span></a></p>
+          <p v-if="!autoDetect && resolution.fallback_reason && current" class="plugin-card__author">{{ resolution.fallback_reason }}</p>
+          <p v-if="showAuthentication" class="plugin-card__auth">{{ authLabel }}</p>
+          <ul v-if="!autoDetect && selectedDistribution" class="badge-list" aria-label="Install candidate components">
+            <li v-for="component in selectedDistribution.components" :key="component">{{ component }}</li>
+          </ul>
+          <div class="plugin-card__install">
+            <AppMultiSelect
+              v-if="targets.length"
+              :model-value="targets"
+              :auto-selected="autoDetect"
+              :auto-option="autoOption"
+              :label="`Choose clients for ${plugin.display_name}`"
+              :options="targetOptions"
+              @update:auto-selected="updateAutoDetect"
+              @update:model-value="updateTargets"
+            />
+            <CommandSnippet label="Add" kind="add" :command="command" compact />
+          </div>
+        </div>
+      </Transition>
     </div>
   </article>
 </template>

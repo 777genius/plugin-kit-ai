@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createHash, createPrivateKey, createPublicKey, sign } from 'node:crypto'
 
 const discoveryFixture = makeDiscoveryFixture()
@@ -31,6 +31,16 @@ async function expectNoHorizontalOverflow(page: Page) {
     scroll: document.documentElement.scrollWidth,
   }))
   expect(widths.scroll, `document is ${widths.scroll - widths.client}px wider than its viewport`).toBeLessThanOrEqual(widths.client + 1)
+}
+
+async function openCardInstaller(card: Locator) {
+  const install = card.getByRole('button', { name: /^Install / })
+  await expect(install).toHaveAttribute('aria-expanded', 'false')
+  await expect(card.locator('.plugin-card__install-panel')).toHaveCount(0)
+  await install.click()
+  await expect(install).toHaveAttribute('aria-expanded', 'true')
+  await expect(card.locator('.plugin-card__install-panel')).toBeVisible()
+  return install
 }
 
 test('hydrates finalized CSP pages without runtime or layout failures', async ({ page }) => {
@@ -69,6 +79,7 @@ test('defaults to installed-agent detection and lets users switch to explicit ta
   await expect(page.getByText(/2 community packages found on GitHub/)).toBeVisible()
   await page.getByRole('searchbox', { name: 'Search plugins' }).fill('portable-demo')
   const card = page.locator('.plugin-card').filter({ hasText: 'portable-demo' })
+  await openCardInstaller(card)
   const trigger = card.getByRole('button', { name: /Choose clients for portable-demo:/ })
   await expect(trigger).toHaveAccessibleName(/All installed agents/)
   const command = card.locator('.command-snippet code')
@@ -88,17 +99,15 @@ test('defaults to installed-agent detection and lets users switch to explicit ta
   expect(failures).toEqual([])
 })
 
-test('presents ChatGPT as a clear account-specific option without internal binding terms', async ({ page }) => {
+test('keeps reviewed cards closed when a preview cannot authorize installation', async ({ page }) => {
   const failures = observeFailures(page)
   await page.goto('plugins')
   await page.getByRole('searchbox', { name: 'Search plugins' }).fill('Atlassian')
   const card = page.locator('.plugin-card').filter({ hasText: 'Atlassian' })
-  const trigger = card.getByRole('button', { name: /Choose clients for Atlassian: All installed agents/ })
-  await trigger.click()
-  const menu = page.locator('.app-multiselect__content')
-  const chatgpt = menu.getByRole('checkbox', { name: /ChatGPT/ })
-  await expect(chatgpt).toBeDisabled()
-  await expect(chatgpt).not.toContainText(/app binding|app id|mcp server/i)
+  await expect(card.getByText('Preview only')).toBeVisible()
+  await expect(card.getByRole('button', { name: /^Install / })).toHaveCount(0)
+  await expect(card.getByRole('button', { name: /Choose clients/ })).toHaveCount(0)
+  await expect(card.locator('.command-snippet')).toHaveCount(0)
   expect(failures).toEqual([])
 })
 
@@ -109,6 +118,12 @@ test('keeps each plugin selector compact above a two-line command', async ({ pag
   const search = page.getByRole('searchbox', { name: 'Search plugins' })
   await search.fill('portable-demo')
   const card = page.locator('.plugin-card').filter({ hasText: 'portable-demo' })
+  const collapsedBox = await card.boundingBox()
+  expect(collapsedBox).not.toBeNull()
+  expect(collapsedBox!.height).toBeLessThanOrEqual(320)
+  await expect(card.getByRole('button', { name: 'Install portable-demo' })).toBeVisible()
+  await expect(card.locator('.command-snippet')).toHaveCount(0)
+  const install = await openCardInstaller(card)
   const trigger = card.getByRole('button', { name: /Choose clients for portable-demo:/ })
   const command = card.locator('.command-snippet')
   const [triggerBox, commandBox] = await Promise.all([trigger.boundingBox(), command.boundingBox()])
@@ -118,19 +133,13 @@ test('keeps each plugin selector compact above a two-line command', async ({ pag
   expect(triggerBox!.y + triggerBox!.height).toBeLessThanOrEqual(commandBox!.y + 1)
   await expect(command.locator('code')).toHaveText('npx universal-agent-plugins add\ndiscovery:example/portable//agent-plugin')
   expect(await command.locator('code').evaluate(element => element.textContent?.split('\n').length)).toBe(2)
+  const expandedBox = await card.boundingBox()
+  expect(expandedBox).not.toBeNull()
+  expect(expandedBox!.height).toBeGreaterThan(collapsedBox!.height)
+  await install.click()
+  await expect(card.locator('.plugin-card__install-panel')).toHaveCount(0)
+  await expect(install).toHaveAttribute('aria-expanded', 'false')
 
-  await search.fill('Atlassian')
-  const reviewedTrigger = page.locator('.plugin-card').filter({ hasText: 'Atlassian' })
-    .getByRole('button', { name: /Choose clients for Atlassian:/ })
-  await reviewedTrigger.click()
-  const menu = page.locator('.app-multiselect__content')
-  await expect(menu.getByRole('checkbox', { name: /Claude Code/ })).toBeEnabled()
-  await expect(menu.getByRole('checkbox', { name: /Gemini CLI/ })).toBeEnabled()
-  await expect(menu.getByRole('checkbox', { name: /OpenCode/ })).toBeEnabled()
-  await expect(menu.getByRole('checkbox', { name: /Cline/ })).toBeEnabled()
-  await expect(menu.getByRole('checkbox', { name: /Windsurf/ })).toBeEnabled()
-  await expect(menu.getByRole('checkbox', { name: /ChatGPT/ })).toBeDisabled()
-  await page.keyboard.press('Escape')
   await expectNoHorizontalOverflow(page)
   expect(failures).toEqual([])
 })
@@ -178,27 +187,22 @@ test('keeps bridge alternatives on one product page', async ({ page }) => {
   expect(failures).toEqual([])
 })
 
-test('renders target authentication distinctly and keeps it tied to multiselect targets', async ({ page }) => {
+test('renders target authentication only inside an opened installer', async ({ page }) => {
   const failures = observeFailures(page)
   await page.goto('plugins')
+  await expect(page.getByText(/2 community packages found on GitHub/)).toBeVisible()
 
   const search = page.getByRole('searchbox', { name: 'Search plugins' })
-  await search.fill('Agent Code Navigator')
-  const navigator = page.locator('.plugin-card').filter({ hasText: 'Agent Code Navigator' })
-  await expect(navigator.locator('.plugin-card__auth')).toHaveCount(0)
-  await navigator.getByRole('button', { name: /Choose clients for Agent Code Navigator:/ }).click()
+  await search.fill('portable-demo')
+  const portable = page.locator('.plugin-card').filter({ hasText: 'portable-demo' })
+  await expect(portable.locator('.plugin-card__auth')).toHaveCount(0)
+  await openCardInstaller(portable)
+  await portable.getByRole('button', { name: /Choose clients for portable-demo:/ }).click()
   await expect(page.locator('.app-multiselect__content')).toBeInViewport({ ratio: 1 })
   await page.getByRole('checkbox', { name: /Codex/ }).click()
   await page.keyboard.press('Escape')
-  await expect(navigator.locator('.plugin-card__auth')).toHaveCount(0)
-  await expect(navigator.getByRole('button', { name: /Choose clients for Agent Code Navigator: Codex/ })).toBeVisible()
-
-  await search.fill('Atlassian')
-  const atlassian = page.locator('.plugin-card').filter({ hasText: 'Atlassian' })
-  await atlassian.getByRole('button', { name: /Choose clients for Atlassian:/ }).click()
-  await page.getByRole('checkbox', { name: /Cursor/ }).click()
-  await page.keyboard.press('Escape')
-  await expect(atlassian.locator('.plugin-card__auth')).toHaveText('Authentication required')
+  await expect(portable.locator('.plugin-card__auth')).toHaveText('Authentication required')
+  await expect(portable.getByRole('button', { name: /Choose clients for portable-demo: Codex/ })).toBeVisible()
 
   await page.goto('plugins/atlassian')
   await expect(page.locator('.distribution-list')).toContainText('codex — Managed install; Authentication required')
@@ -211,9 +215,8 @@ test('renders target authentication distinctly and keeps it tied to multiselect 
 test('keeps tall target menus within a short viewport and scrolls every option into reach', async ({ page }) => {
   const failures = observeFailures(page)
   await page.setViewportSize({ width: page.viewportSize()!.width, height: 480 })
-  await page.goto('plugins')
-  await page.getByRole('searchbox', { name: 'Search plugins' }).fill('Agent Code Navigator')
-  const trigger = page.getByRole('button', { name: /Choose clients for Agent Code Navigator:/ })
+  await page.goto('./')
+  const trigger = page.getByRole('button', { name: /Choose target clients:/ })
   await expect(trigger).toHaveAttribute('data-hydrated', 'true')
   await trigger.click()
 
@@ -255,6 +258,7 @@ test('loads, filters, and installs one signed unreviewed package without a site 
   await expect(card).toContainText('★ 412 stars on repo')
   await expect(card).not.toContainText('Immutable commit')
   await expect(card).not.toContainText('Manifest sha256:')
+  await openCardInstaller(card)
   await card.getByRole('button', { name: /Choose clients for portable-demo:/ }).click()
   await page.getByRole('checkbox', { name: /Codex/ }).click()
   await page.getByRole('checkbox', { name: /Cursor/ }).click()
@@ -300,7 +304,7 @@ function makeDiscoveryFixture() {
   const generatedAt = generated.toISOString().replace('.000Z', 'Z')
   const expiresAt = expires.toISOString().replace('.000Z', 'Z')
   const compact = {
-    slug: 'discovery:example/portable//agent-plugin', name: 'portable-demo', description: 'Portable test package', owner: 'example', repository: 'example/portable', package_path: 'agent-plugin', revision: 'a'.repeat(40), version: '1.2.3', license: 'Apache-2.0', schema_version: '1.0.0', components: { extensions: 0, mcp: 1, skills: 1 }, mcp_transports: ['stdio'], compatible_clients: ['codex', 'cursor'], authentication: 'unknown', status: 'conformant_unreviewed', runtime_reviewed: false, tree_digest: `sha256:${'1'.repeat(64)}`, manifest_digest: `sha256:${'2'.repeat(64)}`, stars: 412, repository_updated_at: generatedAt, reviewed_distribution_id: null, availability: 'available',
+    slug: 'discovery:example/portable//agent-plugin', name: 'portable-demo', description: 'Portable test package', owner: 'example', repository: 'example/portable', package_path: 'agent-plugin', revision: 'a'.repeat(40), version: '1.2.3', license: 'Apache-2.0', schema_version: '1.0.0', components: { extensions: 0, mcp: 1, skills: 1 }, mcp_transports: ['stdio'], compatible_clients: ['codex', 'cursor'], authentication: 'required', status: 'conformant_unreviewed', runtime_reviewed: false, tree_digest: `sha256:${'1'.repeat(64)}`, manifest_digest: `sha256:${'2'.repeat(64)}`, stars: 412, repository_updated_at: generatedAt, reviewed_distribution_id: null, availability: 'available',
   }
   const unavailable = { ...compact, slug: 'discovery:example/unavailable//agent-plugin', name: 'unavailable-demo', repository: 'example/unavailable', revision: 'c'.repeat(40), availability: 'unavailable' }
   const compactRecords = [compact, unavailable]
