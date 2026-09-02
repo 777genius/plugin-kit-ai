@@ -1,9 +1,11 @@
 # Universal Agent Plugins
 
 `universal-agent-plugins` is the public npm package for installing and managing
-portable Agent Plugins 1.0 packages. It installs the `agentplugins` binary;
-`npx universal-agent-plugins` and a globally installed `agentplugins` run the
-same lifecycle manager, not separate engines.
+portable Agent Plugins 1.0 packages. Its product home and npm facade source are
+the [`universal-agent-plugins`](https://github.com/777genius/universal-agent-plugins)
+repository. It installs the `agentplugins` binary; `npx universal-agent-plugins`
+and a globally installed `agentplugins` run the same lifecycle manager, not
+separate engines.
 
 Prerequisite: Node.js 22 or newer.
 
@@ -11,9 +13,10 @@ Prerequisite: Node.js 22 or newer.
 npx universal-agent-plugins add context7
 ```
 
-`universal-agent-plugins` is an independent community CLI built in
-[`plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai). It is not an
-official OpenAI or Agent Plugins project and is not affiliated with
+The npm package is a thin Node.js launcher.
+[`plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai) owns and releases
+the shared Go implementation engine; it is not duplicated here. This is an independent community CLI, not an official
+OpenAI or Agent Plugins project, and is not affiliated with
 `sigilco/agentplugins` or `@agentplugins/cli`. Agent Plugins 1.0 defines the
 portable `plugin.json` package; this CLI supplies installation and lifecycle
 policy.
@@ -23,7 +26,7 @@ binary matching the exact npm version, verifies the SHA-256 embedded in the npm
 tarball, then caches it under XDG Cache or LocalAppData. It never falls back to
 `latest` and never sends `GITHUB_TOKEN` to public downloads.
 
-Release 0.1.15 passed exact native npm bootstrap proofs on all six supported
+Stable publication is gated by exact native npm bootstrap proofs on all six supported
 platforms:
 
 | OS | x64 | arm64 |
@@ -63,10 +66,10 @@ Detection checks installed executables and documented configuration surfaces.
 It does not start an agent, log in, complete OAuth, or prove browser/tool
 runtime behavior.
 
-The following matrix describes the current release source. New client support
-is available through `npx` once a release containing this source is published.
-The exact package, source revisions, commands, and limitations are recorded in
-the [isolated client E2E evidence](https://github.com/777genius/plugin-kit-ai/blob/main/docs/AGENTPLUGINS_CLIENT_E2E.md).
+The following matrix describes historical lifecycle evidence collected for
+installer 0.1.22. It is not evidence for the current npm release. The exact
+package, source revisions, commands, and limitations are recorded in the
+[commit-pinned historical client E2E evidence](https://github.com/777genius/plugin-kit-ai/blob/4b25a45e1574bab7a4f49e48905a3b3b2647e917/docs/AGENTPLUGINS_CLIENT_E2E.md).
 
 | Client | Evidence |
 | --- | --- |
