@@ -6,7 +6,7 @@ const props = withDefaults(defineProps<{ plugins: RegistryPlugin[], heading?: st
   heading: 'Explore plugins',
   intro: 'Search by capability, component, or source.',
 })
-const { repositoryUrl } = useSite()
+const { asset, repositoryUrl } = useSite()
 const query = ref('')
 const category = ref('all')
 const component = ref('all')
@@ -51,7 +51,7 @@ const trustOptions = [
 ]
 const clientOptions = [
   { value: 'all', label: 'All agents' },
-  ...clients.map(item => ({ value: item.id, label: item.name })),
+  ...clients.map(item => ({ value: item.id, label: item.name, icon: asset(`client-icons/${item.icon}`) })),
 ]
 const authenticationOptions = [
   { value: 'all', label: 'All authentication' },
@@ -101,13 +101,13 @@ watch([query, category, component, source, trust, client, authentication, owner]
         </svg>
         <input v-model="query" type="search" placeholder="Search by name, author, or capability…" />
       </label>
-      <AppCombobox v-model="category" label="Filter by category" search-placeholder="Search categories…" :options="stableCategoryOptions" />
-      <AppSelect v-model="component" label="Filter by component" :options="stableComponentOptions" />
-      <AppSelect v-model="source" label="Filter by source" :options="sourceOptions" />
-      <AppSelect v-model="trust" label="Filter by trust level" :options="trustOptions" />
-      <AppSelect v-model="client" label="Filter by agent" :options="clientOptions" />
-      <AppSelect v-model="authentication" label="Filter by authentication" :options="authenticationOptions" />
-      <AppCombobox v-model="owner" label="Filter by owner" search-placeholder="Search owners…" :options="ownerOptions" />
+      <AppCombobox v-model="category" leading-icon="category" label="Filter by category" search-placeholder="Search categories…" :options="stableCategoryOptions" />
+      <AppSelect v-model="component" leading-icon="component" label="Filter by component" :options="stableComponentOptions" />
+      <AppSelect v-model="source" leading-icon="source" label="Filter by source" :options="sourceOptions" />
+      <AppSelect v-model="trust" leading-icon="trust" label="Filter by trust level" :options="trustOptions" />
+      <AppSelect v-model="client" leading-icon="agent" label="Filter by agent" :options="clientOptions" />
+      <AppSelect v-model="authentication" leading-icon="authentication" label="Filter by authentication" :options="authenticationOptions" />
+      <AppCombobox v-model="owner" leading-icon="owner" label="Filter by owner" search-placeholder="Search owners…" :options="ownerOptions" />
     </div>
     <div class="catalog-meta">
       <div>

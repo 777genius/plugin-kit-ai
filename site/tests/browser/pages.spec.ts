@@ -71,6 +71,24 @@ test('presents Chrome DevTools as a compact two-step quick start', async ({ page
   else await expect(quickStart.getByText(/Command unavailable: review preview/)).toBeVisible()
   await expect(quickStart.getByText(/Incompatible agents are skipped/)).toBeVisible()
   await expect(quickStart.getByText(/Interactive installer ready|Schema validated|Quick start/)).toHaveCount(0)
+  await expect(page.locator('.hero-shell > .client-section')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'From directory to agent in three steps' })).toHaveCount(0)
+  await expect(page.locator('.catalog-controls .filter-icon')).toHaveCount(7)
+
+  const firstCard = page.locator('.plugin-card').first()
+  await expect(firstCard).toBeVisible()
+  const firstCardBox = await firstCard.boundingBox()
+  expect(firstCardBox).not.toBeNull()
+  expect(firstCardBox!.height).toBeLessThanOrEqual(250)
+
+  const targetTrigger = quickStart.getByRole('button', { name: /Choose target clients:/ })
+  const chevronAlignment = await targetTrigger.evaluate((element) => {
+    const trigger = element.getBoundingClientRect()
+    const chevron = element.querySelector('.app-multiselect__chevron')?.getBoundingClientRect()
+    return chevron ? Math.abs((trigger.top + trigger.height / 2) - (chevron.top + chevron.height / 2)) : null
+  })
+  expect(chevronAlignment).not.toBeNull()
+  expect(chevronAlignment!).toBeLessThanOrEqual(0.5)
 
   const box = await quickStart.boundingBox()
   expect(box).not.toBeNull()

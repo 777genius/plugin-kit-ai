@@ -23,6 +23,7 @@ const props = defineProps<{
   modelValue: string
   options: readonly SelectOption[]
   label: string
+  leadingIcon?: 'category' | 'component' | 'source' | 'trust' | 'agent' | 'authentication' | 'owner'
 }>()
 
 const emit = defineEmits<{
@@ -47,9 +48,10 @@ function updateValue(value: unknown) {
     <SelectTrigger class="app-select__trigger" :aria-label="label">
       <span class="app-select__value">
         <span v-if="selected?.icon" class="app-select__value-icon"><img :src="selected.icon" alt="" width="20" height="20" /></span>
+        <FilterIcon v-else-if="leadingIcon" :name="leadingIcon" />
         <span>{{ selected?.label }}</span>
       </span>
-      <SelectIcon class="app-select__chevron" aria-hidden="true">⌄</SelectIcon>
+      <SelectIcon class="app-select__chevron" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m3.5 6 4.5 4 4.5-4" /></svg></SelectIcon>
     </SelectTrigger>
     <SelectPortal>
       <SelectContent class="app-select__content" position="popper" align="start" :side-offset="7">

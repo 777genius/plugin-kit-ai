@@ -22,6 +22,7 @@ const props = defineProps<{
   options: readonly ComboboxOption[]
   label: string
   searchPlaceholder: string
+  leadingIcon?: 'category' | 'component' | 'source' | 'trust' | 'agent' | 'authentication' | 'owner'
 }>()
 
 const emit = defineEmits<{
@@ -54,10 +55,8 @@ function selectCurrentText(event: FocusEvent | MouseEvent) {
 <template>
   <ComboboxRoot :model-value="modelValue" :open-on-click="true" @update:model-value="updateValue">
     <ComboboxAnchor class="app-combobox__anchor">
-      <svg class="app-combobox__search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none">
-        <circle cx="11" cy="11" r="6.5" />
-        <path d="m16 16 4 4" />
-      </svg>
+      <FilterIcon v-if="leadingIcon" :name="leadingIcon" />
+      <svg v-else class="app-combobox__search-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
       <ComboboxInput
         class="app-combobox__input"
         :aria-label="label"
@@ -68,7 +67,7 @@ function selectCurrentText(event: FocusEvent | MouseEvent) {
         @click="selectCurrentText"
       />
       <ComboboxTrigger class="app-combobox__trigger" :aria-label="`Open ${label.toLowerCase()}`">
-        <span aria-hidden="true">⌄</span>
+        <svg aria-hidden="true" viewBox="0 0 16 16" fill="none"><path d="m3.5 6 4.5 4 4.5-4" /></svg>
       </ComboboxTrigger>
     </ComboboxAnchor>
     <ComboboxPortal>

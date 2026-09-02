@@ -78,10 +78,10 @@ function toggle(value: string) {
         <span v-if="!autoSelected" class="app-multiselect__icons" aria-hidden="true">
           <span v-for="option in selected.slice(0, 3)" :key="option.value"><img v-if="option.icon" :src="option.icon" alt="" width="19" height="19" /></span>
         </span>
-        <span v-else class="app-multiselect__auto-icon" aria-hidden="true">✨</span>
+        <span v-else class="app-multiselect__auto-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3 .65 2.35L15 6l-2.35.65L12 9l-.65-2.35L9 6l2.35-.65L12 3Z" /><path d="m17.5 10 .85 3.15L21.5 14l-3.15.85L17.5 18l-.85-3.15L13.5 14l3.15-.85L17.5 10Z" /><path d="m6.5 11 .65 2.35L9.5 14l-2.35.65L6.5 17l-.65-2.35L3.5 14l2.35-.65L6.5 11Z" /></svg></span>
         <span>{{ summary }}</span>
       </span>
-      <span class="app-multiselect__chevron" aria-hidden="true">⌄</span>
+      <span class="app-multiselect__chevron" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m3.5 6 4.5 4 4.5-4" /></svg></span>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent class="app-multiselect__content" align="start" :side-offset="7" :collision-padding="14">
@@ -94,7 +94,7 @@ function toggle(value: string) {
           :aria-pressed="autoSelected"
           @click="selectAuto"
         >
-          <span class="app-multiselect__auto-symbol" aria-hidden="true">✨</span>
+          <span class="app-multiselect__auto-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3 .65 2.35L15 6l-2.35.65L12 9l-.65-2.35L9 6l2.35-.65L12 3Z" /><path d="m17.5 10 .85 3.15L21.5 14l-3.15.85L17.5 18l-.85-3.15L13.5 14l3.15-.85L17.5 10Z" /><path d="m6.5 11 .65 2.35L9.5 14l-2.35.65L6.5 17l-.65-2.35L3.5 14l2.35-.65L6.5 11Z" /></svg></span>
           <span><strong>{{ autoOption.label }}</strong><small>{{ autoOption.description }}</small></span>
           <span class="app-multiselect__check" aria-hidden="true">✓</span>
         </button>

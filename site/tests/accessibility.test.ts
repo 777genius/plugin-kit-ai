@@ -51,7 +51,7 @@ describe('focused catalog accessibility contract', () => {
     assert.match(card, /<AppMultiSelect[\s\S]*v-if="targets\.length"/)
     assert.match(styles, /\.plugin-card__install \{[^}]*grid-template-columns: minmax\(0, 1fr\)/)
     assert.match(styles, /\.plugin-card__install \.app-multiselect__trigger \{[^}]*190px/)
-    assert.match(styles, /\.plugin-card \{[^}]*min-height: 300px/)
+    assert.match(styles, /\.plugin-card \{[^}]*min-height: 238px/)
     assert.match(styles, /\.plugin-card__install-toggle \{[^}]*var\(--green\)/)
     assert.match(layout, /Pull request preview/)
   })
@@ -67,6 +67,24 @@ describe('focused catalog accessibility contract', () => {
     assert.doesNotMatch(card, /Immutable commit|Manifest/)
     assert.match(card, /stars on repo/)
     assert.match(layout, /Plugin updates are temporarily paused/)
+  })
+
+  it('keeps the hero focused and gives every catalog filter a semantic icon', () => {
+    const home = source('../pages/index.vue')
+    const catalog = source('../components/PluginCatalog.vue')
+    const multiselect = source('../components/AppMultiSelect.vue')
+    const filterIcon = source('../components/FilterIcon.vue')
+    assert.match(home, /const showWorkflow = false/)
+    assert.match(home, /class="hero-shell"[\s\S]*class="client-section"/)
+    assert.match(catalog, /leading-icon="category"/)
+    assert.match(catalog, /leading-icon="component"/)
+    assert.match(catalog, /leading-icon="source"/)
+    assert.match(catalog, /leading-icon="trust"/)
+    assert.match(catalog, /leading-icon="agent"/)
+    assert.match(catalog, /leading-icon="authentication"/)
+    assert.match(catalog, /leading-icon="owner"/)
+    assert.match(multiselect, /app-multiselect__chevron[^>]*>[\s\S]*<svg/)
+    assert.match(filterIcon, /name === 'category'/)
   })
 
   it('chooses an installable homepage demo instead of assuming one product', () => {

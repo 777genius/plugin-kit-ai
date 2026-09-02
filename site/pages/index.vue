@@ -51,6 +51,7 @@ const heroPluginName = computed(() => demoPlugin.value.name === 'chrome-devtools
 const heroResolution = computed(() => resolveDistribution(demoPlugin.value, selectedHeroClients.value.map(client => client.id)))
 const heroCommand = computed(() => !current.value || (!heroAutoDetect.value && !heroResolution.value.distribution) ? '' : pluginCommands(demoPlugin.value, heroAutoDetect.value ? undefined : selectedHeroClients.value.map(client => client.id)).add)
 const description = 'Install one Agent Plugins 1.0 package into your selected installed clients, then inspect, update, repair, switch, or remove it with the same community CLI.'
+const showWorkflow = false
 const workflowPath = ref<HTMLElement>()
 const workflowAnimated = ref(false)
 const workflowVisible = ref(false)
@@ -95,53 +96,56 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
 
 <template>
   <div>
-    <section class="hero container">
-      <div class="hero__copy">
-        <h1>One plugin.<br /><em>All your agents</em></h1>
-        <p class="hero__lead">One command finds your installed agents and lets you confirm where to set up an Agent Plugins 1.0 package. You can also choose agents manually, then inspect, update, repair, switch, or remove the plugin with the same CLI.</p>
-        <div class="hero__actions">
-          <NuxtLink class="button button--primary" to="/plugins">Explore {{ registry.plugins.length }} plugins <span aria-hidden="true">→</span></NuxtLink>
-          <a class="button button--secondary" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">Add a plugin</a>
+    <section class="hero-shell">
+      <div class="hero container">
+        <div class="hero__copy">
+          <h1>One plugin.<br /><em>All your agents</em></h1>
+          <p class="hero__lead">One command finds your installed agents and lets you confirm where to set up an Agent Plugins 1.0 package. You can also choose agents manually, then inspect, update, repair, switch, or remove the plugin with the same CLI.</p>
+          <div class="hero__actions">
+            <NuxtLink class="button button--primary" to="/plugins">Explore {{ registry.plugins.length }} plugins <span aria-hidden="true">→</span></NuxtLink>
+            <a class="button button--secondary" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">Add a plugin</a>
+          </div>
+          <p class="hero__fine-print">Open source · No tracking · Review before enabling</p>
         </div>
-        <p class="hero__fine-print">Open source · No tracking · Review before enabling</p>
-      </div>
-      <div class="hero__demo">
-        <div class="hero__window">
-          <div class="hero__window-body">
-            <div class="hero-quick-start__header">
-              <h2>Install a plugin</h2>
-              <a href="https://agent-plugins.org/specification" target="_blank" rel="noreferrer">Agent Plugins 1.0</a>
-            </div>
-            <ol class="hero-quick-start__steps">
-              <li class="hero-quick-start__step">
-                <span class="hero-quick-start__number">1</span>
-                <span class="hero-quick-start__label"><strong>Choose agents</strong><small>Select one or many</small></span>
-                <AppMultiSelect :model-value="heroTargetIDs" :auto-selected="heroAutoDetect" :auto-option="autoDetectOption" label="Choose target clients" :options="heroTargetOptions" @update:auto-selected="updateHeroAutoDetect" @update:model-value="updateHeroTargets" />
-              </li>
-              <li class="hero-quick-start__step">
-                <span class="hero-quick-start__number hero-quick-start__number--run">2</span>
-                <span class="hero-quick-start__label"><strong>Copy and run</strong><small>{{ heroPluginName }}</small></span>
-                <CommandSnippet v-if="heroCommand" :command="heroCommand" kind="add" inline />
-                <p v-else class="install-panel__notice" role="status"><strong>Command unavailable{{ expired ? ': stale Directory' : !published ? ': review preview' : '' }}.</strong> {{ expired ? 'Browse historical package information while a fresh signed snapshot is published.' : !published ? 'Production commands require a published signed Directory snapshot.' : heroResolution.unavailable_reason }}</p>
-              </li>
-            </ol>
-            <div class="hero-quick-start__footer">
-              <p><span aria-hidden="true">✓</span> Incompatible agents are skipped</p>
-              <p v-if="!heroAutoDetect && heroResolution.fallback_reason && !expired">{{ heroResolution.fallback_reason }}</p>
-              <p v-else-if="!heroAutoDetect && heroResolution.unavailable_reason && !expired">{{ heroResolution.unavailable_reason }}</p>
+        <div class="hero__demo">
+          <div class="hero__window">
+            <div class="hero__window-body">
+              <div class="hero-quick-start__header">
+                <h2>Install a plugin</h2>
+                <a href="https://agent-plugins.org/specification" target="_blank" rel="noreferrer">Agent Plugins 1.0</a>
+              </div>
+              <ol class="hero-quick-start__steps">
+                <li class="hero-quick-start__step">
+                  <span class="hero-quick-start__number">1</span>
+                  <span class="hero-quick-start__label"><strong>Choose agents</strong><small>Select one or many</small></span>
+                  <AppMultiSelect :model-value="heroTargetIDs" :auto-selected="heroAutoDetect" :auto-option="autoDetectOption" label="Choose target clients" :options="heroTargetOptions" @update:auto-selected="updateHeroAutoDetect" @update:model-value="updateHeroTargets" />
+                </li>
+                <li class="hero-quick-start__step">
+                  <span class="hero-quick-start__number hero-quick-start__number--run">2</span>
+                  <span class="hero-quick-start__label"><strong>Copy and run</strong><small>{{ heroPluginName }}</small></span>
+                  <CommandSnippet v-if="heroCommand" :command="heroCommand" kind="add" inline />
+                  <p v-else class="install-panel__notice" role="status"><strong>Command unavailable{{ expired ? ': stale Directory' : !published ? ': review preview' : '' }}.</strong> {{ expired ? 'Browse historical package information while a fresh signed snapshot is published.' : !published ? 'Production commands require a published signed Directory snapshot.' : heroResolution.unavailable_reason }}</p>
+                </li>
+              </ol>
+              <div class="hero-quick-start__footer">
+                <p><span aria-hidden="true">✓</span> Incompatible agents are skipped</p>
+                <p v-if="!heroAutoDetect && heroResolution.fallback_reason && !expired">{{ heroResolution.fallback_reason }}</p>
+                <p v-else-if="!heroAutoDetect && heroResolution.unavailable_reason && !expired">{{ heroResolution.unavailable_reason }}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
+      <footer class="client-section" aria-labelledby="clients-title">
+        <div class="client-section__inner container">
+          <p id="clients-title">Supported agents</p>
+          <ClientStrip />
+          <p class="client-section__note">The CLI installs or prepares packages for supported agents. ChatGPT uses its app setup when a plugin provides one. Some agents may still ask you to finish activation or sign in.</p>
+        </div>
+      </footer>
     </section>
 
-    <section class="client-section container" aria-labelledby="clients-title">
-      <p id="clients-title">Supported agents</p>
-      <ClientStrip />
-      <p class="client-section__note">The CLI installs or prepares packages for supported agents. ChatGPT uses its app setup when a plugin provides one. Some agents may still ask you to finish activation or sign in.</p>
-    </section>
-
-    <section id="how-it-works" class="how container" aria-labelledby="how-title">
+    <section v-if="showWorkflow" id="how-it-works" class="how container" aria-labelledby="how-title">
       <div class="section-heading section-heading--center">
         <p class="eyebrow">A small, explicit workflow</p>
         <h2 id="how-title">From directory to agent in three steps</h2>
