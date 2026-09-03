@@ -1,5 +1,8 @@
 import vuetify from 'vite-plugin-vuetify';
-import { generateI18nRoutes, supportedLocales } from './data/i18n';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { supportedLocales } from './data/i18n';
+import { loadRegistryIndex } from './build/load-registry';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const process: any;
@@ -19,6 +22,31 @@ const docsSitemapUrl =
   process.env.NUXT_PUBLIC_DOCS_SITEMAP_URL ||
   'https://777genius.github.io/universal-agent-plugins/docs/sitemap.xml';
 const baseURL = process.env.NUXT_APP_BASE_URL || '/';
+const registryRepositoryUrl =
+  process.env.NUXT_PUBLIC_REGISTRY_REPOSITORY_URL ||
+  'https://github.com/777genius/universal-agent-plugins-registry';
+const discoveryKeyID = process.env.NUXT_PUBLIC_DISCOVERY_KEY_ID || 'uap-discovery-2026-01';
+const discoveryPublicKey =
+  process.env.NUXT_PUBLIC_DISCOVERY_PUBLIC_KEY || 'IxWvGuscXR9crlCrGyBQZNqroYNVPbBA1B3pnjSffhc=';
+
+function resolveRegistrySnapshot(): string {
+  const explicit = process.env.UAP_SIGNED_SNAPSHOT_PATH;
+  if (explicit) return resolve(process.cwd(), explicit);
+
+  const pointerPath = resolve(process.cwd(), 'public/registry/schemas/1/latest.json');
+  if (!existsSync(pointerPath)) {
+    throw new Error(
+      'Signed registry mirror is missing. Run agentplugins-registry-mirror before preparing or building the landing site.',
+    );
+  }
+  const pointer = JSON.parse(readFileSync(pointerPath, 'utf8')) as { snapshot_path?: unknown };
+  if (typeof pointer.snapshot_path !== 'string' || !pointer.snapshot_path) {
+    throw new Error(`Invalid signed registry pointer at ${pointerPath}`);
+  }
+  return resolve(dirname(pointerPath), pointer.snapshot_path);
+}
+
+const registryIndex = loadRegistryIndex(resolveRegistrySnapshot(), 'published_snapshot');
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-01-19',
@@ -48,7 +76,7 @@ export default defineNuxtConfig({
     },
   },
   modules: ['@pinia/nuxt', '@nuxtjs/i18n', '@vueuse/nuxt', 'nuxt-icon', '@nuxt/eslint'],
-  css: ['~/assets/styles/main.scss'],
+  css: ['~/assets/styles/main.scss', '~/assets/styles/registry.scss'],
   components: [
     {
       path: '~/components',
@@ -69,7 +97,16 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     prerender: {
-      routes: [...generateI18nRoutes(), '/api/releases/latest', '/sitemap.xml', '/robots.txt'],
+      crawlLinks: false,
+      routes: [
+        '/',
+        '/create-plugin',
+        '/plugins',
+        ...registryIndex.plugins.map((plugin) => `/plugins/${plugin.name}`),
+        '/api/releases/latest',
+        '/sitemap.xml',
+        '/robots.txt',
+      ],
     },
   },
   routeRules: {
@@ -112,6 +149,11 @@ export default defineNuxtConfig({
       docsUrl,
       quickstartUrl,
       docsSitemapUrl,
+      baseURL,
+      repositoryUrl: registryRepositoryUrl,
+      registryIndex,
+      discoveryKeyID,
+      discoveryPublicKey,
     },
   },
 });

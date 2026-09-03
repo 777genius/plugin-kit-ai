@@ -12,13 +12,11 @@ const githubUrl = `https://github.com/${config.public.githubRepo}`;
 const homePath = computed(() => localePath('/'));
 const homeHref = computed(() => router.resolve(homePath.value).href);
 
-const navItems = computed(() => [
-  { id: 'features', label: t('nav.features') },
-  { id: 'plugins', label: t('nav.plugins') },
-  { id: 'download', label: t('nav.download') },
-  { id: 'comparison', label: t('nav.comparison') },
-  { id: 'faq', label: t('nav.faq') },
-]);
+const navItems = [
+  { id: 'plugins', label: 'Plugins' },
+  { id: 'why', label: 'Why it works' },
+  { id: 'faq', label: 'FAQ' },
+];
 
 const normalizePath = (value: string) => (value !== '/' ? value.replace(/\/+$/, '') : '/');
 
