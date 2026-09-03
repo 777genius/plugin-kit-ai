@@ -108,7 +108,12 @@ useSeoMeta({
                   :key="client.id"
                   class="plugin-detail__client"
                 >
-                  <img :src="asset(`client-icons/${client.icon}`)" alt="" width="22" height="22">
+                  <img
+                    :src="asset(`client-icons/${client.icon}`)"
+                    alt=""
+                    width="22"
+                    height="22"
+                  >
                   {{ client.name }}
                 </span>
               </div>
