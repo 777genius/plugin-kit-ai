@@ -30,7 +30,7 @@ export const usePageSeo = (
   const switchLocale = useSwitchLocalePath();
   const { docsUrl } = useDocsLinks();
   const siteUrl = config.public.siteUrl || 'https://777genius.github.io/plugin-kit-ai';
-  const siteName = 'plugin-kit-ai';
+  const siteName = 'Universal Agent Plugins';
   const githubUrl = `https://github.com/${config.public.githubRepo}`;
 
   const shouldTranslate = options.translate !== false;
@@ -51,7 +51,7 @@ export const usePageSeo = (
       width: 1200,
       height: 630,
       type: 'image/png',
-      alt: 'plugin-kit-ai - build a plugin once and ship it to many AI agents',
+      alt: 'Universal Agent Plugins - install plugins across AI agents with one CLI',
     };
   });
 
@@ -139,7 +139,7 @@ export const usePageSeo = (
       jsonLd.push({
         '@context': 'https://schema.org',
         '@type': 'SoftwareApplication',
-        name: 'plugin-kit-ai',
+        name: 'Universal Agent Plugins',
         applicationCategory: 'DeveloperApplication',
         operatingSystem: 'macOS, Linux, Windows',
         description: description.value,
@@ -173,7 +173,7 @@ export const usePageSeo = (
       },
       link: links,
       meta: [
-        { name: 'author', content: 'plugin-kit-ai' },
+        { name: 'author', content: 'Universal Agent Plugins' },
         { name: 'application-name', content: siteName },
         { name: 'apple-mobile-web-app-title', content: siteName },
         { name: 'format-detection', content: 'telephone=no' },
@@ -181,7 +181,7 @@ export const usePageSeo = (
         {
           name: 'keywords',
           content:
-            'plugin-kit-ai, AI plugins, Claude plugins, Codex plugins, Gemini plugins, multi-agent plugins, plugin repo, validate strict',
+            'Universal Agent Plugins, AI plugins, Claude plugins, Codex plugins, Gemini plugins, multi-agent plugins, plugin repo, validate strict',
         },
       ],
       script: jsonLd.map((item) => ({

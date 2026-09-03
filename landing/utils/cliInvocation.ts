@@ -1,4 +1,4 @@
-const DEFAULT_CLI_INVOCATION = 'plugin-kit-ai';
+const DEFAULT_CLI_INVOCATION = 'universal-agent-plugins';
 
 export function applyCliInvocation(command: string, invocation?: string | null): string {
   const normalizedInvocation = invocation?.trim() || DEFAULT_CLI_INVOCATION;
