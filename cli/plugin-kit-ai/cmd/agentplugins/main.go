@@ -38,10 +38,10 @@ import (
 
 var (
 	version                   = "0.1.0-development"
-	defaultDirectoryOrigin    = "https://777genius.github.io/universal-agent-plugins/registry/schemas/1/"
+	defaultDirectoryOrigin    = "https://777genius.github.io/universal-agent-plugins-registry/registry/schemas/1/"
 	defaultDirectoryKeyID     = "uap-directory-2026-01"
 	defaultDirectoryPublicKey = "HalXARjat+v3ylTPLMAnvuavRo4ZfrF+DbWwsjlp2bI="
-	defaultDiscoveryOrigin    = "https://777genius.github.io/universal-agent-plugins/discovery/"
+	defaultDiscoveryOrigin    = "https://777genius.github.io/universal-agent-plugins-registry/discovery/"
 	defaultDiscoveryKeyID     = "uap-discovery-2026-01"
 	defaultDiscoveryPublicKey = "IxWvGuscXR9crlCrGyBQZNqroYNVPbBA1B3pnjSffhc="
 	directoryClientFactory    = newDirectoryClient

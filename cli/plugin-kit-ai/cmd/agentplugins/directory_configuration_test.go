@@ -53,6 +53,12 @@ func TestProductionDirectoryIgnoresCallerSuppliedConformanceData(t *testing.T) {
 	}
 }
 
+func TestProductionDefaultsUseTheStandaloneRegistry(t *testing.T) {
+	if want := "https://777genius.github.io/universal-agent-plugins-registry/"; !strings.HasPrefix(defaultDirectoryOrigin, want) || !strings.HasPrefix(defaultDiscoveryOrigin, want) {
+		t.Fatalf("production feed defaults must use the standalone registry: directory=%q discovery=%q", defaultDirectoryOrigin, defaultDiscoveryOrigin)
+	}
+}
+
 func TestTestOnlyDependencyInjectionPreservesExactLaunchConformance(t *testing.T) {
 	clearDirectoryEnvironment(t)
 	root := t.TempDir()
