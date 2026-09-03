@@ -576,6 +576,25 @@ def validate_previous_records(records: list[dict[str, Any]]) -> None:
         slugs.add(record["slug"])
 
 
+def deduplicate_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse byte-identical scan duplicates without hiding conflicts.
+
+    GitHub search can return the same manifest through overlapping partitions
+    or seed queries. The signed feed has one identity per repository/path, so
+    an exact duplicate is harmless while two different records for that
+    identity must remain a publication error.
+    """
+    unique: dict[str, dict[str, Any]] = {}
+    for record in records:
+        identity = record_identity(record["repository"], record["package_path"])
+        prior = unique.get(identity)
+        if prior is None:
+            unique[identity] = record
+            continue
+        require(prior == record, f"conflicting duplicate package identity {identity!r}")
+    return list(unique.values())
+
+
 def candidate_paths(items: list[dict[str, Any]]) -> dict[str, set[str]]:
     result: dict[str, set[str]] = {}
     canonical_keys: dict[str, str] = {}
@@ -738,7 +757,10 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
             unavailable = dict(record)
             unavailable["availability"] = "unavailable"
             records[identity] = unavailable
-    ordered = sorted(records.values(), key=lambda item: (item["repository"], item["package_path"].casefold(), item["slug"]))
+    ordered = sorted(
+        deduplicate_records(list(records.values())),
+        key=lambda item: (item["repository"], item["package_path"].casefold(), item["slug"]),
+    )
     maximum_records = min(config.get("maximum_records", MAX_RECORDS), MAX_RECORDS)
     require(len(ordered) <= maximum_records, f"Discovery Index exceeds {maximum_records} records")
     previous_available = sum(record.get("availability") == "available" for record in previous_records)

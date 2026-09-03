@@ -27,6 +27,7 @@ from scripts.build_discovery_index import (
     SameOriginRedirect,
     bounded_package_files,
     build_candidate,
+    deduplicate_records,
     discover_search_items,
     load_previous,
     make_record,
@@ -961,6 +962,16 @@ class DiscoveryIndexTests(unittest.TestCase):
                 mode="refresh", generated_at="2026-08-27T06:00:00Z",
                 previous_records=[first, duplicate],
             )
+
+    def test_scan_duplicate_identity_is_collapsed_only_when_records_match(self):
+        first = candidate_record("a" * 40)
+        duplicate = dict(first)
+        self.assertEqual(deduplicate_records([first, duplicate]), [first])
+
+        conflicting = dict(first)
+        conflicting["manifest_digest"] = "sha256:" + "b" * 64
+        with self.assertRaisesRegex(DiscoveryError, "conflicting duplicate package identity"):
+            deduplicate_records([first, conflicting])
 
     def test_partial_candidate_never_replaces_last_known_good(self):
         with tempfile.TemporaryDirectory() as temporary:
