@@ -83,17 +83,21 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/commits/${COMMIT}/check-runs?filter=latest&per_page=100")"
           pr_checks="$(gh api --paginate --slurp \
             "repos/${GITHUB_REPOSITORY}/commits/${pr_head}/check-runs?filter=latest&per_page=100")"
-          require_check() {
+          has_check() {
             local payload="$1"
             local name="$2"
-            if ! jq -e --arg name "${name}" \
+            jq -e --arg name "${name}" \
               'any(.[]?.check_runs[]?; .name == $name and .status == "completed" and .conclusion == "success")' \
-              <<<"${payload}" >/dev/null; then
-              echo "required successful check is missing: ${name}" >&2
+              <<<"${payload}" >/dev/null
+          }
+          require_check() {
+            local name="$1"
+            if ! has_check "${commit_checks}" "${name}" && ! has_check "${pr_checks}" "${name}"; then
+              echo "required successful check is missing on merge commit and PR head: ${name}" >&2
               exit 1
             fi
           }
-          require_check "${pr_checks}" dependency-review
+          require_check dependency-review
           for name in \
             test \
             docs-check \
@@ -106,7 +110,7 @@ jobs:
             'govulncheck (integrationctl)' \
             'govulncheck (plugininstall)' \
             'govulncheck (sdk)'; do
-            require_check "${commit_checks}" "${name}"
+            require_check "${name}"
           done
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
