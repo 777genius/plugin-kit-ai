@@ -6,6 +6,10 @@ This document is the execution contract for the repository rename and the remain
 end-to-end work. It supersedes the older plan that still described 0.1.18 and
 Directory sequence 13.
 
+This is a gated implementation plan, not an instruction to rename repositories
+immediately. The rename is the final cutover step and may start only after the
+preparation, compatibility, and rollback checks below are green.
+
 ## 1. Final decision
 
 The two public repositories have different jobs:
@@ -15,8 +19,10 @@ The two public repositories have different jobs:
 | 777genius/universal-agent-plugins | User-facing product | Go CLI engine, lifecycle, adapters, SDK, canonical npm facade, releases, product README |
 | 777genius/universal-agent-plugins-registry | Community catalog | 26 reviewed packages, bridges, signed Directory and Discovery Index, site, submission workflow |
 
-The current repositories will be renamed in place, preserving their GitHub repository
-IDs, issues, stars, forks, tags, and commit history:
+The current repositories will be renamed in place. GitHub's documented redirects
+cover repository web links and Git clone/fetch/push operations; repository IDs,
+issues, stars, forks, tags, releases, and commit history must be measured in the
+baseline and verified again after each rename:
 
 ~~~text
 777genius/plugin-kit-ai
@@ -36,6 +42,11 @@ https://docs.github.com/en/repositories/creating-and-managing-repositories/renam
 ### Non-negotiable invariants
 
 - plugin.json remains the installed Agent Plugins 1.0 package authority.
+- plugin.yaml is legacy authoring input only; it is never installed as part of an
+  Agent Plugin package and cannot override plugin.json.
+- Agent Plugins 1.0 is the production contract. Agent Plugins 1.1 is parse-only
+  experimental coverage until its specification is stable; it is not advertised
+  as production support.
 - universal-agent-plugins is the only active publisher of the npm package with
   that name. The installed binary remains agentplugins.
 - plugin-kit-ai remains the Go module path for this migration. Do not change
@@ -43,6 +54,9 @@ https://docs.github.com/en/repositories/creating-and-managing-repositories/renam
   The module path is an API contract; see the [Go Modules Reference](https://go.dev/ref/mod#go-mod-file).
 - plugin-kit-ai and plugin-kit-ai-runtime remain separate legacy npm packages.
 - The registry is the only writer of reviewed Directory and Discovery data.
+- Directory and Discovery are optional discovery services, not package
+  requirements. Local paths and immutable Git selectors must keep working when
+  either service is unavailable.
 - A compatibility mirror is a verified byte-for-byte cache of signed feed files,
   never a second registry and never an independently editable source of truth.
 - A short name resolves only to a reviewed Directory default. Discovery results
@@ -51,15 +65,22 @@ https://docs.github.com/en/repositories/creating-and-managing-repositories/renam
   (--target codex,cursor), but the CLI never silently installs everywhere.
 - Existing add, info, update, repair, switch, outdated, validate, search, and
   remove lifecycle and rollback semantics remain intact.
+- Schema validity, installation, activation, OAuth, and runtime/tool health are
+  separate evidence states; a green schema or install check never implies a
+  runtime or OAuth pass.
 - No OAuth, telemetry, package execution, Docker, browser, or system-package
   installation is implicit.
+- Multi-target planning is deterministic and complete before mutation. If one
+  selected client fails, the CLI reports the failing target and rolls back targets
+  already changed, subject to the existing journal/recovery contract.
 
 ## 2. Corrections to the previous plan
 
 1. The old 0.1.18 and sequence-13 statements are historical, not the current
-   baseline. At review time the public package is 0.1.35, production Directory
-   is sequence 27 with 26 products, and Discovery is sequence 25 with 2,676
-   complete records. All values are re-read at cutover; none are predicted.
+   baseline. A read-only check on 2026-09-03 observed package 0.1.35, Directory
+   sequence 27 with 26 products, and Discovery sequence 25 with 2,676 complete
+   records. These are dated observations only; all pointers, counts, and digests
+   are re-read at cutover and none are predicted.
 2. A Pages mirror alone does not preserve old installations. After the old
    repository name is reused, an old source such as
    777genius/universal-agent-plugins@SHA//plugins/context7 would resolve to the
@@ -68,6 +89,9 @@ https://docs.github.com/en/repositories/creating-and-managing-repositories/renam
    or tags, and the old CLI must be tested against it.
 3. Downstream Action changes cannot be merged before the target repository exists.
    Prepare them first, then merge them immediately after the second rename.
+4. A registry source can be upstream or a community bridge. Those states must be
+   explicit in the signed record so a bridge is never presented as an upstream
+   package by accident.
 
 ## 3. Options
 
@@ -119,6 +143,12 @@ external consumers. Rejected for this launch.
    so GitHub-hosted CI and lightweight disposable local tests are the default.
    Do not create another VM, LXC, snapshot, or delete foreign data.
 
+Store the complete secret-free manifest as a short-lived private CI/release
+artifact and retain its SHA-256 plus a redacted checklist in the migration issue.
+Never commit tokens, cookies, private paths, or account identifiers. The artifact
+must be sufficient to reproduce every pre/post comparison without exposing
+credentials.
+
 ### Acceptance
 
 - The manifest is reproducible without secrets.
@@ -152,6 +182,18 @@ update/repair/remove, troubleshooting, and a registry link.
 Update description, topics, badges, issue/security links, npm repository/homepage/
 bugs fields, and all active product links. State that client activation and OAuth
 remain client-specific and that a 2,500+ Discovery count is not runtime proof.
+
+### Standard loader and conformance boundary
+
+- Keep the lossless Agent Plugins 1.0 package model (`plugin.json`, `mcp.json`,
+  skills, and supported components) separate from client adapters.
+- Run a pinned Agent Plugins 1.0 conformance corpus in CI for every loader change.
+  Keep the corpus revision and pass/fail totals in the evidence artifact; do not
+  publish a claim to an external discussion without explicit maintainer approval.
+- A CI-only Agent Plugins 1.1 inspection lane may report how a working-draft
+  fixture would be handled. The production loader continues to reject 1.1 and
+  the lane must not change production resolution, signing, or short-name defaults
+  until the 1.1 specification is published and separately reviewed.
 
 ### Release and Pages preparation
 
@@ -196,6 +238,23 @@ Work in the current universal-agent-plugins repository.
 - Keep the static generated Discovery index and last-known-good pointer. Do not
   add a database or API service in this phase.
 
+### Registry source model and precedence
+
+- `upstream` means the pinned upstream repository commit physically contains the
+  package's standard files. A `community-bridge` is a generated
+  plugin.json/mcp.json package built from a pinned upstream commit while an
+  upstream packaging PR is pending. A bridge is not a fork of the runtime source.
+- A bridge records its upstream repository, exact commit, package path, generated
+  file digests, and attribution. The registry owns the generated bridge metadata;
+  it does not silently copy or execute upstream code.
+- For a reviewed short name, an `upstream` record wins over a bridge only in a
+  newly signed Directory sequence after the upstream files and tests are verified.
+  The previous bridge sequence remains immutable. If two records disagree on an
+  ID, path, or digest, publication fails closed and requires an explicit mapping
+  decision; there is no arbitrary last-write-wins behavior.
+- Discovery never receives short-name precedence. It always exposes a
+  publisher-qualified repository, exact commit, and package path.
+
 Historical snapshots, envelopes, ledger tags, release assets, attestations, and
 evidence are immutable. They are never rewritten just to change a URL.
 
@@ -230,13 +289,23 @@ response.
 
 ### Mirror rules
 
-- The registry is the only writer. The CLI mirror is generated after a registry
-  publication by a scheduled or manually dispatched GitHub Actions job.
+- The registry is the only writer. After a successful registry Pages publication,
+  its workflow sends a `repository_dispatch` event containing the exact source
+  commit and Directory/Discovery sequences. A scheduled or manual reconciliation
+  job is a fallback for a lost event; it never advances a mirror from an
+  unverified or older source.
+- The dispatch payload is only a wake-up hint. The mirror job re-fetches public
+  pointers and verifies their signatures and digests; it never trusts a payload
+  to identify or authorize bytes, and it never dispatches back to the registry.
 - The job fetches the public pointer, verifies signature, sequence, key ID,
   source commit, and digest, then copies bytes without reserialization.
-- Invalid, incomplete, expired, or unverifiable candidates abort before Pages
-  deployment and leave the previous mirror active.
+- It stages the complete candidate tree, validates every referenced object, and
+  swaps the Pages artifact only after all checks pass. Invalid, incomplete,
+  expired, or unverifiable candidates abort before Pages deployment and leave the
+  previous mirror active.
 - The mirror job has no signing key and cannot alter reviewed mappings.
+- The active mirrored sequence and source commit are recorded in a small
+  machine-readable marker so a delayed event cannot overwrite a newer mirror.
 - Capture the first compatibility mirror before the second rename and test it
   immediately after cutover.
 
@@ -277,8 +346,10 @@ compatibility Pages build.
 
 ### Step 3 - update consumers
 
-GitHub does not redirect uses: calls to an action in a renamed repository. Merge
-the prepared updates in the 13 known consumer repositories from
+GitHub does not redirect `uses:` calls to an action in a renamed repository. Merge
+the prepared updates in every internal consumer found by the Phase 0 manifest
+and a fresh `rg`/GitHub audit (13 was the initial observation, not a fixed
+allowlist) from
 777genius/plugin-kit-ai/... to 777genius/universal-agent-plugins/.... Keep the
 action directory name setup-plugin-kit-ai for now; renaming that path is a
 separate breaking-change decision. Warn external Action consumers in release
@@ -288,10 +359,13 @@ notes.
 
 After both repositories and Pages are verified:
 
-1. Configure npm trusted publishing for universal-agent-plugins to the renamed
-   repository and exact workflow/environment. npm permits one trusted publisher
-   per package, so remove the old registry publisher before enabling the new one.
-   See https://docs.npmjs.com/trusted-publishers/.
+1. Rebind the single npm trusted-publisher configuration for
+   `universal-agent-plugins` from the old repository/workflow to the renamed
+   repository and exact workflow/environment, then read it back and verify the
+   OIDC workflow identity before publishing. Do not delete the old configuration
+   first and leave a gap; npm allows one trusted publisher per package and the
+   existing configuration can be edited in place. See
+   https://docs.npmjs.com/trusted-publishers/.
 2. Verify Apps, webhooks, deploy keys, and environment references.
 3. Re-enable registry publication and Discovery schedules.
 
@@ -311,6 +385,8 @@ Required evidence:
 - add -> info -> update -> repair -> remove in a disposable sandbox for explicit
   codex,cursor,kiro targets;
 - no real user project, OAuth token, cookie, or private identity.
+- one deliberate multi-target failure in a disposable home proving no partial
+  client state remains after rollback.
 
 ### New signed sequences
 
@@ -334,7 +410,9 @@ In fresh disposable homes and projects:
 Also test cold/warm/offline cache, tampered pointer/envelope/snapshot, unknown
 key, expired snapshot, rollback sequence, incomplete Discovery retention,
 explicit source switching, old SHA reachability, search without package execution,
-and protection against turning unreviewed results into short-name defaults.
+and protection against turning unreviewed results into short-name defaults. Test
+bridge-to-upstream promotion as a new signed sequence and verify that historical
+bridge bytes remain unchanged.
 
 ## 10. E2E and worker policy
 
@@ -373,6 +451,8 @@ and protection against turning unreviewed results into short-name defaults.
 - Show trust status before stars. Stars are informational popularity, not quality
   or runtime proof.
 - Keep generated index and site here; do not duplicate the Go engine or npm facade.
+- Label every package card and install result as `upstream` or `community bridge`
+  when the distinction is relevant; never use popularity stars as a trust signal.
 
 ## 12. Security, rollback, and edge cases
 
@@ -385,6 +465,8 @@ Security controls:
 - Every install records repository, revision, package path, tree digest, and
   distribution identity before mutation.
 - Discovery never executes package code, scripts, containers, dependencies, or MCP.
+- A bridge generator may read upstream files, but it never executes upstream
+  install scripts or dependencies during indexing.
 
 Rollback:
 
@@ -414,6 +496,8 @@ Required explicit handling:
 - repository rename/transfer/archive changing a Discovery record;
 - duplicate names across reviewed and unreviewed layers;
 - partial publication or stale latest.json;
+- bridge/upstream identity conflict or a bridge promoted without a new signed
+  sequence;
 - OAuth/activation failure after preparation;
 - cancellation or crash during a multi-target mutation;
 - old GitHub web links and old npm provenance pointing at a reused name.
@@ -468,6 +552,7 @@ the six-platform release workflow, and the old/new disposable lifecycle matrix.
 - [ ] Old registry SHAs are reachable from the renamed CLI and old 0.1.35
       exact-source install passes.
 - [ ] Old and new feed paths verify the expected signed bytes.
+- [ ] Local and immutable Git installs work without Directory or Discovery access.
 - [ ] New 0.1.36 has six-platform artifacts, checksums, npm provenance, and
       clean-project lifecycle evidence.
 - [ ] npm has one active trusted publisher for universal-agent-plugins.
@@ -475,8 +560,14 @@ the six-platform release workflow, and the old/new disposable lifecycle matrix.
 - [ ] New Directory and Discovery sequences are appended, signed, complete, and
       public; historical sequences are unchanged.
 - [ ] Discovery remains static, reproducible, and visibly distinct from Directory.
+- [ ] Every reviewed source has an explicit upstream/bridge state and a pinned
+      repository, commit, package path, and digest.
+- [ ] The pinned Agent Plugins 1.0 corpus gate is green; any 1.1 lane is CI-only,
+      clearly experimental, and cannot affect production resolution.
+- [ ] Mirror dispatch/reconciliation is monotonic, byte-for-byte, and fail-closed.
 - [ ] Reviewed/unreviewed results cannot be confused and explicit multi-target
-      installation never mutates implicit clients.
+  installation never mutates implicit clients; a failed target leaves no partial
+  state after rollback.
 - [ ] Pages, repository, npm, Action, and registry smoke checks are green on
       exact post-cutover commits.
 - [ ] No credentials, private paths, OAuth tokens, or real user projects appear
