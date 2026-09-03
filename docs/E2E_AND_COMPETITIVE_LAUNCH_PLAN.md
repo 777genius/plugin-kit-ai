@@ -606,3 +606,44 @@ This is intentionally smaller than a monorepo rewrite. Existing Go engine,
 lifecycle, adapters, signed feeds, and static site remain in service; only
 product ownership, repository identity, package publishing, and registry
 boundaries change.
+
+## 16. Implementation checkpoint (2026-09-03)
+
+The first production-facing vertical slice is now implemented and verified:
+
+- Engine PR #79 (`728d066`) adds the signed Directory/Discovery compatibility
+  mirror. It validates the existing signatures and trust anchors, preserves
+  exact feed bytes, enforces monotonic sequences, and deploys only from a
+  verified staging tree. It does not contain a signing key.
+- Engine PR #80 (`e936e8d`) makes Universal Agent Plugins the user-facing
+  product name while keeping the historical Go module path and browser cache
+  key compatible with existing installs.
+- Registry PR #217 (`72bb6d8`) makes the Discovery builder collapse exact
+  duplicate identities and fail closed on conflicting duplicates. This fixed
+  the production scan failure without weakening validation.
+- Signed Discovery Actions run `33706680463` on exact main `72bb6d8` published
+  sequence 26. Production Pages currently serve 2,836 records. Directory
+  sequence 27 remains available alongside the separate Discovery feed.
+- Read-only production asset checks returned HTTP 200 for both latest pointers,
+  the signed snapshots, both envelopes, and the Discovery search projection.
+  Local signature verification against the source-commit trust file passed:
+  `verified Discovery sequence 26 with 2836 records`.
+- A fresh disposable local sandbox ran the public npm
+  `universal-agent-plugins@0.1.20` selector
+  `discovery:0x7067/pstack` through add, info, update, and remove for explicit
+  `codex,cursor,kiro` targets. The final `agentplugins search pstack` resolved
+  Directory sequence 2 and Discovery sequence 26.
+- A second disposable sandbox on the old hosted observer was attempted with
+  the same explicit targets. Acquisition failed because that host's isolated
+  Git environment intentionally removes credential helpers and its public
+  GitHub egress requires authentication. This is recorded as an environment
+  limitation, not bypassed by weakening source isolation; the local lifecycle
+  proof remains valid.
+
+The following claims remain intentionally separate from this checkpoint:
+
+- no OAuth or vendor-account runtime proof was added;
+- no real user project was touched;
+- the repository rename/cutover remains a separately gated migration step;
+- Discovery records are schema-validated and signed, but are not presented as
+  manual runtime reviews or official certification.
