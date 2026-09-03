@@ -119,7 +119,7 @@ function decodeBase64JSON(encoded, label) {
 
 function validateSLSAAttestation(response, version, integrity, uapTag, uapCommit) {
   validateExpected(version, integrity, "0".repeat(40));
-  if (uapTag !== `v${version}`) fail("UAP tag does not match the package version");
+  if (uapTag !== `agentplugins-v${version}`) fail("UAP tag does not match the package version");
   if (!COMMIT.test(uapCommit)) fail("UAP commit must be an exact lowercase commit");
   if (!response || !Array.isArray(response.attestations)) fail("npm attestation response is invalid");
   const provenance = response.attestations.filter((item) => item?.predicateType === SLSA_PREDICATE);
