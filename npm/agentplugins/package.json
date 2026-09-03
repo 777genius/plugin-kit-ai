@@ -2,7 +2,7 @@
   "name": "universal-agent-plugins",
   "version": "0.0.0-development",
   "description": "Universal community installer and lifecycle manager for Agent Plugins 1.0",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://777genius.github.io/universal-agent-plugins/",
   "repository": {
     "type": "git",
