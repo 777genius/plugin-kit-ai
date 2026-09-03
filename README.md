@@ -1,190 +1,109 @@
 ![Universal Agent Plugins](assets/hero.png)
 
-# Universal Agent Plugins
+# Universal Agent Plugins Registry
 
-[![npm](https://img.shields.io/npm/v/universal-agent-plugins?color=7257FF)](https://www.npmjs.com/package/universal-agent-plugins)
-[![Validate](https://github.com/777genius/universal-agent-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/777genius/universal-agent-plugins/actions/workflows/validate.yml)
-[![Scheduled live checks](https://github.com/777genius/universal-agent-plugins/actions/workflows/live-e2e.yml/badge.svg)](https://github.com/777genius/universal-agent-plugins/actions/workflows/live-e2e.yml)
-[![Agent Plugins 1.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-7257FF)](https://agent-plugins.org/specification)
-[![License](https://img.shields.io/badge/license-Apache--2.0-20A4C8)](LICENSE)
+The community directory for [Agent Plugins 1.0](https://agent-plugins.org/specification).
+Browse portable packages, review their source and compatibility notes, then
+install one with the Universal Agent Plugins CLI.
 
-**[Agent Plugins 1.0](https://agent-plugins.org/specification) packages bundle
-reusable tools and instructions for AI agents. This multi-agent CLI downloads,
-verifies, and sets them up across Codex, Cursor, Claude Code, and more, then
-shows any remaining activation steps.**
+## Browse and install
+
+[Open the directory](https://777genius.github.io/universal-agent-plugins-registry/)
+to search reviewed packages and the public Discovery index.
 
 ```bash
-npx universal-agent-plugins add context7
-```
-
-## Quick start
-
-1. Run the command above. You need [Node.js 22+](https://nodejs.org/).
-2. Confirm the compatible agents detected on your computer. One is selected
-   automatically; when several are available, all are preselected.
-3. Open a new chat and ask: `Use Context7 to find the current Next.js routing docs.`
-4. Check the agent's tool activity for a Context7 call. An answer without a tool
-   call does not verify activation.
-
-Context7 needs no account. The CLI prepares or installs it for every selected
-agent. If an agent still needs a restart, import, sign-in, or OAuth confirmation,
-the CLI prints that as a separate step.
-
-Not sure what to install? [Browse 2500+ plugins](https://777genius.github.io/universal-agent-plugins/).
-
-For scripts and repeatable setup, name the agents explicitly:
-
-```bash
+npx universal-agent-plugins search docs
+npx universal-agent-plugins add context7 --target codex,cursor
 npx universal-agent-plugins add context7 --target codex,cursor,kiro
+npx universal-agent-plugins update context7 --target codex,cursor
+npx universal-agent-plugins repair context7 --target codex,cursor
+npx universal-agent-plugins switch context7 --to 777genius/context7
+npx universal-agent-plugins remove context7 --target codex,cursor
+npx universal-agent-plugins add cloudflare-docs --target codex,cursor,kiro
+npx universal-agent-plugins switch cloudflare-docs --to 777genius/cloudflare-docs
 ```
 
-The plugin is downloaded and verified once. You do not need to follow a
-different installation guide for each agent.
+The CLI is the product that installs, updates, repairs, and removes packages
+across supported agents. It downloads a package once, validates it, and prepares
+the format each selected client understands. Targets are explicit: one command
+can name several agents, but it never changes every detected client silently.
 
-## Why use it?
+[Universal Agent Plugins CLI](https://github.com/777genius/universal-agent-plugins)
 
-- **One command across agents.** Pick one or several agent apps in the same run.
-- **Manage plugins consistently.** Add, update, repair, switch, and remove.
-- **Install any standard package.** Use a short name, local folder, or pinned GitHub source.
-- **See the real status.** Setup, activation, and OAuth are reported separately.
-- **2500+ searchable plugins.** Start with reviewed packages or explore public ones.
+The CLI repository is the product home and npm facade source. Its facade installs the `agentplugins` binary; `plugin-kit-ai` remains the shared Go implementation engine during the staged rename, and the engine is not duplicated in this registry.
 
-## Supported agents
+`universal-agent-plugins` is the npm package; `agentplugins` is the installed
+command. The CLI's `upstream`, `community bridge`, `community`, and `direct source`
+labels describe where a package came from. A catalog entry is not official vendor
+software, and it is not an official vendor package. A `materialized or installed package does not by
+itself prove` that its service, OAuth flow, or runtime tool call works.
+
+## Supported clients
 
 |  |  |  |
 | --- | --- | --- |
 | <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> Codex | <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | <img src="assets/client-icons/cursor.svg" width="20" height="20" alt=""> Cursor |
 | <img src="assets/client-icons/github-copilot.svg" width="20" height="20" alt=""> GitHub Copilot CLI | <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | <img src="assets/client-icons/kiro.svg" width="20" height="20" alt=""> Kiro |
-| <img src="site/public/client-icons/claude.svg" width="20" height="20" alt=""> Claude Code | <img src="site/public/client-icons/gemini.svg" width="20" height="20" alt=""> Gemini CLI | <img src="site/public/client-icons/opencode.svg" width="20" height="20" alt=""> OpenCode |
-| <img src="site/public/client-icons/cline.svg" width="20" height="20" alt=""> Cline | <img src="site/public/client-icons/windsurf.svg" width="20" height="20" alt=""> Windsurf |  |
 
-These are available CLI targets, not a promise that every plugin works in every
-agent. Compatibility is package-specific. ChatGPT works only with plugins that
-include a verified ChatGPT app connection; see the
-[compatibility guide](docs/COMPATIBILITY.md). Some agents require the import or
-activation step printed by the CLI. Your accounts and permissions always stay
-under your control.
+These are CLI targets, not a promise that every package works in every client.
+Compatibility is package-specific and any remaining activation or OAuth step is
+shown by the CLI.
 
-## Everyday commands
+## What is in this directory?
 
-```bash
-npx universal-agent-plugins search docs
-npx universal-agent-plugins info context7
-npx universal-agent-plugins add context7 --target codex,cursor
-npx universal-agent-plugins update context7 --target codex,cursor,kiro
-npx universal-agent-plugins repair context7 --target codex,cursor,kiro
-npx universal-agent-plugins remove context7 --target codex,cursor,kiro
-npx universal-agent-plugins doctor
-```
+- **Reviewed packages** are maintained entries with visible source, components,
+  permissions, and compatibility status.
+- **Discovery** contains automatically indexed public GitHub package paths. They
+  are useful to explore, but are not endorsements or runtime guarantees.
+- **Community bridges** package a pinned upstream commit while an upstream
+  contribution is being reviewed. The source label is always shown.
 
-`update` keeps the recorded source. `remove` deletes only files managed by the
-CLI. `switch` is the explicit way to move to another publisher or distribution.
-
-<details>
-<summary><strong>More command examples</strong></summary>
-
-```bash
-npx universal-agent-plugins add cloudflare-docs --target codex,cursor,kiro
-npx universal-agent-plugins switch cloudflare-docs --to 777genius/cloudflare-docs
-```
-
-</details>
-
-## Find a plugin
-
-The CLI searches more than **2500 Agent Plugins** discovered in public GitHub
-repositories, plus 26 reviewed starter packages maintained here.
-
-- [Browse plugins](https://777genius.github.io/universal-agent-plugins/)
-- [Try the reviewed starters](docs/HERO_PLUGINS.md)
-- [Submit a plugin](CONTRIBUTING.md)
-
-The web Directory is optional. It makes discovery and short names convenient;
-the installer remains the main product.
-
-<details>
-<summary><strong>Install a local or GitHub package</strong></summary>
-
-The CLI is not limited to this Directory. External packages do not need to be copied into it.
-Use a local Agent Plugins 1.0 package or an immutable GitHub source:
-
-```bash
-npx universal-agent-plugins validate ./my-plugin
-npx universal-agent-plugins add ./my-plugin --target cursor
-npx universal-agent-plugins add \
-  777genius/universal-agent-plugins@2ddbb99dd190c1792b79904f9875e6322bccd243//plugins/cloudflare-docs \
-  --target cursor
-```
-
-Pin GitHub sources to a full commit SHA so the installed bytes are reproducible.
-
-Source labels are explicit: **upstream** lives in the owner's repository;
-**community bridge** combines reviewed metadata with pinned upstream content;
-**community** is community-authored; and **direct source** is a local path or
-exact GitHub reference. Community packages are not official vendor packages.
-Automatically discovered packages are marked **unreviewed** and validated again
-before the CLI changes any client.
-
-</details>
-
-<details>
-<summary><strong>How the CLI works</strong></summary>
-
-```text
-npx universal-agent-plugins
-        ↓
-verified Agent Plugins 1.0 package
-        ↓
-one plan for the selected agents
-        ↓
-client-specific setup + clear activation guidance
-```
-
-This repository is the product home and public source for the npm facade.
-`universal-agent-plugins` is the npm package; `agentplugins` is the installed
-command. The facade installs the `agentplugins` binary, verifies its SHA-256,
-and caches the correct build for the current platform.
-
-[`plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai) is the shared Go
-implementation engine. It contains the package loader, lifecycle, and client
-adapters; that engine is not duplicated in this repository.
-
-</details>
-
-<details>
-<summary><strong>Testing boundaries and historical evidence</strong></summary>
+The catalog currently contains 26 reviewed packages and 2,500+ discovered
+package paths. Counts can change as signed snapshots are published. A schema
+pass does not prove activation, OAuth, or a successful tool call in every agent.
 
 All 26 packages pass standard schema validation. Historical evidence includes
-15/15 runtime checks for five starter packages across Codex, Cursor, and Kiro,
-with Notion OAuth tested in those three clients; Figma OAuth was tested
-separately in Codex only. A materialized or installed package does not by itself
-prove activation, tool runtime, or OAuth. ChatGPT and Copilot claims are narrower
-and are not generalized from other clients.
+15/15 runtime checks for five starter packages across Codex, Cursor, and Kiro.
+Installation coverage is broader than runtime coverage; see the test matrix and
+verification report for exact boundaries.
 
-Installation coverage is broader than runtime coverage. See the
-[test matrix](docs/TEST_MATRIX.md), [verification report](docs/VERIFICATION.md),
-and [compatibility guide](docs/COMPATIBILITY.md) for exact runtime-tested,
-OAuth-tested, read-only, and not-proven boundaries.
+Evidence is intentionally separated: runtime-tested, OAuth-tested, read-only,
+and not-proven are different claims. Figma OAuth was tested separately in Codex
+only. ChatGPT and Copilot claims are narrower and follow the client-specific
+activation steps shown in the matrix.
 
-</details>
+The CLI is not limited to this Directory. External packages do not need to be copied into it. Use a local package or a pinned GitHub source:
 
-## Safety
+```bash
+npx universal-agent-plugins add ./my-plugin --target cursor
+SOURCE=owner/repository@0123456789abcdef0123456789abcdef01234567//path/to/plugin
+npx universal-agent-plugins add "$SOURCE" --target cursor
+```
 
-- Review a plugin's tools and permissions before enabling it.
-- Start with read-only tasks, especially after OAuth.
-- Never place tokens in `plugin.json`, `mcp.json`, or committed headers.
-- A valid plugin can still expose destructive tools.
+## Submit a package
 
-See [SECURITY.md](SECURITY.md) for reporting and security boundaries.
+Contributors can propose an Agent Plugins 1.0 package through a fork and pull
+request. Start with [CONTRIBUTING.md](CONTRIBUTING.md). The checks validate
+`plugin.json`, package contents, source pins, permissions, and the registry
+policy before a maintainer reviews the change.
 
-## Contributing
+Submissions are ordinary GitHub pull requests. No account credentials or
+service tokens belong in a package. Never put OAuth secrets in `plugin.json`,
+`mcp.json`, or committed headers.
 
-Contributions and Agent Plugins 1.0 package submissions are welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md). Project decisions also follow the
-[ecosystem and governance guardrails](docs/ECOSYSTEM_GUARDRAILS.md), including
-standard fidelity, neutrality, interoperability, and honest evidence boundaries.
+## Trust and compatibility
 
-Universal Agent Plugins is an independent community project maintained by
-777genius. It is not affiliated with or endorsed by OpenAI or the vendors shown
-above. Repository material is licensed under [Apache 2.0](LICENSE); the npm
-launcher is licensed under [MIT](npm/universal-agent-plugins/LICENSE).
+Read the package's components and permissions before enabling it. Directory
+status, schema validation, installation preparation, runtime evidence, and OAuth
+evidence are separate signals. See the [test matrix](docs/TEST_MATRIX.md),
+[verification report](docs/VERIFICATION.md), and
+[compatibility guide](docs/COMPATIBILITY.md) for exact boundaries.
+
+This registry is an independent community project. It is not affiliated with
+OpenAI, Agent Plugins, or the vendors shown in the catalog.
+
+## License
+
+Registry code and first-party catalog metadata are Apache 2.0. Third-party
+packages, logos, and notices keep their original licenses; see each package's
+`NOTICE` and source link.
