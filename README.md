@@ -138,10 +138,11 @@ Remote installs require a full 40-character commit SHA. Branches, tags, and
 abbreviated SHAs are rejected. When no package path is given, the CLI uses a
 valid root `plugin.json` or auto-selects the only valid nested package that has
 `mcp.json` or `skills/`. If several packages match, it lists them and asks for
-an explicit `//path`. The selected canonical path and package digest are stored
-for safe replay. Direct full-SHA installations remain immutable; use `switch`
-to move to another exact source. `repair` reapplies the recorded source, and
-`remove` changes only files owned by the CLI.
+an explicit `//path`. Repositories with more than 16 possible packages require
+an explicit path before candidate packages are fetched. The selected canonical
+path and package digest are stored for safe replay. Direct full-SHA installations
+remain immutable; use `switch` to move to another exact source. `repair` reapplies
+the recorded source, and `remove` changes only files owned by the CLI.
 
 ## Authoring and development
 
