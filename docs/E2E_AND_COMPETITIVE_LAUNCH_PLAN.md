@@ -14,6 +14,8 @@ one place.
 | npm release | npm workflow `33792693406` | Prepare, OIDC publish, and public verification passed |
 | Public package | `universal-agent-plugins@0.1.44` | `latest` points to `0.1.44` |
 | Lifecycle | Isolated synthetic package in release CI | `add`, `info`, `update`, and `remove` passed for Codex, Cursor, and Kiro |
+| Discovery | Signed production snapshot, sequence 30 | `2,875` records; exact production verification passed |
+| Directory site | GitHub Pages production URL | HTTP 200 and the search UI loaded successfully |
 | Documentation | Root and npm READMEs | Target-free one-command quick start is published |
 
 The npm package is published by GitHub Actions with npm Trusted Publisher
@@ -36,6 +38,8 @@ The exact CI evidence is available from the repository's Actions history:
 - [native release run 33791852212](https://github.com/777genius/universal-agent-plugins/actions/runs/33791852212)
 - [npm publish run 33792693406](https://github.com/777genius/universal-agent-plugins/actions/runs/33792693406)
 - [release `agentplugins-v0.1.44`](https://github.com/777genius/universal-agent-plugins/releases/tag/agentplugins-v0.1.44)
+- [signed Discovery run 33791156432](https://github.com/777genius/universal-agent-plugins-registry/actions/runs/33791156432)
+- [public Directory](https://777genius.github.io/universal-agent-plugins-registry/)
 
 ## Scope and honest limits
 
