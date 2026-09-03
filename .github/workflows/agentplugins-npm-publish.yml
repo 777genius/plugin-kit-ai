@@ -224,11 +224,11 @@ jobs:
           # app metadata and is not a suitable repair fixture.
           repair_source="777genius/universal-agent-plugins-registry@1388c89521bca4b53454776b584ee0c4996b31c0//plugins/context7"
           run_agentplugins add "${repair_source}" --target opencode --format json | jq -e '.result == "success" and .data.succeeded == 1 and .data.failed == 0' >/dev/null
-          managed_path="$(jq -er '.installations[0].data_receipts | to_entries[] | .value.locator' "${AGENTPLUGINS_HOME}/state-v2.json")"
-          repair_file="$(find "${managed_path}" -type f -print | sort | head -n 1)"
-          test -n "${repair_file}"
-          cp "${repair_file}" "${root}/repair-expected-file"
-          printf '\n' >> "${repair_file}"
+          repair_file="$(jq -er '.installations[0].clients | to_entries[] | .value.native_objects[] | select(.kind == "opencode_global_mcp_server") | .path' "${AGENTPLUGINS_HOME}/state-v2.json")"
+          test -f "${repair_file}"
+          jq -e '.mcp.context7' "${repair_file}" > /dev/null
+          jq 'del(.mcp.context7)' "${repair_file}" > "${root}/repair-mutated.json"
+          mv "${root}/repair-mutated.json" "${repair_file}"
           run_agentplugins repair context7 --target opencode --format json | jq -e '.result == "success" and .data.succeeded == 1 and .data.failed == 0 and .data.targets[0].target == "opencode" and .data.targets[0].output.result.mutated == true' >/dev/null
-          cmp -s "${root}/repair-expected-file" "${repair_file}"
+          jq -e '.mcp.context7' "${repair_file}" > /dev/null
           run_agentplugins remove context7 --target opencode --external-uninstalled --format json | jq -e '.result == "success" and .data.succeeded == 1 and .data.failed == 0' >/dev/null
