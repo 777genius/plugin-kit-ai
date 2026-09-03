@@ -8,11 +8,11 @@ on:
       registry_repository:
         description: Registry owner/repository to mirror
         required: false
-        default: 777genius/universal-agent-plugins
+        default: 777genius/universal-agent-plugins-registry
       pages_origin:
         description: Published registry Pages origin
         required: false
-        default: https://777genius.github.io/universal-agent-plugins/
+        default: https://777genius.github.io/universal-agent-plugins-registry/
 
 permissions:
   contents: read
@@ -24,8 +24,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_REGISTRY_REPOSITORY: 777genius/universal-agent-plugins
-  DEFAULT_PAGES_ORIGIN: https://777genius.github.io/universal-agent-plugins/
+  DEFAULT_REGISTRY_REPOSITORY: 777genius/universal-agent-plugins-registry
+  DEFAULT_PAGES_ORIGIN: https://777genius.github.io/universal-agent-plugins-registry/
 
 jobs:
   build:
@@ -91,13 +91,13 @@ jobs:
 
       - name: Build landing
         env:
-          NUXT_APP_BASE_URL: /plugin-kit-ai/
+          NUXT_APP_BASE_URL: /universal-agent-plugins/
         working-directory: landing
         run: pnpm generate
 
       - name: Build public docs under /docs
         env:
-          DOCS_BASE_PATH: /plugin-kit-ai/docs/
+          DOCS_BASE_PATH: /universal-agent-plugins/docs/
           DOCS_HOSTNAME: https://777genius.github.io
         working-directory: website
         run: pnpm run docs:build
