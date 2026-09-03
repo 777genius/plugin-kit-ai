@@ -164,8 +164,12 @@ function assertContext7Search(output) {
   if (output?.schema_version !== 1 || output.command !== "search" || output.result !== "success" ||
       !output.data || typeof output.data !== "object" || !Array.isArray(output.data.results) ||
       !output.data.results.some((result) => result?.product_id === "context7" &&
-        result.distribution_id === "777genius/context7")) {
-    fail("public catalog search did not contain the expected context7 product and distribution");
+        result.install_selector === "upstash/context7" &&
+        result.distribution_id === "upstash/context7" &&
+        result.distribution_kind === "upstream" &&
+        result.trust_state === "reviewed" &&
+        result.status === "available")) {
+    fail("public catalog search did not contain the reviewed upstream context7 distribution");
   }
 }
 
