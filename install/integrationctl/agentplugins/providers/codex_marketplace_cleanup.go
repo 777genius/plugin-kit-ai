@@ -49,8 +49,30 @@ func managedCodexMarketplaceRegistered(configRoot, marketplace, managedArtifactP
 	if sourceType, present := entry["source_type"]; present && sourceType != "local" {
 		return false, fmt.Errorf("refuse managed Codex marketplace cleanup because %s is not a local source", marketplace)
 	}
-	if filepath.Clean(source) != filepath.Clean(managedArtifactPath) {
+	if !equivalentLocalPath(source, managedArtifactPath) {
 		return false, fmt.Errorf("refuse managed Codex marketplace cleanup because %s no longer points at the managed artifact", marketplace)
 	}
 	return true, nil
+}
+
+// equivalentLocalPath compares the filesystem identity rather than only the
+// spelling of a path. macOS commonly exposes /tmp through /private/tmp, and
+// the same aliasing can occur in containerized or symlinked test homes. Both
+// paths must resolve successfully before an alias is accepted; an unreadable
+// or missing source remains fail-closed.
+func equivalentLocalPath(left, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	if left == right {
+		return true
+	}
+	resolvedLeft, err := filepath.EvalSymlinks(left)
+	if err != nil {
+		return false
+	}
+	resolvedRight, err := filepath.EvalSymlinks(right)
+	if err != nil {
+		return false
+	}
+	return filepath.Clean(resolvedLeft) == filepath.Clean(resolvedRight)
 }
