@@ -68,6 +68,11 @@ test("public Agentplugins documentation keeps copyable commands within the CLI c
     const markdown = fs.readFileSync(filename, "utf8");
     const commands = bashCommands(markdown).filter((command) => command.startsWith("npx universal-agent-plugins "));
     assert.ok(commands.length > 0, `${label} has no copyable universal-agent-plugins commands`);
+    assert.equal(
+      commands[0],
+      "npx universal-agent-plugins add context7",
+      `${label}: the first command must keep the no-target interactive quick start`
+    );
 
     for (const command of commands) {
       assert.doesNotMatch(command, /(?:^|\s)--yes(?:\s|$)/, `${label}: --yes is not a public option`);
@@ -86,46 +91,38 @@ test("public Agentplugins documentation keeps copyable commands within the CLI c
       }
     }
 
-    for (const verb of ["add", "update", "repair", "remove", "switch"]) {
+    for (const verb of ["add", "update", "repair", "remove"]) {
       assert.ok(commands.some((command) => command.startsWith(`npx universal-agent-plugins ${verb} `)), `${label}: missing ${verb} example`);
-    }
-    for (const command of commands.filter((value) => value.startsWith("npx universal-agent-plugins switch "))) {
-      assert.ok(commandArgument(command, "--to"), `${label}: switch example requires --to`);
-      assert.equal(commandArgument(command, "--target"), "", `${label}: switch must not use --target`);
     }
     assert.ok(commands.some((command) => command.includes("--target codex,cursor,kiro")), `${label}: missing explicit three-target example`);
   }
 });
 
-test("public documentation states the facade and engine ownership boundary", () => {
-  const packaged = fs.readFileSync(documents[1][1], "utf8");
-  const boundaryDocuments = [["npm README", packaged]];
-  if (fs.existsSync(documents[0][1])) {
-    boundaryDocuments.unshift(["root README", fs.readFileSync(documents[0][1], "utf8")]);
-  }
-  for (const [label, markdown] of boundaryDocuments) {
-    assert.match(markdown, /product home[\s\S]{0,100}(?:npm facade|facade source)/i, `: facade product ownership missing`);
-    assert.match(markdown, /plugin-kit-ai[\s\S]{0,180}(?:Go implementation engine|implementation engine)/i, `: implementation engine ownership missing`);
-    assert.match(markdown, /not duplicated/i, `: no-duplicate-engine boundary missing`);
-    assert.match(markdown, /installs? the `agentplugins` binary/i, `: installed binary identity missing`);
-  }
+test("public package documentation points to the authoritative product source", () => {
+  const markdown = fs.readFileSync(documents[1][1], "utf8");
+  assert.match(markdown, /https:\/\/github\.com\/777genius\/universal-agent-plugins(?:\)|\b)/i);
+  assert.match(markdown, /versioned Go binary/i);
+  assert.doesNotMatch(markdown, /product home[\s\S]{0,100}(?:npm facade|facade source)/i);
 });
 
-test("package documentation labels client evidence historical and commit-pins its source", () => {
+test("package documentation links current client evidence without stale release claims", () => {
   const markdown = fs.readFileSync(documents[1][1], "utf8");
-  assert.match(markdown, /historical lifecycle evidence collected for[\s\S]{0,80}0\.1\.22/i);
-  assert.match(markdown, /not evidence for the current npm release/i);
-  assert.match(markdown, /https:\/\/github\.com\/777genius\/plugin-kit-ai\/blob\/4b25a45e1574bab7a4f49e48905a3b3b2647e917\/docs\/AGENTPLUGINS_CLIENT_E2E\.md/);
-  assert.doesNotMatch(markdown, /plugin-kit-ai\/blob\/(?:main|master)\/docs\/AGENTPLUGINS_CLIENT_E2E\.md/);
+  assert.match(markdown, /https:\/\/github\.com\/777genius\/universal-agent-plugins\/blob\/main\/docs\/AGENTPLUGINS_CLIENT_E2E\.md/);
+  assert.doesNotMatch(markdown, /historical lifecycle evidence collected for/i);
+  assert.doesNotMatch(markdown, /0\.1\.22/);
 });
 
 test("copyable direct-source examples use a marked replacement full SHA", () => {
   const placeholder = "0123456789abcdef0123456789abcdef01234567";
   for (const [label, filename] of [documents[1]]) {
     const markdown = fs.readFileSync(filename, "utf8");
-    assert.ok(markdown.includes(`owner/repo@${placeholder}//plugins/my-plugin`), `${label}: full-SHA source example missing`);
-    assert.ok(markdown.includes("add ./my-plugin --target cursor"), `${label}: local source example missing`);
-    assert.match(markdown, new RegExp(`replace[\\s\\S]{0,180}${placeholder}|${placeholder}[\\s\\S]{0,180}replace`, "i"), `${label}: SHA replacement instruction missing`);
+    assert.match(
+      markdown,
+      new RegExp(`[A-Za-z0-9-]+/[A-Za-z0-9._-]+@${placeholder}//[A-Za-z0-9._/-]+`),
+      `${label}: full-SHA source example missing`
+    );
+    assert.ok(markdown.includes("add ./my-plugin"), `${label}: local source example missing`);
+    assert.match(markdown, /full 40-character commit SHA/i, `${label}: full-SHA replacement instruction missing`);
     assert.doesNotMatch(markdown, /@commit(?:\/\/|\b)/i, `${label}: literal @commit is not copyable`);
   }
 });

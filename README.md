@@ -9,56 +9,31 @@
 Install and manage Agent Plugins 1.0 across your AI agents with one CLI.
 
 ```bash
-npx universal-agent-plugins add context7 --target cursor
+npx universal-agent-plugins add context7
 ```
 
-The command downloads a package once, verifies it, prepares the native format for
-the selected client or clients, and tells you about any remaining activation or
-OAuth step.
-
-This repository is the product home and npm facade source. The facade installs the `agentplugins` binary; `plugin-kit-ai` is the shared Go implementation engine
-during the repository rename and is not duplicated here.
+The CLI finds compatible agents installed on your computer and asks where to
+install the plugin. Choose one or several. The package is downloaded and
+verified once, then prepared for every agent you selected.
 
 ## Quick start
 
 You need Node.js 22 or newer.
 
-1. Pick a plugin from the Universal Agent Plugins Registry:
-   https://777genius.github.io/universal-agent-plugins-registry/
-2. Choose one or several clients explicitly:
+1. Run the command above.
+2. Select the installed agents you want to use. If only one is found, it is
+   selected automatically; if several are found, the CLI shows a multi-select.
+3. Follow any activation or sign-in instruction printed by the CLI.
+4. Start a new agent session and use the plugin.
 
-   ```bash
-   npx universal-agent-plugins add context7 --target codex,cursor
-   ```
+[Browse 2,500+ plugins](https://777genius.github.io/universal-agent-plugins-registry/)
 
-3. Open a new session in the client and follow the printed activation hint.
-4. Ask the agent to use the plugin. A real tool call is the useful runtime check.
+## What the CLI does
 
-The same package is acquired once and planned for every selected target. The CLI
-does not silently modify every detected client.
-
-For an interactive terminal, omit --target to detect compatible installed
-clients and choose them in a multi-select. Scripts and CI should always pass
---target.
-
-## Everyday commands
-
-```bash
-npx universal-agent-plugins search docs
-npx universal-agent-plugins info context7
-npx universal-agent-plugins add context7 --target codex,cursor,kiro
-npx universal-agent-plugins update context7 --target codex,cursor
-npx universal-agent-plugins repair context7 --target codex,cursor
-npx universal-agent-plugins switch context7 --to 777genius/context7
-npx universal-agent-plugins outdated --all
-npx universal-agent-plugins update --all
-npx universal-agent-plugins remove context7 --target codex,cursor
-npx universal-agent-plugins doctor
-```
-
-update keeps the recorded source. repair reapplies that source. switch is the
-explicit way to move to another reviewed distribution or exact source. remove
-changes only files owned by the CLI.
+- installs one plugin in one or several supported agents;
+- updates, repairs, and removes only files it manages;
+- converts the same Agent Plugins 1.0 package into each agent's native format;
+- keeps activation and OAuth prompts visible to you.
 
 ## Any Agent Plugins 1.0 package
 
@@ -71,19 +46,9 @@ plugin.json
 └── hooks/        optional client-supported hooks
 ```
 
-Use a local package or a pinned GitHub source without submitting it to the
-registry:
-
-```bash
-npx universal-agent-plugins validate ./my-plugin
-npx universal-agent-plugins add ./my-plugin --target cursor
-npx universal-agent-plugins add \
-  owner/repository@0123456789abcdef0123456789abcdef01234567//path/to/plugin \
-  --target codex,cursor
-```
-
-Use a full 40-character commit SHA. Branches, tags, and abbreviated SHAs are
-rejected for remote installs.
+You can also install a local package or a pinned GitHub package without adding
+it to the registry. Direct-install examples are collected near the end of this
+README.
 
 plugin.yaml is the legacy plugin-kit-ai authoring format. It is not merged with
 or allowed to override plugin.json.
@@ -134,6 +99,40 @@ by you. No install telemetry is sent.
 
 The CLI is an independent community project. It is not affiliated with OpenAI,
 Agent Plugins, or the vendors shown above.
+
+## More commands
+
+For normal interactive use, omit `--target` and choose agents in the prompt.
+Use `--target` in scripts, CI, or whenever you want to name clients explicitly.
+
+```bash
+# Find and inspect plugins
+npx universal-agent-plugins search docs
+npx universal-agent-plugins info context7
+
+# Install in specific agents
+npx universal-agent-plugins add context7 --target codex,cursor,kiro
+
+# Manage an installed plugin
+npx universal-agent-plugins update context7 --target codex,cursor
+npx universal-agent-plugins repair context7 --target codex,cursor
+npx universal-agent-plugins remove context7 --target codex,cursor
+npx universal-agent-plugins outdated --all
+npx universal-agent-plugins update --all
+npx universal-agent-plugins doctor
+
+# Install a local Agent Plugins 1.0 package
+npx universal-agent-plugins validate ./my-plugin
+npx universal-agent-plugins add ./my-plugin
+
+# Install a GitHub package at an exact commit
+npx universal-agent-plugins add \
+  owner/repository@0123456789abcdef0123456789abcdef01234567//path/to/plugin
+```
+
+Remote installs require a full 40-character commit SHA. Branches, tags, and
+abbreviated SHAs are rejected. `update` keeps the recorded source, `repair`
+reapplies it, and `remove` changes only files owned by the CLI.
 
 ## Authoring and development
 
