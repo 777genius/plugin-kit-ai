@@ -110,7 +110,7 @@ const buildInstallCommand = (
   scope?: PluginInstallScope,
   includeTargets = true,
 ): string => {
-  const args = ['plugin-kit-ai', 'add', cliSource];
+  const args = ['universal-agent-plugins', 'add', cliSource];
 
   if (includeTargets) {
     for (const targetId of targetIds) {
@@ -126,9 +126,9 @@ const buildInstallCommand = (
 };
 
 const buildManageCommands = (integrationName: string): PluginManageCommands => ({
-  update: `plugin-kit-ai update ${integrationName}`,
-  repair: `plugin-kit-ai repair ${integrationName}`,
-  remove: `plugin-kit-ai remove ${integrationName}`,
+  update: `universal-agent-plugins update ${integrationName}`,
+  repair: `universal-agent-plugins repair ${integrationName}`,
+  remove: `universal-agent-plugins remove ${integrationName}`,
 });
 
 const buildCommandSet = (
@@ -137,9 +137,9 @@ const buildCommandSet = (
   lane: PluginTargetInstallLane,
 ): PluginInstallCommandSet => ({
   install: buildInstallCommand(cliSource, [lane.targetId], lane.scope, true),
-  update: `plugin-kit-ai update ${integrationName}`,
-  repair: `plugin-kit-ai repair ${integrationName} --target ${lane.targetId}`,
-  remove: `plugin-kit-ai remove ${integrationName}`,
+  update: `universal-agent-plugins update ${integrationName}`,
+  repair: `universal-agent-plugins repair ${integrationName} --target ${lane.targetId}`,
+  remove: `universal-agent-plugins remove ${integrationName}`,
 });
 
 const resolveSupportedTargets = (spec: PluginInstallSpec): PluginResolvedInstallLane[] =>

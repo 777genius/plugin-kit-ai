@@ -9,6 +9,9 @@ import type { Ref } from "vue"
 
 type ResolveResult = { url: string; version: string | null } | null
 
+// Keep the storage key stable across the product rename so existing browser
+// sessions retain their cached release metadata and do not trigger a burst of
+// duplicate API requests during rollout.
 const CACHE_KEY = "plugin-kit-ai_release_meta"
 const CACHE_TTL = 10 * 60 * 1000
 let clientRefreshPromise: Promise<DownloadsApiResponse | null> | null = null
@@ -104,7 +107,7 @@ export const useReleaseDownloads = () => {
     config.public.githubReleasesUrl || `https://github.com/${githubRepo}/releases`
 
   const { data, pending, error } = useAsyncData<DownloadsApiResponse>(
-    "plugin-kit-ai-releases",
+    "universal-agent-plugins-releases",
     async () => {
       const cached = readCache()
       if (cached) {

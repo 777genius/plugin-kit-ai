@@ -206,7 +206,8 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	logo := string(logoBody)
 	mustContain(t, logo, `const localePath = useLocalePath();`)
 	mustContain(t, logo, `<NuxtLink :to="homePath" class="app-logo">`)
-	mustContain(t, logo, `plugin-kit-ai`)
+	mustContain(t, logo, `Universal Agent Plugins`)
+	mustNotContain(t, logo, `plugin-kit-ai`)
 	mustNotContain(t, logo, `Hookplex`)
 
 	heroBody, err := os.ReadFile(filepath.Join(landingRoot, "components", "sections", "HeroSection.vue"))

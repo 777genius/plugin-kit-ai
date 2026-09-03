@@ -6,6 +6,7 @@ declare const process: any;
 
 const siteUrl = process.env.NUXT_PUBLIC_SITE_URL || "https://777genius.github.io/plugin-kit-ai";
 const githubRepo = process.env.NUXT_PUBLIC_GITHUB_REPO || "777genius/plugin-kit-ai";
+const productName = process.env.NUXT_PUBLIC_PRODUCT_NAME || "Universal Agent Plugins";
 const githubReleasesUrl = `https://github.com/${githubRepo}/releases`;
 const docsUrl = process.env.NUXT_PUBLIC_DOCS_URL || "https://777genius.github.io/plugin-kit-ai/docs/en/";
 const quickstartUrl =
@@ -96,7 +97,7 @@ export default defineNuxtConfig({
   // @ts-expect-error - field provided by nuxt modules
   site: {
     url: siteUrl,
-    name: "plugin-kit-ai"
+    name: productName
   },
   runtimeConfig: {
     github: {
@@ -105,6 +106,7 @@ export default defineNuxtConfig({
     public: {
       siteUrl,
       githubRepo,
+      productName,
       githubReleasesUrl,
       docsUrl,
       quickstartUrl,
