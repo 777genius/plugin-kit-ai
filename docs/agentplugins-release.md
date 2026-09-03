@@ -83,30 +83,27 @@ Do not add a bootstrap token back to the workflow. If the package disappears
 from npm, the registry preflight must fail closed instead of attempting to
 recreate it.
 
-## Producer cutover and historical npm audits
+## Producer cutover and npm publication
 
-For this and later cutover releases, plugin-kit-ai remains the binary producer.
-The release workflow still builds, attests, draft-proves, and promotes the same
-six assets plus `checksums.txt` and `release-manifest.json`; it does not publish
-an npm package. The npm tarball created inside the platform proof is an ephemeral
-test input only and is never a release asset or registry publication artifact.
+For this and later releases, plugin-kit-ai remains the binary producer. The
+release workflow builds, attests, draft-proves, and promotes the same six assets
+plus `checksums.txt` and `release-manifest.json`. The npm facade is staged from
+that exact public release and never embeds the binaries in its tarball.
 
-`.github/workflows/agentplugins-npm-publish.yml` is retained at its historical
-path as a read-only audit workflow. It has no npm publishing job, protected npm
-environment, OIDC write permission, token, or publish-ready gate. Its
-`verify_only` input defaults to `true`; explicitly setting it to `false` fails
-closed. Dispatch it with `verify_only=true` and an existing historical tag to
-verify the public registry version, signature, provenance, and isolated
-lifecycle. Historical audit mode does not require the tag to point to current
-`main` and does not rerun the schema-v2 six-platform release proof. The audit
-waits only for the exact `package@version` named by the historical tag. The
-current `latest` dist-tag is logged for context but is non-blocking, so a newer
-UAP publication does not invalidate or delay an older immutable-version audit.
+`.github/workflows/agentplugins-npm-publish.yml` is the manual trusted publisher.
+Dispatch it from the exact `agentplugins-vX.Y.Z` tag with `publish=true`. The
+prepare job requires a public, immutable GitHub release, verifies every asset
+and GitHub attestation, stages the checked-in evidence, and uploads one exact
+tarball. The publish job runs in the protected `npm-agentplugins` environment,
+requires GitHub OIDC (`id-token: write`), refuses `NPM_TOKEN` and
+`NODE_AUTH_TOKEN`, and publishes with npm provenance. The final job verifies
+public metadata, SLSA provenance, npm audit signatures, the tarball digest, and
+an isolated `codex,cursor,kiro` add/info/update/remove lifecycle.
 
-The UAP facade publisher must consume an exact public tag and verify the release
-manifest version, source commit, six filenames, byte sizes, SHA-256 digests, and
-GitHub artifact attestations before publication. Publisher implementation and
-npm authority are intentionally outside this repository.
+With `publish=false`, only the immutable prepare checks run; no npm state is
+changed. A published version is never overwritten and a stable tag is never
+reused. If the package disappears from npm, rerun only with a new release tag;
+the workflow never recreates an old version or uses a bootstrap token.
 
 Never publish an empty placeholder, reuse a tag, overwrite release assets, or
 resolve a binary through an unpinned GitHub `latest` release.

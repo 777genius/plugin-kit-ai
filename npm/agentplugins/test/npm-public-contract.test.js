@@ -53,7 +53,7 @@ function fixture(body = Buffer.from("exact tarball bytes")) {
       }
     }
   };
-  const uapTag = `v${version}`;
+  const uapTag = `agentplugins-v${version}`;
   const uapCommit = "a".repeat(40);
   const statement = {
     _type: "https://in-toto.io/Statement/v1",
