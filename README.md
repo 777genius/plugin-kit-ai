@@ -1,4 +1,4 @@
-# Universal Agent Plugins
+<img width="1600" height="420" alt="image" src="https://github.com/user-attachments/assets/79dd800b-b348-4e78-8257-8367fa8a959b" />
 
 [![Required](https://github.com/777genius/universal-agent-plugins/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/777genius/universal-agent-plugins/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/777genius/universal-agent-plugins?label=release)](https://github.com/777genius/universal-agent-plugins/releases)
