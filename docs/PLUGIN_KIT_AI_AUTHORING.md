@@ -6,7 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/777genius/plugin-kit-ai?label=release)](https://github.com/777genius/plugin-kit-ai/releases)
 [![npm](https://img.shields.io/npm/v/plugin-kit-ai?label=npm)](https://www.npmjs.com/package/plugin-kit-ai)
 [![Go Reference](https://pkg.go.dev/badge/github.com/777genius/plugin-kit-ai/sdk.svg)](https://pkg.go.dev/github.com/777genius/plugin-kit-ai/sdk)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
 
 Build one plugin and ship it to many AI agents.
 
