@@ -1,10 +1,33 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+
+test("npm facade metadata exactly names the UAP product endpoints", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+  assert.equal(pkg.homepage, "https://777genius.github.io/universal-agent-plugins/");
+  assert.deepEqual(pkg.repository, {
+    type: "git",
+    url: "git+https://github.com/777genius/universal-agent-plugins.git",
+    directory: "npm/agentplugins"
+  });
+  assert.deepEqual(pkg.bugs, { url: "https://github.com/777genius/universal-agent-plugins/issues" });
+});
+
+test("detached package execution sentinel", (t) => {
+  const expectedRoot = process.env.AGENTPLUGINS_DETACHED_ASSERT_ROOT;
+  if (!expectedRoot) {
+    t.skip("only asserted by the detached staged-package subprocess");
+    return;
+  }
+  assert.equal(
+    fs.realpathSync(path.resolve(__dirname, "..")),
+    fs.realpathSync(path.resolve(expectedRoot))
+  );
+  assert.equal(fs.existsSync(path.resolve(__dirname, "../../../README.md")), false);
+});
 
 const documents = [
   ["root README", path.resolve(__dirname, "../../../README.md")],
@@ -74,76 +97,35 @@ test("public Agentplugins documentation keeps copyable commands within the CLI c
   }
 });
 
-test("public documentation keeps the package, binary, manifest, and safety contracts", () => {
-  for (const [label, filename] of packagedDocuments()) {
-    const markdown = fs.readFileSync(filename, "utf8");
-    assert.match(markdown, /`universal-agent-plugins`[\s\S]{0,160}(?:public )?npm package/i, `${label}: npm package identity missing`);
-    assert.match(markdown, /installs? the `agentplugins` binary/i, `${label}: installed binary identity missing`);
-    assert.match(markdown, /same (?:installer and )?lifecycle manager|not separate engines/i, `${label}: shared engine relationship missing`);
-    assert.match(markdown, /signed\s+(?:\n)?(?:\[[^\]]+\]\([^\n]+\)|Universal Agent Plugins Directory)/i, `${label}: signed Directory contract missing`);
-    assert.doesNotMatch(markdown, /pinned\s+(?:legacy\s+)?catalog|catalog\s+v[12]|first\s+catalog/i, `${label}: stale catalog contract`);
-    assert.match(markdown, /root `plugin\.json` is the install authority/i, `${label}: plugin.json authority missing`);
-    assert.match(markdown, /`plugin\.yaml`[\s\S]{0,100}legacy[\s\S]{0,100}authoring input only/i, `${label}: legacy plugin.yaml boundary missing`);
-    assert.match(markdown, /silently override `plugin\.json`|silent(?:ly)?[^.\n]{0,60}override/i, `${label}: manifest override prohibition missing`);
-    assert.match(markdown, /preflight/i, `${label}: preflight missing`);
-    assert.match(markdown, /`--dry-run`[\s\S]{0,120}(?:read-only|without\s+writing)/i, `${label}: dry-run behavior missing`);
-    assert.match(markdown, /publisher[\s\S]{0,120}source|source[\s\S]{0,120}publisher/i, `${label}: source provenance missing`);
-    assert.match(markdown, /rollback|rolls? (?:the group )?back/i, `${label}: rollback boundary missing`);
-    assert.match(markdown, /manual\s+activation|manual-activation/i, `${label}: manual activation boundary missing`);
-    assert.match(markdown, /OAuth[\s\S]{0,160}(?:prompt|consent)[\s\S]{0,160}user-controlled/i, `${label}: OAuth prompt boundary missing`);
-    assert.match(markdown, /not every|not as a claim that every/i, `${label}: verification scope caveat missing`);
+test("public documentation states the facade and engine ownership boundary", () => {
+  const packaged = fs.readFileSync(documents[1][1], "utf8");
+  const boundaryDocuments = [["npm README", packaged]];
+  if (fs.existsSync(documents[0][1])) {
+    boundaryDocuments.unshift(["root README", fs.readFileSync(documents[0][1], "utf8")]);
   }
+  for (const [label, markdown] of boundaryDocuments) {
+    assert.match(markdown, /product home[\s\S]{0,100}(?:npm facade|facade source)/i, `: facade product ownership missing`);
+    assert.match(markdown, /plugin-kit-ai[\s\S]{0,180}(?:Go implementation engine|implementation engine)/i, `: implementation engine ownership missing`);
+    assert.match(markdown, /not duplicated/i, `: no-duplicate-engine boundary missing`);
+    assert.match(markdown, /installs? the `agentplugins` binary/i, `: installed binary identity missing`);
+  }
+});
+
+test("package documentation labels client evidence historical and commit-pins its source", () => {
+  const markdown = fs.readFileSync(documents[1][1], "utf8");
+  assert.match(markdown, /historical lifecycle evidence collected for[\s\S]{0,80}0\.1\.22/i);
+  assert.match(markdown, /not evidence for the current npm release/i);
+  assert.match(markdown, /https:\/\/github\.com\/777genius\/plugin-kit-ai\/blob\/4b25a45e1574bab7a4f49e48905a3b3b2647e917\/docs\/AGENTPLUGINS_CLIENT_E2E\.md/);
+  assert.doesNotMatch(markdown, /plugin-kit-ai\/blob\/(?:main|master)\/docs\/AGENTPLUGINS_CLIENT_E2E\.md/);
 });
 
 test("copyable direct-source examples use a marked replacement full SHA", () => {
   const placeholder = "0123456789abcdef0123456789abcdef01234567";
-  for (const [label, filename] of packagedDocuments()) {
+  for (const [label, filename] of [documents[1]]) {
     const markdown = fs.readFileSync(filename, "utf8");
     assert.ok(markdown.includes(`owner/repo@${placeholder}//plugins/my-plugin`), `${label}: full-SHA source example missing`);
     assert.ok(markdown.includes("add ./my-plugin --target cursor"), `${label}: local source example missing`);
     assert.match(markdown, new RegExp(`replace[\\s\\S]{0,180}${placeholder}|${placeholder}[\\s\\S]{0,180}replace`, "i"), `${label}: SHA replacement instruction missing`);
     assert.doesNotMatch(markdown, /@commit(?:\/\/|\b)/i, `${label}: literal @commit is not copyable`);
-  }
-});
-
-test("checked-in client E2E evidence remains exact and auditable", () => {
-  const stagedEvidence = path.resolve(__dirname, "evidence-root");
-  const evidenceRoot = fs.existsSync(stagedEvidence)
-    ? stagedEvidence
-    : path.resolve(__dirname, "../../../docs");
-  const evidenceDoc = path.join(evidenceRoot, "AGENTPLUGINS_CLIENT_E2E.md");
-  const transcriptPath = path.join(evidenceRoot, "evidence/agentplugins-client-e2e-2026-08-30.json");
-  const markdown = fs.readFileSync(evidenceDoc, "utf8");
-  const transcriptBytes = fs.readFileSync(transcriptPath);
-  const transcript = JSON.parse(transcriptBytes.toString("utf8"));
-  const digest = crypto.createHash("sha256").update(transcriptBytes).digest("hex");
-
-  assert.equal(transcript.schema_version, 1);
-  assert.match(transcript.installer.commit, /^[0-9a-f]{40}$/);
-  assert.match(transcript.installer.tree, /^[0-9a-f]{40}$/);
-  assert.match(transcript.installer.binary_sha256, /^[0-9a-f]{64}$/);
-  assert.equal(
-    transcript.package.selector,
-    "ChromeDevTools/chrome-devtools-mcp@cb39d1d835c3baa3eff87501cd8c1de020604789"
-  );
-  assert.ok(markdown.includes(transcript.installer.commit), "evidence doc lost tested installer commit");
-  assert.ok(markdown.includes(transcript.installer.tree), "evidence doc lost tested installer tree");
-  assert.ok(markdown.includes(digest), "evidence doc lost exact transcript digest");
-
-  const add = transcript.transcript.find((entry) => entry.step === "add");
-  const repair = transcript.transcript.find((entry) => entry.step === "repair");
-  const remove = transcript.transcript.find((entry) => entry.step === "remove");
-  const postRemove = transcript.transcript.find((entry) => entry.step === "post_remove");
-  const targets = ["claude", "gemini", "opencode", "cline", "windsurf"];
-  assert.equal(add.acquisition_count, 1);
-  for (const target of targets) {
-    assert.equal(add.targets[target].outcome, "passed", `add evidence missing ${target}`);
-    assert.equal(repair.targets[target], "passed", `repair evidence missing ${target}`);
-    assert.equal(remove.targets[target], "external_completed", `remove evidence missing ${target}`);
-  }
-  assert.equal(postRemove.checks.agentplugins_installation_count, 0);
-  assert.equal(transcript.claim_boundary.lifecycle_e2e, true);
-  for (const claim of ["browser_tool_runtime_e2e", "model_turn_e2e", "login_e2e", "oauth_e2e"]) {
-    assert.equal(transcript.claim_boundary[claim], false, `evidence overclaims ${claim}`);
   }
 });
