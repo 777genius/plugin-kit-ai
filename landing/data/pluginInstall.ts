@@ -112,10 +112,8 @@ const buildInstallCommand = (
 ): string => {
   const args = ['universal-agent-plugins', 'add', cliSource];
 
-  if (includeTargets) {
-    for (const targetId of targetIds) {
-      args.push('--target', targetId);
-    }
+  if (includeTargets && targetIds.length > 0) {
+    args.push('--target', targetIds.join(','));
   }
 
   if (scope === 'project') {
@@ -194,7 +192,10 @@ export const buildInstallCommandForSelection = (
   const selectedLanes = normalizedTargetIds
     .map((targetId) => spec.supportedTargets.find((lane) => lane.targetId === targetId))
     .filter((lane): lane is NonNullable<typeof lane> => Boolean(lane));
-  const includeTargets = normalizedTargetIds.length !== allTargetIds.length;
+  // Keep generated commands explicit even when the user leaves every target
+  // selected. An omitted --target invokes interactive detection and can differ
+  // from the targets shown in the UI.
+  const includeTargets = true;
   const uniqueScopes = [...new Set(selectedLanes.map((lane) => lane.scope))];
   const scope = !includeTargets
     ? undefined

@@ -1,7 +1,7 @@
 {
   "hero": {
-    "title": "plugin-kit-ai",
-    "subtitle": "Créez un plugin une fois. Expédiez-le à plusieurs agents IA à partir d’un seul dépôt. plugin-kit-ai héberge notre gamme de plugins propriétaires et la boîte à outils open source qui la sous-tend."
+    "title": "Universal Agent Plugins",
+    "subtitle": "Installez, mettez à jour, réparez et supprimez des Agent Plugins 1.0 dans vos agents IA avec une seule commande."
   },
   "features": [
     {
@@ -964,8 +964,8 @@
   "faq": [
     {
       "id": "whatIsIt",
-      "question": "Qu'est-ce que plugin-kit-ai ?",
-      "answer": "plugin-kit-ai est une boîte à outils open source permettant de conserver un dépôt de plugin comme source de vérité, puis de générer et de valider les sorties d'agent prises en charge dont vous avez réellement besoin."
+      "question": "Qu'est-ce que Universal Agent Plugins ?",
+      "answer": "Universal Agent Plugins est une CLI qui installe, met à jour, répare et supprime des Agent Plugins 1.0 dans les agents IA que vous choisissez."
     },
     {
       "id": "whoShouldUseIt",
@@ -980,12 +980,12 @@
     {
       "id": "stableBoundary",
       "question": "Toutes les sorties prises en charge sont-elles également stables aujourd’hui ?",
-      "answer": "Non. Certaines voies sont prêtes pour la production et d’autres restent en version bêta publique. plugin-kit-ai est explicite sur cette limite afin que vous puissiez faire des promesses de produits honnêtes."
+      "answer": "Non. Certaines voies sont prêtes pour la production et d’autres restent en bêta publique. Universal Agent Plugins rend cette limite claire pour des promesses honnêtes."
     },
     {
       "id": "fastestStart",
       "question": "Quelle est la manière la plus rapide de commencer ?",
-      "answer": "Installez <code>plugin-kit-ai</code>, créez un dépôt avec <code>init</code>, puis exécutez <code>render</code> et <code>validate --strict</code>. La plupart des équipes devraient commencer par le <a href=\"https://777genius.github.io/plugin-kit-ai/docs/fr/guide/quickstart.html\">Quickstart</a>. Si votre équipe est intentionnellement Python-en premier, accédez directement au guide <a href=\"https://777genius.github.io/plugin-kit-ai/docs/fr/guide/python-runtime.html\">Python</a>."
+      "answer": "Exécutez <code>npx universal-agent-plugins add context7 --target codex,cursor</code>. Choisissez un ou plusieurs agents et suivez l'étape d'activation indiquée par le client."
     },
     {
       "id": "whichPathFirst",
@@ -1052,27 +1052,27 @@
   "quickstartSteps": [
     {
       "id": "install-cli",
-      "title": "Exécutez plugin-kit-ai comme vous voulez",
-      "command": "npx plugin-kit-ai@latest version",
-      "note": "Utilisez npx pour l'essai le plus rapide, ou installez le CLI pour un usage quotidien."
+      "title": "Lancez la CLI",
+      "command": "npx universal-agent-plugins version",
+      "note": "Utilisez npx pour commencer rapidement ou installez le binaire au quotidien."
     },
     {
       "id": "try-plugin",
-      "title": "Essayez un vrai plugin maintenant",
-      "command": "plugin-kit-ai add notion --target claude\nplugin-kit-ai add notion",
-      "note": "La première commande est le chemin sûr pour une seule cible. La seconde installe toutes les sorties prises en charge pour ce plugin."
+      "title": "Installez un vrai plugin",
+      "command": "universal-agent-plugins add context7 --target codex,cursor",
+      "note": "La même commande accepte une cible ou une liste séparée par des virgules."
     },
     {
       "id": "build-plugin",
-      "title": "Créez votre propre dépôt de plugin",
-      "command": "plugin-kit-ai init my-plugin --template online-service\ncd my-plugin",
-      "note": "Une fois le chemin d'installation clair, commencez avec le modèle qui correspond au travail."
+      "title": "Gardez-le à jour",
+      "command": "universal-agent-plugins update context7 --target codex,cursor\nuniversal-agent-plugins repair context7 --target codex,cursor",
+      "note": "Utilisez update pour une nouvelle version et repair si un client dérive."
     },
     {
       "id": "validate",
-      "title": "Générez et validez avant le transfert",
-      "command": "plugin-kit-ai generate .\nplugin-kit-ai validate . --platform claude --strict",
-      "note": "Utilisez generate et la validation stricte avant le CI, le transfert à un coéquipier ou une version."
+      "title": "Supprimez-le proprement",
+      "command": "universal-agent-plugins remove context7 --target codex,cursor",
+      "note": "La CLI supprime les entrées gérées et conserve les données du plugin par défaut."
     }
   ],
   "supportLanes": [

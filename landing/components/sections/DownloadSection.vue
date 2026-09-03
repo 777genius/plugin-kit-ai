@@ -20,9 +20,11 @@ const releaseDate = computed(() => {
 const supportAccent = ['#39ff14', '#00f0ff', '#ffb703', '#f472b6', '#94a3b8'];
 
 const installChannels = computed(() =>
-  content.value.installChannels.map((channel) =>
-    channel.id === 'docs' ? { ...channel, href: quickstartUrl.value } : channel,
-  ),
+  content.value.installChannels
+    .filter((channel) => channel.id === 'npm')
+    .map((channel) =>
+      channel.id === 'docs' ? { ...channel, href: quickstartUrl.value } : channel,
+    ),
 );
 
 const quickstartInstallChannels = computed(() =>
@@ -73,7 +75,7 @@ const quickstartSteps = computed(() =>
     if (step.id === 'try-plugin') {
       return {
         ...step,
-        command: `${selectedCliInvocation.value} add notion --target claude\n${selectedCliInvocation.value} add notion`,
+        command: applyCliInvocation(step.command, selectedCliInvocation.value),
       };
     }
 

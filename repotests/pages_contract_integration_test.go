@@ -17,8 +17,11 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 	mustContain(t, workflow, "name: Pages")
 	mustContain(t, workflow, "working-directory: landing")
 	mustContain(t, workflow, "pnpm generate")
-	mustContain(t, workflow, "NUXT_APP_BASE_URL: /plugin-kit-ai/")
-	mustContain(t, workflow, "DOCS_BASE_PATH: /plugin-kit-ai/docs/")
+	mustContain(t, workflow, "NUXT_APP_BASE_URL: /universal-agent-plugins/")
+	mustContain(t, workflow, "DOCS_BASE_PATH: /universal-agent-plugins/docs/")
+	mustContain(t, workflow, "go run ./cmd/agentplugins-registry-mirror")
+	mustContain(t, workflow, "MIRROR_METADATA.json")
+	mustContain(t, workflow, "777genius/universal-agent-plugins-registry")
 	mustContain(t, workflow, "pnpm run build:pages")
 	mustContain(t, workflow, "path: .pages-dist")
 
@@ -85,5 +88,5 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 		t.Fatal(err)
 	}
 	robots := string(robotsBody)
-	mustContain(t, robots, `https://777genius.github.io/plugin-kit-ai/docs/sitemap.xml`)
+	mustContain(t, robots, `https://777genius.github.io/universal-agent-plugins/docs/sitemap.xml`)
 }

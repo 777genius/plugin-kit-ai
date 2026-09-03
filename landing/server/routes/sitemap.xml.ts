@@ -1,20 +1,21 @@
-import { generateSitemapRoutes } from "~/data/i18n";
+import { generateSitemapRoutes } from '~/data/i18n';
 
 const escapeXml = (value: string) =>
   value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
 
-const buildDate = new Date().toISOString().split("T")[0];
+const buildDate = new Date().toISOString().split('T')[0];
 
 export default defineEventHandler((event) => {
   const config = useRuntimeConfig();
-  const siteUrl = (config.public.siteUrl as string) || "https://777genius.github.io/plugin-kit-ai";
+  const siteUrl =
+    (config.public.siteUrl as string) || 'https://777genius.github.io/universal-agent-plugins';
 
-  setHeader(event, "content-type", "application/xml; charset=utf-8");
+  setHeader(event, 'content-type', 'application/xml; charset=utf-8');
 
   const routes = generateSitemapRoutes();
   const body = `<?xml version="1.0" encoding="UTF-8"?>
@@ -22,9 +23,9 @@ export default defineEventHandler((event) => {
 ${routes
   .map(
     (path) =>
-      `  <url>\n    <loc>${escapeXml(`${siteUrl}${path}`)}</loc>\n    <lastmod>${buildDate}</lastmod>\n  </url>`
+      `  <url>\n    <loc>${escapeXml(`${siteUrl}${path}`)}</loc>\n    <lastmod>${buildDate}</lastmod>\n  </url>`,
   )
-  .join("\n")}
+  .join('\n')}
 </urlset>
 `;
 

@@ -11,7 +11,7 @@
     "primaryCta": "Abrir GitHub",
     "secondaryCta": "Ver complementos",
     "docsCta": "Ver documentación",
-    "preview": "plugin-kit-ai vista previa del flujo",
+    "preview": "Universal Agent Plugins vista previa del flujo",
     "latestRelease": "Última versión",
     "status": "Los complementos propios ya están disponibles",
     "trust": {
@@ -20,7 +20,7 @@
       "openSource": "Código abierto"
     },
     "demo": {
-      "title": "plugin-kit-ai flujo",
+      "title": "Universal Agent Plugins flujo",
       "subtitle": "Un repositorio. Etapas claras. Múltiples salidas.",
       "live": "Activo",
       "ready": "listo",
@@ -76,7 +76,7 @@
     "copied": "Copiado",
     "quickstartTitle": "Inicio más rápido",
     "quickstartSubtitle": "Esta es la ruta más rápida hacia una instalación real de plugin o un repositorio validado.",
-    "installTabsLabel": "Elija cómo ejecutar plugin-kit-ai",
+    "installTabsLabel": "Elija cómo ejecutar Universal Agent Plugins",
     "supportTitle": "Instantánea de soporte",
     "supportSubtitle": "Profundidad de soporte real hoy, según la política de soporte actual y la matriz de objetivos.",
     "supportLink": "Leer el límite de soporte"
@@ -126,12 +126,12 @@
     "install": {
       "eyebrow": "Install flow",
       "title": "Instalar este plugin",
-      "subtitle": "Elige tu agente, elige cómo ejecutar plugin-kit-ai si lo necesitas y luego copia el comando exacto para este plugin.",
+      "subtitle": "Elige tu agente, elige cómo ejecutar Universal Agent Plugins si lo necesitas y luego copia el comando exacto para este plugin.",
       "supportedLabel": "Targets disponibles",
       "allAgents": "All",
       "chooseAgentTitle": "Elige tu agente",
       "chooseAgentBody": "Todos los targets están seleccionados por defecto. Elige un subconjunto si quieres un comando de instalación más específico.",
-      "getCliTitle": "Ejecute plugin-kit-ai a su manera",
+      "getCliTitle": "Ejecute Universal Agent Plugins a su manera",
       "getCliBody": "Use npx para la primera prueba más rápida, o instale el CLI para el uso diario.",
       "installTitle": "Instalar el plugin",
       "installBody": "Ejecuta el comando de instalación para el target seleccionado. El comando se mantiene explícito para que el scope final siga siendo obvio después.",
@@ -150,7 +150,7 @@
       "copy": "Copiar",
       "copied": "Copiado",
       "fullOnboardingCta": "Abrir onboarding completo",
-      "alreadyInstalled": "¿Ya ejecuta plugin-kit-ai de otra manera? Vaya directamente al paso 3.",
+      "alreadyInstalled": "¿Ya ejecuta Universal Agent Plugins de otra manera? Vaya directamente al paso 3.",
       "repositoryCta": "Repositorio del plugin",
       "agentDocsCta": "Docs de {agent}",
       "boundaryLabel": "Atención",
@@ -187,7 +187,7 @@
         "codex": {
           "installBody": "Prepara el paquete de Codex y la entrada del marketplace local desde el integration control plane.",
           "manualNote": "Abre el repositorio o la documentación de Codex si quieres inspeccionar el paquete preparado o completar tú mismo la activación nativa.",
-          "boundaryNote": "La automatización para Codex se mantiene conservadora aquí. plugin-kit-ai prepara el paquete y el marketplace, pero Codex todavía puede requerir un paso nativo adicional antes de activarlo."
+          "boundaryNote": "La automatización para Codex se mantiene conservadora aquí. Universal Agent Plugins prepara el paquete y el marketplace, pero Codex todavía puede requerir un paso nativo adicional antes de activarlo."
         },
         "gemini": {
           "installBody": "Instala la extensión de Gemini en el directorio de extensiones del usuario y reutiliza ese mismo managed root para update y repair.",
@@ -288,7 +288,7 @@
     "sectionSubtitle": "No es una lucha contra competidores. Solo una comparación práctica con las tres formas en que los equipos de complementos suelen crear derivas innecesarias.",
     "feature": "Flujo de trabajo",
     "columns": {
-      "pluginKitAi": "plugin-kit-ai",
+      "pluginKitAi": "Universal Agent Plugins",
       "manual": "Configuración manual",
       "duplicated": "Configuraciones duplicadas",
       "scripts": "Guiones únicos"
@@ -301,14 +301,14 @@
     "docs": "Documentos"
   },
   "meta": {
-    "homeTitle": "plugin-kit-ai | Cree complementos de IA una vez y envíelos a muchos agentes",
-    "homeDescription": "plugin-kit-ai es el hogar de nuestros complementos de IA propios y el conjunto de herramientas de código abierto para crear un repositorio de complementos y apuntar a múltiples ecosistemas de agentes.",
-    "downloadTitle": "Comience con plugin-kit-ai | Instalar plugin-kit-ai",
-    "downloadDescription": "Elija una ruta de instalación para plugin-kit-ai, abra los documentos y comience desde un repositorio de complementos limpio.",
-    "pluginsTitle": "Catálogo de complementos | Complementos propios para plugin-kit-ai",
-    "pluginsDescription": "Explore el catálogo de complementos propios de plugin-kit-ai, con tarjetas con capacidad de búsqueda, filtros de flujo de trabajo y páginas livianas para cada repositorio de complementos real.",
-    "pluginDetailTitle": "complemento {complemento} | plugin-kit-ai catálogo",
-    "pluginDetailDescription": "{plugin} es parte del catálogo propio plugin-kit-ai. {lema}"
+    "homeTitle": "Universal Agent Plugins | Un comando para tus agentes de IA",
+    "homeDescription": "Universal Agent Plugins es el hogar de nuestros complementos de IA propios y el conjunto de herramientas de código abierto para crear un repositorio de complementos y apuntar a múltiples ecosistemas de agentes.",
+    "downloadTitle": "Comience con Universal Agent Plugins | Instalar Universal Agent Plugins",
+    "downloadDescription": "Elija una ruta de instalación para Universal Agent Plugins, abra los documentos y comience desde un repositorio de complementos limpio.",
+    "pluginsTitle": "Catálogo de complementos | Complementos propios para Universal Agent Plugins",
+    "pluginsDescription": "Explore el catálogo de complementos propios de Universal Agent Plugins, con tarjetas con capacidad de búsqueda, filtros de flujo de trabajo y páginas livianas para cada repositorio de complementos real.",
+    "pluginDetailTitle": "complemento {complemento} | Universal Agent Plugins catálogo",
+    "pluginDetailDescription": "{plugin} es parte del catálogo propio Universal Agent Plugins. {lema}"
   },
   "error": {
     "notFoundTitle": "Página no encontrada",
