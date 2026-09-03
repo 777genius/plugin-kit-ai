@@ -52,6 +52,10 @@ jobs:
         working-directory: landing
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare Nuxt tooling
+        working-directory: landing
+        run: pnpm exec nuxt prepare
+
       - name: Check registry, lint, and generate
         env:
           NUXT_APP_BASE_URL: /universal-agent-plugins/
