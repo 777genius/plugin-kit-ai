@@ -1334,6 +1334,24 @@ func TestExactGitHubSourceAutodiscoveryFailsClosedOnCandidateAcquisitionError(t 
 	}
 }
 
+func TestExactGitHubSourceAutodiscoveryBoundsCandidateAcquisition(t *testing.T) {
+	paths := make([]string, maxAutodiscoveryPackageCandidates+1)
+	for index := range paths {
+		paths[index] = fmt.Sprintf("packages/plugin-%02d", index)
+	}
+	acquirer := &fixedPackageDiscoverySourceAcquirer{paths: paths}
+	fixture := newCLIFixture(t, nil)
+	fixture.app.SourceAcquirer = acquirer
+
+	_, err := fixture.app.loadPackage(context.Background(), "owner/repo@"+strings.Repeat("a", 40))
+	if err == nil || !strings.Contains(err.Error(), "Found 17 package candidates. Choose one explicitly with //path") {
+		t.Fatalf("candidate bound error = %v", err)
+	}
+	if acquirer.acquireCalls != 0 {
+		t.Fatalf("candidate bound performed %d package acquisitions", acquirer.acquireCalls)
+	}
+}
+
 func TestExactGitHubSourceWithoutPortableCandidateKeepsRootNativePackageSupport(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")
@@ -1408,6 +1426,21 @@ func commitCLIRepository(t *testing.T, repositoryRoot string) string {
 type candidateFailingSourceAcquirer struct {
 	delegate SourceAcquirer
 	failPath string
+}
+
+type fixedPackageDiscoverySourceAcquirer struct {
+	SourceAcquirer
+	paths        []string
+	acquireCalls int
+}
+
+func (acquirer *fixedPackageDiscoverySourceAcquirer) DiscoverGitHubPackages(context.Context, string, string) ([]string, error) {
+	return append([]string(nil), acquirer.paths...), nil
+}
+
+func (acquirer *fixedPackageDiscoverySourceAcquirer) AcquireGitHub(context.Context, string, string, string) (domain.PackageSnapshot, error) {
+	acquirer.acquireCalls++
+	return domain.PackageSnapshot{}, errors.New("unexpected package acquisition")
 }
 
 func (acquirer *candidateFailingSourceAcquirer) AcquireLocal(ctx context.Context, source string) (domain.PackageSnapshot, error) {

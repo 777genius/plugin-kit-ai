@@ -23,6 +23,8 @@ var (
 	exactGitPattern  = regexp.MustCompile(`^(?:github:)?([A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*)@([0-9a-f]{40})(?://(.+))?$`)
 )
 
+const maxAutodiscoveryPackageCandidates = 16
+
 type loadedPackage struct {
 	envelope              domain.PackageEnvelope
 	hints                 domain.CompatibilityHints
@@ -367,6 +369,12 @@ func (app App) acquireAutodiscoveredGitHub(ctx context.Context, requested, repos
 	paths, err := app.SourceAcquirer.DiscoverGitHubPackages(ctx, repository, revision)
 	if err != nil {
 		return loadedPackage{}, err
+	}
+	// Each candidate requires an independently sealed package snapshot before
+	// the loader can decide whether it is valid. Bound that work so a pathless
+	// source cannot turn one user action into an unbounded number of fetches.
+	if len(paths) > maxAutodiscoveryPackageCandidates {
+		return loadedPackage{}, fmt.Errorf("Found %d package candidates. Choose one explicitly with //path", len(paths))
 	}
 	// Root plugin.json has precedence. An empty candidate set preserves support
 	// for repository-root native packages such as .codex-plugin/plugin.json.
