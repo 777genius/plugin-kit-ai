@@ -9,7 +9,10 @@ import type { Ref } from "vue"
 
 type ResolveResult = { url: string; version: string | null } | null
 
-const CACHE_KEY = "universal-agent-plugins_release_meta"
+// Keep the storage key stable across the product rename so existing browser
+// sessions retain their cached release metadata and do not trigger a burst of
+// duplicate API requests during rollout.
+const CACHE_KEY = "plugin-kit-ai_release_meta"
 const CACHE_TTL = 10 * 60 * 1000
 let clientRefreshPromise: Promise<DownloadsApiResponse | null> | null = null
 
