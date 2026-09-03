@@ -90,3 +90,35 @@ func TestWriteStagedRejectsTraversal(t *testing.T) {
 		}
 	}
 }
+
+func TestStagedFilesFollowSignedPointerPaths(t *testing.T) {
+	const stem = "00000000000000000027"
+	files := stagedFiles(directoryResult{stem: stem}, discoveryResult{stem: stem})
+	paths := make(map[string]bool, len(files))
+	for _, file := range files {
+		paths[file.rel] = true
+	}
+	for _, expected := range []string{
+		"registry/schemas/1/latest.json",
+		"registry/schemas/1/snapshots/" + stem + ".json",
+		"registry/schemas/1/snapshots/" + stem + ".envelope.json",
+		"discovery/latest.json",
+		"discovery/snapshots/" + stem + ".json",
+		"discovery/snapshots/" + stem + ".envelope.json",
+		"discovery/search/" + stem + ".json",
+	} {
+		if !paths[expected] {
+			t.Fatalf("signed pointer artifact path is missing: %s", expected)
+		}
+	}
+	for _, unexpected := range []string{
+		"registry/schemas/1/" + stem + ".json",
+		"registry/schemas/1/" + stem + ".envelope.json",
+		"discovery/" + stem + ".json",
+		"discovery/" + stem + ".envelope.json",
+	} {
+		if paths[unexpected] {
+			t.Fatalf("legacy root artifact path must not be emitted: %s", unexpected)
+		}
+	}
+}
