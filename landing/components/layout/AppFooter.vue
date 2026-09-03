@@ -6,7 +6,6 @@ const githubUrl = `https://github.com/${config.public.githubRepo}`;
 const githubOwner =
   (config.public.githubRepo || '777genius/universal-agent-plugins').split('/')[0] || '777genius';
 const githubOwnerUrl = `https://github.com/${githubOwner}`;
-const { docsUrl } = useDocsLinks();
 </script>
 
 <template>
@@ -28,9 +27,7 @@ const { docsUrl } = useDocsLinks();
           t('footer.github')
         }}</a>
         <span class="app-footer__divider" />
-        <a class="app-footer__link" :href="docsUrl" target="_blank" rel="noopener noreferrer">{{
-          t('footer.docs')
-        }}</a>
+        <a class="app-footer__link" href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache 2.0</a>
       </div>
     </v-container>
   </footer>

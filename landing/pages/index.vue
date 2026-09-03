@@ -1,24 +1,24 @@
 <script setup lang="ts">
-usePageSeo("meta.homeTitle", "meta.homeDescription");
-useTrackSections();
-const { containerRef } = useParallaxSections();
+const registry = useRegistry();
+const description =
+  'Install, update, repair, and remove Agent Plugins 1.0 across supported AI agents with one CLI.';
+
+useSeoMeta({
+  title: 'Universal Agent Plugins',
+  description,
+  ogTitle: 'Universal Agent Plugins',
+  ogDescription: description,
+  ogType: 'website',
+  twitterCard: 'summary',
+});
 </script>
 
 <template>
-  <div ref="containerRef" class="page">
+  <div class="registry-surface unified-home">
     <PageBackground />
-    <HeroSection />
-    <SectionDivider />
-    <LazyFeaturesSection />
-    <SectionDivider :flip="true" />
-    <LazyScreenshotsSection />
-    <SectionDivider />
-    <LazyCustomLogicSection />
-    <SectionDivider :flip="true" />
-    <LazyDownloadSection />
-    <SectionDivider :flip="true" />
-    <LazyComparisonSection />
-    <SectionDivider />
-    <LazyFAQSection />
+    <RegistryHero :registry="registry" />
+    <RegistryDirectory :registry="registry" />
+    <RegistryWhy />
+    <RegistryFaq />
   </div>
 </template>

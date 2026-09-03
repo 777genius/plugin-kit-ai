@@ -12,13 +12,11 @@ const githubUrl = `https://github.com/${config.public.githubRepo}`;
 const homePath = computed(() => localePath('/'));
 const homeHref = computed(() => router.resolve(homePath.value).href);
 
-const navItems = computed(() => [
-  { id: 'features', label: t('nav.features') },
-  { id: 'plugins', label: t('nav.plugins') },
-  { id: 'download', label: t('nav.download') },
-  { id: 'comparison', label: t('nav.comparison') },
-  { id: 'faq', label: t('nav.faq') },
-]);
+const navItems = [
+  { id: 'plugins', label: 'Plugins' },
+  { id: 'why', label: 'Why it works' },
+  { id: 'faq', label: 'FAQ' },
+];
 
 const normalizePath = (value: string) => (value !== '/' ? value.replace(/\/+$/, '') : '/');
 
@@ -43,10 +41,6 @@ onMounted(() => {
       </nav>
       <div class="app-header__spacer" />
       <div class="app-header__desktop-actions">
-        <template v-if="interactiveReady">
-          <LanguageSwitcher icon-only />
-        </template>
-        <div v-else class="app-header__control-fallback" aria-hidden="true" />
         <v-btn
           variant="outlined"
           size="small"
@@ -100,14 +94,9 @@ onMounted(() => {
                 <hr class="mobile-menu__divider" >
                 <div class="mobile-menu__actions">
                   <template v-if="interactiveReady">
-                    <LanguageSwitcher compact />
                     <ThemeToggle />
                   </template>
                   <template v-else>
-                    <div
-                      class="app-header__control-fallback app-header__control-fallback--wide"
-                      aria-hidden="true"
-                    />
                     <div class="app-header__control-fallback" aria-hidden="true" />
                   </template>
                 </div>
@@ -178,11 +167,6 @@ onMounted(() => {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.app-header__control-fallback--wide {
-  width: 96px;
-  border-radius: 12px;
 }
 
 .v-theme--light .app-header__control-fallback {
