@@ -109,6 +109,12 @@ test("public npm metadata and downloaded pack bind the staged package identity",
     validatePublicMetadata([value.metadata], value.version, value.integrity, value.shasum),
     value.metadata
   );
+  const publicStringPublisher = JSON.parse(JSON.stringify(value.metadata));
+  publicStringPublisher._npmUser = "GitHub Actions <npm-oidc-no-reply@github.com>";
+  assert.equal(
+    validatePublicMetadata(publicStringPublisher, value.version, value.integrity, value.shasum),
+    publicStringPublisher
+  );
   assert.throws(
     () => validatePublicMetadata([], value.version, value.integrity, value.shasum),
     /exactly one release record/
@@ -116,6 +122,10 @@ test("public npm metadata and downloaded pack bind the staged package identity",
   assert.throws(
     () => validatePublicMetadata([value.metadata, value.metadata], value.version, value.integrity, value.shasum),
     /exactly one release record/
+  );
+  assert.throws(
+    () => validatePublicMetadata({ ...publicStringPublisher, _npmUser: "Unknown <unknown@example.com>" }, value.version, value.integrity, value.shasum),
+    /publisher identity is not GitHub Actions/
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "npm-public-contract-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

@@ -96,16 +96,25 @@ function validatePublicMetadata(metadata, version, integrity, shasum) {
     url: expectedAttestation,
     provenance: { predicateType: "https://slsa.dev/provenance/v1" }
   }, "public npm attestation URL and provenance predicate");
-  exactKeys(metadata._npmUser, ["name", "email", "trustedPublisher"], "public npm publisher identity");
-  if (metadata._npmUser.name !== "GitHub Actions" ||
-      metadata._npmUser.email !== "npm-oidc-no-reply@github.com") {
-    fail("public npm publisher identity is not GitHub Actions");
-  }
-  const publisher = metadata._npmUser?.trustedPublisher;
-  exactKeys(publisher, ["id", "oidcConfigId"], "public npm trusted publisher");
-  if (publisher.id !== "github" ||
-      !/^oidc:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(publisher.oidcConfigId)) {
-    fail("public npm trusted publisher is not an exact GitHub Actions OIDC identity");
+  if (typeof metadata._npmUser === "string") {
+    // The public npm registry currently flattens the publisher object to this
+    // exact display string. OIDC/workflow identity is verified by the signed
+    // provenance checks below, not by fields the registry does not expose.
+    if (metadata._npmUser !== "GitHub Actions <npm-oidc-no-reply@github.com>") {
+      fail("public npm publisher identity is not GitHub Actions");
+    }
+  } else {
+    exactKeys(metadata._npmUser, ["name", "email", "trustedPublisher"], "public npm publisher identity");
+    if (metadata._npmUser.name !== "GitHub Actions" ||
+        metadata._npmUser.email !== "npm-oidc-no-reply@github.com") {
+      fail("public npm publisher identity is not GitHub Actions");
+    }
+    const publisher = metadata._npmUser?.trustedPublisher;
+    exactKeys(publisher, ["id", "oidcConfigId"], "public npm trusted publisher");
+    if (publisher.id !== "github" ||
+        !/^oidc:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(publisher.oidcConfigId)) {
+      fail("public npm trusted publisher is not an exact GitHub Actions OIDC identity");
+    }
   }
   return metadata;
 }
