@@ -29,7 +29,7 @@ export const usePageSeo = (
   const config = useRuntimeConfig();
   const switchLocale = useSwitchLocalePath();
   const { docsUrl } = useDocsLinks();
-  const siteUrl = config.public.siteUrl || 'https://777genius.github.io/plugin-kit-ai';
+  const siteUrl = config.public.siteUrl || 'https://777genius.github.io/universal-agent-plugins';
   const siteName = 'Universal Agent Plugins';
   const githubUrl = `https://github.com/${config.public.githubRepo}`;
 
@@ -132,8 +132,7 @@ export const usePageSeo = (
     ];
 
     const isDownload = canonicalPath.value.endsWith('/download');
-    const isHome =
-      canonicalPath.value === '/' || /^\/(ru|es|fr|zh)$/.test(canonicalPath.value);
+    const isHome = canonicalPath.value === '/' || /^\/(ru|es|fr|zh)$/.test(canonicalPath.value);
 
     if (isHome || isDownload) {
       jsonLd.push({

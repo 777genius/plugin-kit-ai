@@ -92,6 +92,11 @@ jobs:
       - name: Build landing
         env:
           NUXT_APP_BASE_URL: /universal-agent-plugins/
+          NUXT_PUBLIC_SITE_URL: https://777genius.github.io/universal-agent-plugins
+          NUXT_PUBLIC_GITHUB_REPO: 777genius/universal-agent-plugins
+          NUXT_PUBLIC_DOCS_URL: https://777genius.github.io/universal-agent-plugins/docs/en/
+          NUXT_PUBLIC_QUICKSTART_URL: https://777genius.github.io/universal-agent-plugins/docs/en/guide/quickstart.html
+          NUXT_PUBLIC_DOCS_SITEMAP_URL: https://777genius.github.io/universal-agent-plugins/docs/sitemap.xml
         working-directory: landing
         run: pnpm generate
 

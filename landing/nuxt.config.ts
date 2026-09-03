@@ -1,107 +1,108 @@
-import vuetify from "vite-plugin-vuetify";
-import { generateI18nRoutes, supportedLocales } from "./data/i18n";
+import vuetify from 'vite-plugin-vuetify';
+import { generateI18nRoutes, supportedLocales } from './data/i18n';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const process: any;
 
-const siteUrl = process.env.NUXT_PUBLIC_SITE_URL || "https://777genius.github.io/plugin-kit-ai";
-const githubRepo = process.env.NUXT_PUBLIC_GITHUB_REPO || "777genius/plugin-kit-ai";
-const productName = process.env.NUXT_PUBLIC_PRODUCT_NAME || "Universal Agent Plugins";
+const siteUrl =
+  process.env.NUXT_PUBLIC_SITE_URL || 'https://777genius.github.io/universal-agent-plugins';
+const githubRepo = process.env.NUXT_PUBLIC_GITHUB_REPO || '777genius/universal-agent-plugins';
+const productName = process.env.NUXT_PUBLIC_PRODUCT_NAME || 'Universal Agent Plugins';
 const githubReleasesUrl = `https://github.com/${githubRepo}/releases`;
-const docsUrl = process.env.NUXT_PUBLIC_DOCS_URL || "https://777genius.github.io/plugin-kit-ai/docs/en/";
+const docsUrl =
+  process.env.NUXT_PUBLIC_DOCS_URL ||
+  'https://777genius.github.io/universal-agent-plugins/docs/en/';
 const quickstartUrl =
-  process.env.NUXT_PUBLIC_QUICKSTART_URL || "https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html";
+  process.env.NUXT_PUBLIC_QUICKSTART_URL ||
+  'https://777genius.github.io/universal-agent-plugins/docs/en/guide/quickstart.html';
 const docsSitemapUrl =
-  process.env.NUXT_PUBLIC_DOCS_SITEMAP_URL || "https://777genius.github.io/plugin-kit-ai/docs/sitemap.xml";
-const baseURL = process.env.NUXT_APP_BASE_URL || "/";
+  process.env.NUXT_PUBLIC_DOCS_SITEMAP_URL ||
+  'https://777genius.github.io/universal-agent-plugins/docs/sitemap.xml';
+const baseURL = process.env.NUXT_APP_BASE_URL || '/';
 
 export default defineNuxtConfig({
-  compatibilityDate: "2026-01-19",
+  compatibilityDate: '2026-01-19',
   ssr: true,
   experimental: {
     // Work around the current Nuxt dev-time #app-manifest regression.
-    appManifest: false
+    appManifest: false,
   },
   app: {
     baseURL,
     head: {
       link: [
-        { rel: "icon", type: "image/svg+xml", href: `${baseURL}icon.svg` },
-        { rel: "dns-prefetch", href: "https://api.github.com" },
-        { rel: "preconnect", href: "https://fonts.googleapis.com" },
-        { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
-        { rel: "preload", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap", as: "style" },
-        { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" }
-      ]
-    }
+        { rel: 'icon', type: 'image/svg+xml', href: `${baseURL}icon.svg` },
+        { rel: 'dns-prefetch', href: 'https://api.github.com' },
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+        {
+          rel: 'preload',
+          href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap',
+          as: 'style',
+        },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap',
+        },
+      ],
+    },
   },
-  modules: [
-    "@pinia/nuxt",
-    "@nuxtjs/i18n",
-    "@vueuse/nuxt",
-    "nuxt-icon",
-    "@nuxt/eslint"
-  ],
-  css: ["~/assets/styles/main.scss"],
+  modules: ['@pinia/nuxt', '@nuxtjs/i18n', '@vueuse/nuxt', 'nuxt-icon', '@nuxt/eslint'],
+  css: ['~/assets/styles/main.scss'],
   components: [
     {
-      path: "~/components",
-      pathPrefix: false
-    }
+      path: '~/components',
+      pathPrefix: false,
+    },
   ],
   build: {
-    transpile: ["vuetify"]
+    transpile: ['vuetify'],
   },
   vue: {
     compilerOptions: {
-      isCustomElement: (tag: string) => tag.startsWith("swiper-")
-    }
+      isCustomElement: (tag: string) => tag.startsWith('swiper-'),
+    },
   },
   vite: {
-    plugins: [vuetify({ autoImport: true })]
+    plugins: [vuetify({ autoImport: true })],
   },
   nitro: {
     compressPublicAssets: true,
     prerender: {
-      routes: [
-        ...generateI18nRoutes(),
-        "/api/releases/latest",
-        "/sitemap.xml",
-        "/robots.txt"
-      ]
-    }
+      routes: [...generateI18nRoutes(), '/api/releases/latest', '/sitemap.xml', '/robots.txt'],
+    },
   },
   routeRules: {
-    "/_nuxt/**": {
-      headers: { "Cache-Control": "public, max-age=31536000, immutable" }
-    }
+    '/_nuxt/**': {
+      headers: { 'Cache-Control': 'public, max-age=31536000, immutable' },
+    },
   },
   i18n: {
     restructureDir: false,
     locales: [...supportedLocales],
-    defaultLocale: "en",
-    strategy: "prefix_except_default",
+    defaultLocale: 'en',
+    strategy: 'prefix_except_default',
     lazy: true,
-    langDir: "locales",
+    langDir: 'locales',
     bundle: {
-      optimizeTranslationDirective: false
+      optimizeTranslationDirective: false,
     },
     detectBrowserLanguage: {
       useCookie: true,
-      cookieKey: "i18n_redirected",
-      redirectOn: "root",
+      cookieKey: 'i18n_redirected',
+      redirectOn: 'root',
       alwaysRedirect: false,
-      fallbackLocale: "en"
-    }
+      fallbackLocale: 'en',
+    },
   },
   // @ts-expect-error - field provided by nuxt modules
   site: {
     url: siteUrl,
-    name: productName
+    name: productName,
   },
   runtimeConfig: {
     github: {
-      token: process.env.GITHUB_TOKEN
+      token: process.env.GITHUB_TOKEN,
     },
     public: {
       siteUrl,
@@ -110,7 +111,7 @@ export default defineNuxtConfig({
       githubReleasesUrl,
       docsUrl,
       quickstartUrl,
-      docsSitemapUrl
-    }
-  }
+      docsSitemapUrl,
+    },
+  },
 });
