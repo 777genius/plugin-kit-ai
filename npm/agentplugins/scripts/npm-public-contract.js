@@ -65,6 +65,12 @@ function validatePackJSON(value, version) {
 
 function validatePublicMetadata(metadata, version, integrity, shasum) {
   validateExpected(version, integrity, shasum);
+  if (Array.isArray(metadata)) {
+    if (metadata.length !== 1) {
+      fail("public npm metadata must contain exactly one release record");
+    }
+    [metadata] = metadata;
+  }
   if (!metadata || metadata.name !== PACKAGE_NAME || metadata.version !== version) {
     fail("public npm name/version does not match the package contract");
   }
