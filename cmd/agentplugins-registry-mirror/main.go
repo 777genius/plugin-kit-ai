@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	defaultPagesOrigin = "https://777genius.github.io/universal-agent-plugins/"
-	defaultRegistry    = "777genius/universal-agent-plugins"
+	defaultPagesOrigin = "https://777genius.github.io/universal-agent-plugins-registry/"
+	defaultRegistry    = "777genius/universal-agent-plugins-registry"
 	maxTrustBytes      = 64 << 10
 	directoryKeyID     = "uap-directory-2026-01"
 	directoryPublicKey = "HalXARjat+v3ylTPLMAnvuavRo4ZfrF+DbWwsjlp2bI="

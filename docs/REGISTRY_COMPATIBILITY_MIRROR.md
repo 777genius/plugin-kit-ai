@@ -44,10 +44,10 @@ Pages artifact, and deploys only the resulting artifact. A failed fetch,
 signature, trust-anchor, rollback, or build leaves the previous deployment
 untouched.
 
-The workflow currently points at the existing registry repository and Pages
-origin. During the approved repository cutover, update those two defaults in
-one reviewed commit and re-run the workflow once; do not silently mix the old
-and new registry identities.
+The workflow defaults to the renamed catalog repository
+`777genius/universal-agent-plugins-registry` and its Pages origin. Event and
+manual inputs may override these values for a reviewed compatibility test, but
+the source identity is always re-read and verified before deployment.
 
 The mirror has no signing key, no GitHub write token, and no package execution
 path. Direct local or Git installs continue to work when the Directory is

@@ -19,7 +19,7 @@ func TestEnforceMonotonicAllowsAdvanceAndRejectsRollback(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "MIRROR_METADATA.json")
 	body := []byte(`{
   "schema_version": 1,
-  "registry_repository": "777genius/universal-agent-plugins",
+  "registry_repository": "777genius/universal-agent-plugins-registry",
   "directory_sequence": 10,
   "directory_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "directory_source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -58,7 +58,7 @@ func TestEnforceMonotonicRejectsSameSequenceConflict(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "MIRROR_METADATA.json")
 	if err := os.WriteFile(path, []byte(`{
   "schema_version": 1,
-  "registry_repository": "777genius/universal-agent-plugins",
+  "registry_repository": "777genius/universal-agent-plugins-registry",
   "directory_sequence": 10,
   "directory_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "directory_source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
