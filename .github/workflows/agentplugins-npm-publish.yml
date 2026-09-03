@@ -123,11 +123,9 @@ jobs:
         run: |
           set -euo pipefail
           config="${RUNNER_TEMP}/agentplugins-publish.npmrc"
-          : > "${config}"
+          printf '%s\n' 'registry=https://registry.npmjs.org/' > "${config}"
           chmod 600 "${config}"
           echo "NPM_CONFIG_USERCONFIG=${config}" >> "${GITHUB_ENV}"
-          # Do not inherit a runner/global registry while exchanging the OIDC token.
-          echo "NPM_CONFIG_REGISTRY=https://registry.npmjs.org" >> "${GITHUB_ENV}"
       - name: Install the pinned npm trusted-publisher client
         run: |
           set -euo pipefail
@@ -146,14 +144,14 @@ jobs:
           set -euo pipefail
           test -z "${NPM_TOKEN:-}"
           test -z "${NODE_AUTH_TOKEN:-}"
-          test ! -s "${NPM_CONFIG_USERCONFIG}"
-          test "${NPM_CONFIG_REGISTRY}" = "https://registry.npmjs.org"
+          test -s "${NPM_CONFIG_USERCONFIG}"
+          grep -Fx 'registry=https://registry.npmjs.org/' "${NPM_CONFIG_USERCONFIG}"
           if npm view "${PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
             echo "npm version already exists and is immutable: ${PACKAGE_NAME}@${VERSION}" >&2
             exit 1
           fi
           test "$(find "${RUNNER_TEMP}/npm-tarball" -maxdepth 1 -name '*.tgz' -type f | wc -l | tr -d ' ')" = 1
-          npm publish "${RUNNER_TEMP}/npm-tarball/${TARBALL}" --access public --provenance --tag latest
+          npm publish "${RUNNER_TEMP}/npm-tarball/${TARBALL}" --registry=https://registry.npmjs.org/ --access public --provenance --tag latest
 
   verify-public:
     name: Verify public npm provenance and lifecycle
