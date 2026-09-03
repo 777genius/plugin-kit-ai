@@ -120,20 +120,7 @@ func run(registry, origin, output, previous string) error {
 	if err := os.MkdirAll(stage, 0o755); err != nil {
 		return fmt.Errorf("create staging directory: %w", err)
 	}
-	files := []struct {
-		rel  string
-		body []byte
-	}{
-		{"registry/schemas/1/latest.json", directory.pointerBytes},
-		{"registry/schemas/1/" + directory.stem + ".json", directory.snapshotBytes},
-		{"registry/schemas/1/" + directory.stem + ".envelope.json", directory.envelopeBytes},
-		{"registry/publication/trusted-keys.json", directory.trustBytes},
-		{"discovery/latest.json", discovery.pointerBytes},
-		{"discovery/" + discovery.stem + ".json", discovery.snapshotBytes},
-		{"discovery/" + discovery.stem + ".envelope.json", discovery.envelopeBytes},
-		{"discovery/search/" + discovery.stem + ".json", discovery.searchBytes},
-		{"discovery/trusted-keys.json", discovery.trustBytes},
-	}
+	files := stagedFiles(directory, discovery)
 	for _, file := range files {
 		if err := writeStaged(stage, file.rel, file.body); err != nil {
 			return err
@@ -158,6 +145,25 @@ func run(registry, origin, output, previous string) error {
 	}
 	fmt.Printf("verified Directory seq %d and Discovery seq %d; mirrored %d files to %s\n", metadata.DirectorySequence, metadata.DiscoverySequence, metadata.GeneratedFiles, output)
 	return nil
+}
+
+type mirrorFile struct {
+	rel  string
+	body []byte
+}
+
+func stagedFiles(directory directoryResult, discovery discoveryResult) []mirrorFile {
+	return []mirrorFile{
+		{rel: "registry/schemas/1/latest.json", body: directory.pointerBytes},
+		{rel: "registry/schemas/1/snapshots/" + directory.stem + ".json", body: directory.snapshotBytes},
+		{rel: "registry/schemas/1/snapshots/" + directory.stem + ".envelope.json", body: directory.envelopeBytes},
+		{rel: "registry/publication/trusted-keys.json", body: directory.trustBytes},
+		{rel: "discovery/latest.json", body: discovery.pointerBytes},
+		{rel: "discovery/snapshots/" + discovery.stem + ".json", body: discovery.snapshotBytes},
+		{rel: "discovery/snapshots/" + discovery.stem + ".envelope.json", body: discovery.envelopeBytes},
+		{rel: "discovery/search/" + discovery.stem + ".json", body: discovery.searchBytes},
+		{rel: "discovery/trusted-keys.json", body: discovery.trustBytes},
+	}
 }
 
 type directoryResult struct {
