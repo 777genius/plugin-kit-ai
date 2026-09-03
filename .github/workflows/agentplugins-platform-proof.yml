@@ -383,6 +383,6 @@ jobs:
                .proofs.synthetic_add_dry_run == true and
                .proofs.warm_cache == true and
                .proofs.warm_cache_without_proof_source == true and
-               .proofs.isolated_add_update_remove == $lifecycle' \
+               .proofs.isolated_add_info_update_remove == $lifecycle' \
               "${matches[0]}" >/dev/null
           done

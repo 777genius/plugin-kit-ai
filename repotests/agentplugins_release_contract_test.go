@@ -225,7 +225,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"expected exactly one machine-readable proof for ${target}",
 		".schema_version == 1",
 		".release_version == $version",
-		".proofs.isolated_add_update_remove == $lifecycle",
+		".proofs.isolated_add_info_update_remove == $lifecycle",
 		`.bootstrap_source == $bootstrap_mode`,
 		`.proofs.local_frozen_asset_bootstrap == ($bootstrap_mode == "local_frozen_asset")`,
 		`.proofs.anonymous_public_release_download == ($bootstrap_mode == "public_release_download")`,
