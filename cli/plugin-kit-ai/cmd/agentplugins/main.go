@@ -159,6 +159,13 @@ func (acquirer lazySourceAcquirer) AcquireLocal(ctx context.Context, source stri
 	return acquirer.acquirer.AcquireLocal(ctx, source)
 }
 
+func (acquirer lazySourceAcquirer) DiscoverGitHubPackages(ctx context.Context, repository, revision string) ([]string, error) {
+	if err := acquirer.prepare(); err != nil {
+		return nil, err
+	}
+	return acquirer.acquirer.DiscoverGitHubPackages(ctx, repository, revision)
+}
+
 func (acquirer lazySourceAcquirer) AcquireGitHub(ctx context.Context, repository, revision, subpath string) (domain.PackageSnapshot, error) {
 	if err := acquirer.prepare(); err != nil {
 		return domain.PackageSnapshot{}, err

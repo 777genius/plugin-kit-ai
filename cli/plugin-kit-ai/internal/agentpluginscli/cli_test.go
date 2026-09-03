@@ -2888,6 +2888,9 @@ func (a *countingSourceAcquirer) AcquireLocal(ctx context.Context, path string) 
 	a.calls++
 	return a.delegate.AcquireLocal(ctx, path)
 }
+func (a *countingSourceAcquirer) DiscoverGitHubPackages(ctx context.Context, repo, revision string) ([]string, error) {
+	return a.delegate.DiscoverGitHubPackages(ctx, repo, revision)
+}
 func (a *countingSourceAcquirer) AcquireGitHub(ctx context.Context, repo, revision, path string) (domain.PackageSnapshot, error) {
 	a.calls++
 	return a.delegate.AcquireGitHub(ctx, repo, revision, path)

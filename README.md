@@ -125,14 +125,23 @@ npx universal-agent-plugins doctor
 npx universal-agent-plugins validate ./my-plugin
 npx universal-agent-plugins add ./my-plugin
 
-# Install a GitHub package at an exact commit
+# Install the only Agent Plugins package found at an exact commit
+npx universal-agent-plugins add \
+  owner/repository@0123456789abcdef0123456789abcdef01234567
+
+# Choose a package explicitly when a repository contains several
 npx universal-agent-plugins add \
   owner/repository@0123456789abcdef0123456789abcdef01234567//path/to/plugin
 ```
 
 Remote installs require a full 40-character commit SHA. Branches, tags, and
-abbreviated SHAs are rejected. `update` keeps the recorded source, `repair`
-reapplies it, and `remove` changes only files owned by the CLI.
+abbreviated SHAs are rejected. When no package path is given, the CLI uses a
+valid root `plugin.json` or auto-selects the only valid nested package that has
+`mcp.json` or `skills/`. If several packages match, it lists them and asks for
+an explicit `//path`. The selected canonical path and package digest are stored
+for safe replay. Direct full-SHA installations remain immutable; use `switch`
+to move to another exact source. `repair` reapplies the recorded source, and
+`remove` changes only files owned by the CLI.
 
 ## Authoring and development
 

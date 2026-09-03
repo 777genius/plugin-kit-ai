@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -90,6 +91,60 @@ type Acquirer struct {
 	Digester   packagedigest.Builder
 	URLForRepo func(string) string
 	Now        func() time.Time
+}
+
+// DiscoverGitHubPackages returns repository-relative package roots at an
+// immutable revision without checking out or executing repository content.
+// An empty string is returned only when plugin.json exists at repository root;
+// callers must then validate that root and must not silently fall back to a
+// nested package when the root manifest is malformed.
+func (acquirer Acquirer) DiscoverGitHubPackages(ctx context.Context, repository, revision string) ([]string, error) {
+	if !repositoryPattern.MatchString(repository) {
+		return nil, fmt.Errorf("GitHub repository must be owner/repo")
+	}
+	if !fullSHA.MatchString(revision) {
+		return nil, fmt.Errorf("immutable GitHub source requires a full 40-character lowercase commit SHA")
+	}
+	url := "https://github.com/" + repository + ".git"
+	if acquirer.URLForRepo != nil {
+		url = acquirer.URLForRepo(repository)
+	}
+	tempRoot, err := os.MkdirTemp(acquirer.TempRoot, "agentplugins-discovery-*")
+	if err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "create temporary discovery workspace")
+	}
+	defer os.RemoveAll(tempRoot)
+	repoRoot := filepath.Join(tempRoot, "repository")
+	run := func(args ...string) ([]byte, error) {
+		return acquirer.runner().Run(ctx, Command{Dir: tempRoot, Args: args})
+	}
+	if _, err := run("init", "--quiet", repoRoot); err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "initialize discovery repository")
+	}
+	if _, err := run("-C", repoRoot, "remote", "add", "origin", url); err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "configure discovery remote")
+	}
+	for _, setting := range [][]string{{"fetch.recurseSubmodules", "false"}, {"core.autocrlf", "false"}} {
+		if _, err := run("-C", repoRoot, "config", setting[0], setting[1]); err != nil {
+			return nil, gitAcquisitionFailure(repository, revision, "configure discovery repository")
+		}
+	}
+	if _, err := run("-C", repoRoot, "fetch", "--quiet", "--depth=1", "--filter=blob:none", "--no-tags", "--no-recurse-submodules", "origin", revision); err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "fetch immutable revision for package discovery")
+	}
+	resolved, err := run("-C", repoRoot, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
+	if err != nil || strings.TrimSpace(string(resolved)) != revision {
+		return nil, gitAcquisitionFailure(repository, revision, "verify immutable discovery revision")
+	}
+	tree, err := run("-C", repoRoot, "ls-tree", "-r", "-z", revision)
+	if err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "inspect repository for Agent Plugins packages")
+	}
+	paths, err := packagePathsFromTree(tree)
+	if err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "parse repository package candidates")
+	}
+	return paths, nil
 }
 
 func (acquirer Acquirer) AcquireGitHub(ctx context.Context, repository, revision, pluginSubpath string) (domain.PackageSnapshot, error) {
@@ -282,6 +337,55 @@ func executablePathsFromTree(tree []byte, subpath string) ([]string, error) {
 		executable = append(executable, relative)
 	}
 	return executable, nil
+}
+
+func packagePathsFromTree(tree []byte) ([]string, error) {
+	regularFiles := map[string]struct{}{}
+	for _, record := range bytes.Split(tree, []byte{0}) {
+		if len(record) == 0 {
+			continue
+		}
+		metadata, filename, ok := bytes.Cut(record, []byte{'\t'})
+		fields := bytes.Fields(metadata)
+		if !ok || len(fields) != 3 || len(filename) == 0 {
+			return nil, fmt.Errorf("Git tree returned a malformed entry")
+		}
+		mode, objectType := string(fields[0]), string(fields[1])
+		if objectType != "blob" || (mode != "100644" && mode != "100755") {
+			continue
+		}
+		regularFiles[string(filename)] = struct{}{}
+	}
+	if _, ok := regularFiles["plugin.json"]; ok {
+		return []string{""}, nil
+	}
+	candidates := make([]string, 0)
+	for filename := range regularFiles {
+		if path.Base(filename) != "plugin.json" {
+			continue
+		}
+		root := path.Dir(filename)
+		if root == "." {
+			continue
+		}
+		if _, err := normalizeSubpath(root); err != nil {
+			continue
+		}
+		_, hasMCP := regularFiles[path.Join(root, "mcp.json")]
+		hasSkills := false
+		skillsPrefix := path.Join(root, "skills") + "/"
+		for candidate := range regularFiles {
+			if strings.HasPrefix(candidate, skillsPrefix) {
+				hasSkills = true
+				break
+			}
+		}
+		if hasMCP || hasSkills {
+			candidates = append(candidates, root)
+		}
+	}
+	sort.Strings(candidates)
+	return candidates, nil
 }
 
 func normalizeSubpath(value string) (string, error) {

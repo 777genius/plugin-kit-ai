@@ -25,6 +25,7 @@ type DiscoveryClient interface {
 
 type SourceAcquirer interface {
 	AcquireLocal(context.Context, string) (domain.PackageSnapshot, error)
+	DiscoverGitHubPackages(context.Context, string, string) ([]string, error)
 	AcquireGitHub(context.Context, string, string, string) (domain.PackageSnapshot, error)
 	AcquireGitHubVerified(context.Context, string, string, string, string) (domain.PackageSnapshot, error)
 }

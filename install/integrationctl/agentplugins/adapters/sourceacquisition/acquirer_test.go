@@ -45,6 +45,57 @@ func TestAcquireGitHubExactSHASparselySnapshotsOnlyPluginRoot(t *testing.T) {
 	}
 }
 
+func TestDiscoverGitHubPackagesPrefersRepositoryRootManifest(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repository := newRepository(t)
+	writeRepo(t, repository, "plugin.json", `{}`, 0o644)
+	writeRepo(t, repository, "mcp.json", `{}`, 0o644)
+	writeRepo(t, repository, "packages/nested/plugin.json", `{}`, 0o644)
+	writeRepo(t, repository, "packages/nested/mcp.json", `{}`, 0o644)
+	revision := commit(t, repository)
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: localGitTestRunner{}, URLForRepo: func(string) string { return repository }}
+
+	paths, err := acquirer.DiscoverGitHubPackages(context.Background(), "example/plugin", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "" {
+		t.Fatalf("root-preferred package paths = %q", paths)
+	}
+}
+
+func TestDiscoverGitHubPackagesReturnsOnlyPackageShapedNestedDirectories(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repository := newRepository(t)
+	writeRepo(t, repository, "manifest-only/plugin.json", `{}`, 0o644)
+	writeRepo(t, repository, "packages/zeta/plugin.json", `{}`, 0o644)
+	writeRepo(t, repository, "packages/zeta/skills/demo/SKILL.md", "# Demo", 0o644)
+	writeRepo(t, repository, "packages/alpha/plugin.json", `{}`, 0o644)
+	writeRepo(t, repository, "packages/alpha/mcp.json", `{}`, 0o644)
+	writeRepo(t, repository, "packages/not-a-plugin/mcp.json", `{}`, 0o644)
+	revision := commit(t, repository)
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: localGitTestRunner{}, URLForRepo: func(string) string { return repository }}
+
+	paths, err := acquirer.DiscoverGitHubPackages(context.Background(), "example/plugin", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"packages/alpha", "packages/zeta"}
+	if strings.Join(paths, "|") != strings.Join(want, "|") {
+		t.Fatalf("nested package paths = %q, want %q", paths, want)
+	}
+}
+
+func TestPackagePathsFromTreeRejectsMalformedEntries(t *testing.T) {
+	if _, err := packagePathsFromTree([]byte("100644 blob hash-without-path\x00")); err == nil {
+		t.Fatal("malformed Git tree entry was accepted")
+	}
+}
+
 func TestAcquireGitHubRepositoryRootExcludesGitDirectoryAndSubmoduleContent(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")
