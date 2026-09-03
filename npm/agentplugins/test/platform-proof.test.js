@@ -71,7 +71,7 @@ test("platform proof invokes the installed npm shim and rejects direct bin bypas
   }, project, process.platform), /must execute the installed npm agentplugins shim/);
 });
 
-test("platform proof requires the expected context7 product and distribution in search results", () => {
+test("platform proof requires the reviewed upstream context7 distribution in search results", () => {
   const valid = {
     schema_version: 1,
     command: "search",
@@ -79,17 +79,27 @@ test("platform proof requires the expected context7 product and distribution in 
     data: {
       results: [
         { product_id: "other", distribution_id: "owner/other" },
-        { product_id: "context7", distribution_id: "777genius/context7" }
+        {
+          product_id: "context7",
+          install_selector: "upstash/context7",
+          distribution_id: "upstash/context7",
+          distribution_kind: "upstream",
+          trust_state: "reviewed",
+          status: "available"
+        }
       ]
     }
   };
   assert.doesNotThrow(() => assertContext7Search(valid));
   for (const invalid of [
     { ...valid, data: { results: [] } },
-    { ...valid, data: { results: [{ product_id: "context7", distribution_id: "upstash/context7" }] } },
-    { ...valid, data: { results: [{ product_id: "other", distribution_id: "777genius/context7" }] } }
+    { ...valid, data: { results: [{ ...valid.data.results[1], distribution_id: "777genius/context7" }] } },
+    { ...valid, data: { results: [{ ...valid.data.results[1], distribution_kind: "community_bridge" }] } },
+    { ...valid, data: { results: [{ ...valid.data.results[1], trust_state: "discovered" }] } },
+    { ...valid, data: { results: [{ ...valid.data.results[1], status: "superseded" }] } },
+    { ...valid, data: { results: [{ ...valid.data.results[1], product_id: "other" }] } }
   ]) {
-    assert.throws(() => assertContext7Search(invalid), /expected context7 product and distribution/);
+    assert.throws(() => assertContext7Search(invalid), /reviewed upstream context7 distribution/);
   }
 });
 
