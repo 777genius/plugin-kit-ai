@@ -105,6 +105,18 @@ test("public npm metadata and downloaded pack bind the staged package identity",
   const value = fixture();
   assert.equal(validatePackJSON(value.pack, value.version), value.pack[0]);
   assert.equal(validatePublicMetadata(value.metadata, value.version, value.integrity, value.shasum), value.metadata);
+  assert.equal(
+    validatePublicMetadata([value.metadata], value.version, value.integrity, value.shasum),
+    value.metadata
+  );
+  assert.throws(
+    () => validatePublicMetadata([], value.version, value.integrity, value.shasum),
+    /exactly one release record/
+  );
+  assert.throws(
+    () => validatePublicMetadata([value.metadata, value.metadata], value.version, value.integrity, value.shasum),
+    /exactly one release record/
+  );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "npm-public-contract-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.writeFileSync(path.join(root, value.pack[0].filename), value.body);

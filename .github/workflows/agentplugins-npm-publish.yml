@@ -188,10 +188,19 @@ jobs:
           export HOME="${root}/home" USERPROFILE="${root}/home" XDG_CONFIG_HOME="${root}/config" XDG_CACHE_HOME="${root}/cache" AGENTPLUGINS_HOME="${root}/state" AGENTPLUGINS_CACHE_DIR="${root}/binary-cache" NPM_CONFIG_CACHE="${root}/npm-cache" NPM_CONFIG_USERCONFIG="${root}/home/.npmrc" TMPDIR="${root}/tmp" GIT_CONFIG_GLOBAL="${root}/home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0
           printf '%s\n' 'registry=https://registry.npmjs.org/' > "${NPM_CONFIG_USERCONFIG}"
           cd "${root}/project"
-          npm install --ignore-scripts --no-audit --no-fund --save-exact "${PACKAGE_NAME}@${VERSION}"
+          for attempt in 1 2 3 4 5; do
+            if npm install --ignore-scripts --no-audit --no-fund --save-exact "${PACKAGE_NAME}@${VERSION}"; then
+              break
+            fi
+            if [[ "${attempt}" == 5 ]]; then
+              echo "published npm version was not readable after bounded retries" >&2
+              exit 1
+            fi
+            sleep "$((attempt * 2))"
+          done
           npm view "${PACKAGE_NAME}@${VERSION}" --json > "${root}/metadata.json"
-          integrity="$(jq -er '.dist.integrity' "${root}/metadata.json")"
-          shasum="$(jq -er '.dist.shasum' "${root}/metadata.json")"
+          integrity="$(jq -er 'if type == "array" and length == 1 then .[0].dist.integrity elif type == "object" then .dist.integrity else error("expected one metadata record") end' "${root}/metadata.json")"
+          shasum="$(jq -er 'if type == "array" and length == 1 then .[0].dist.shasum elif type == "object" then .dist.shasum else error("expected one metadata record") end' "${root}/metadata.json")"
           test "${integrity}" = "${TARBALL_INTEGRITY}"; test "${shasum}" = "${TARBALL_SHASUM}"
           node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/npm-public-contract.js" metadata "${root}/metadata.json" "${VERSION}" "${integrity}" "${shasum}"
           npm audit signatures --json --include-attestations > "${root}/audit.json"
