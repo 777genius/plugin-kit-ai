@@ -223,8 +223,9 @@ jobs:
           # registry. The CLI repo's own Codex example intentionally exercises
           # app metadata and is not a suitable repair fixture.
           repair_source="777genius/universal-agent-plugins-registry@1388c89521bca4b53454776b584ee0c4996b31c0//plugins/context7"
+          mkdir -p "${XDG_CONFIG_HOME}/opencode"
           run_agentplugins add "${repair_source}" --target opencode --format json | jq -e '.result == "success" and .data.succeeded == 1 and .data.failed == 0' >/dev/null
-          repair_file="$(jq -er '.installations[0].clients | to_entries[] | .value.native_objects[] | select(.kind == "opencode_global_mcp_server") | .path' "${AGENTPLUGINS_HOME}/state-v2.json")"
+          repair_file="$(jq -er '[.installations[] | select(.declared_name == "context7") | .clients[] | select(.client_id == "opencode") | .native_objects[] | select(.kind == "opencode_global_mcp_server") | .path] | if length == 1 and (.[0] | type == "string" and length > 0) then .[0] else error("expected exactly one Context7 OpenCode repair path") end' "${AGENTPLUGINS_HOME}/state-v2.json")"
           test -f "${repair_file}"
           jq -e '.mcp.context7' "${repair_file}" > /dev/null
           jq 'del(.mcp.context7)' "${repair_file}" > "${root}/repair-mutated.json"

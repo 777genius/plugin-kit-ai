@@ -279,6 +279,22 @@ func TestAgentpluginsReadmesUseUnversionedNpxExamples(t *testing.T) {
 	}
 }
 
+func TestAgentpluginsPublicNpmRepairFixtureIsIsolatedAndUnambiguous(t *testing.T) {
+	workflow := readRepoFile(t, RepoRoot(t), ".github", "workflows", "agentplugins-npm-publish.yml")
+	job := yamlJob(t, workflow, "verify-public")
+	const configHome = `XDG_CONFIG_HOME="${root}/config"`
+	const surface = `mkdir -p "${XDG_CONFIG_HOME}/opencode"`
+	const add = `run_agentplugins add "${repair_source}" --target opencode`
+	mustContain(t, job, configHome)
+	mustContain(t, job, surface)
+	mustContain(t, job, add)
+	mustAppearBefore(t, job, configHome, surface)
+	mustAppearBefore(t, job, surface, add)
+	mustContain(t, job, `[.installations[] | select(.declared_name == "context7") | .clients[] | select(.client_id == "opencode") | .native_objects[] | select(.kind == "opencode_global_mcp_server") | .path] | if length == 1 and (.[0] | type == "string" and length > 0) then .[0] else error("expected exactly one Context7 OpenCode repair path") end`)
+	mustNotContain(t, job, `.installations[0]`)
+	mustAppearBefore(t, job, add, `repair_file="$(jq -er`)
+}
+
 func TestAgentpluginsNativeInstallSurfaceIsChecksumAndVersionBound(t *testing.T) {
 	root := RepoRoot(t)
 	unixInstaller := readRepoFile(t, root, "install.sh")
