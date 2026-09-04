@@ -77,6 +77,13 @@
     "quickstartTitle": "Fastest start",
     "quickstartSubtitle": "This is the fastest path to a real plugin install or a validated repo.",
     "installTabsLabel": "Choose how to run Universal Agent Plugins",
+    "detectedRecommendation": "Best option for {platform} selected",
+    "platforms": {
+      "macos": "macOS",
+      "windows": "Windows",
+      "linux": "Linux",
+      "other": "your device"
+    },
     "supportTitle": "Support snapshot",
     "supportSubtitle": "Real support depth today, based on the current support policy and target matrix.",
     "supportLink": "Read the support boundary"

@@ -1010,10 +1010,10 @@
     },
     {
       "id": "npm",
-      "title": "npx",
-      "description": "Ejecuta el instalador sin una instalación permanente.",
+      "title": "npx · Node.js 22+",
+      "description": "La opción más rápida si ya tiene Node.js 22+: ejecute el comando del plugin inmediatamente.",
       "href": "https://www.npmjs.com/package/universal-agent-plugins",
-      "note": "Alternativa sin instalación si ya tienes Node.js 22 o posterior.",
+      "note": "Sin instalación permanente: npx descarga la CLI verificada y ejecuta el comando en un solo paso.",
       "command": "npx universal-agent-plugins version",
       "invocation": "npx universal-agent-plugins"
     },
@@ -1033,6 +1033,15 @@
       "note": "Descarga el binario correcto y verifica su SHA-256 y versión.",
       "command": "curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh",
       "invocation": "$HOME/.local/bin/agentplugins"
+    },
+    {
+      "id": "powershell",
+      "title": "Windows PowerShell",
+      "description": "CLI nativa de Go para Windows. No requiere Node.js.",
+      "href": "https://github.com/777genius/universal-agent-plugins/blob/main/docs/NATIVE_INSTALL.md#windows-powershell",
+      "note": "Descarga el binario de Windows y verifica su SHA-256 y versión.",
+      "command": "irm https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.ps1 | iex",
+      "invocation": "& \"$HOME\\.local\\bin\\agentplugins.exe\""
     },
     {
       "id": "releases",

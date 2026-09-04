@@ -77,6 +77,13 @@
     "quickstartTitle": "Самый быстрый старт",
     "quickstartSubtitle": "Это самый быстрый путь к реальной установке плагина или к валидному репозиторию.",
     "installTabsLabel": "Выберите, как запускать Universal Agent Plugins",
+    "detectedRecommendation": "Выбран лучший вариант для {platform}",
+    "platforms": {
+      "macos": "macOS",
+      "windows": "Windows",
+      "linux": "Linux",
+      "other": "вашего устройства"
+    },
     "supportTitle": "Снимок поддержки",
     "supportSubtitle": "Текущая глубина поддержки по реальной политике поддержки и матрице поддерживаемых путей.",
     "supportLink": "Открыть границу поддержки"

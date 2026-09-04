@@ -77,6 +77,13 @@
     "quickstartTitle": "最快开始方式",
     "quickstartSubtitle": "这是通往真实插件安装或已验证仓库的最快路径。",
     "installTabsLabel": "选择如何运行 Universal Agent Plugins",
+    "detectedRecommendation": "已为 {platform} 选择最佳方式",
+    "platforms": {
+      "macos": "macOS",
+      "windows": "Windows",
+      "linux": "Linux",
+      "other": "您的设备"
+    },
     "supportTitle": "支持快照",
     "supportSubtitle": "今天的实际支持深度基于当前的支持政策和目标矩阵。",
     "supportLink": "读取支撑边界"

@@ -68,19 +68,57 @@ test('directory filters and reviewed detail keep automatic detection as the defa
   await expect(page.locator('.command-snippet').first()).not.toContainText('--target');
 });
 
-test('download page recommends native Homebrew and preserves the npx alternative', async ({
-  page,
+test('download page recommends the detected OS path and preserves the npx alternative', async ({
+  browser,
+  baseURL,
 }) => {
-  await page.goto('./download');
+  const context = await browser.newContext({
+    userAgent:
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  });
+  const page = await context.newPage();
+
+  await page.goto(new URL('download', baseURL).href);
   const tabs = page.locator('.download-section__install-tab');
-  const homebrew = tabs.filter({ hasText: 'Homebrew' });
-  await expect(homebrew).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText('brew install 777genius/agentplugins/agentplugins')).toBeVisible();
-  await expect(page.getByText('agentplugins add context7 --target codex,cursor')).toBeVisible();
+  const script = tabs.filter({ hasText: 'Verified install script' });
+  await expect(script).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Best option for Linux selected')).toBeVisible();
+  await expect(page.getByText(/install\.sh \| sh/)).toBeVisible();
+  await expect(
+    page.getByText('$HOME/.local/bin/agentplugins add context7 --target codex,cursor'),
+  ).toBeVisible();
 
   await tabs.filter({ hasText: 'npx' }).click();
-  await expect(page.getByText('npx universal-agent-plugins version')).toBeVisible();
   await expect(
     page.getByText('npx universal-agent-plugins add context7 --target codex,cursor'),
   ).toBeVisible();
+  await expect(page.getByText('npx universal-agent-plugins version')).toHaveCount(0);
+
+  await context.close();
+});
+
+test('Windows visitors receive the PowerShell installer and invocation', async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  });
+  const page = await context.newPage();
+
+  await page.goto(new URL('download', baseURL).href);
+  const powershell = page
+    .locator('.download-section__install-tab')
+    .filter({ hasText: 'PowerShell' });
+  await expect(powershell).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Best option for Windows selected')).toBeVisible();
+  await expect(page.getByText(/install\.ps1 \| iex/)).toBeVisible();
+  await expect(
+    page.getByText('& "$HOME\\.local\\bin\\agentplugins.exe" add context7 --target codex,cursor'),
+  ).toBeVisible();
+
+  await context.close();
 });

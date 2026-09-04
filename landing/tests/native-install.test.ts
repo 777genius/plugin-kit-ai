@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Bowser from 'bowser';
 import { applyCliInvocation, getCliInvocation } from '../utils/cliInvocation.ts';
+import { normalizeInstallPlatform, recommendedInstallChannelId } from '../utils/installPlatform.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const locales = ['en', 'es', 'fr', 'ru', 'zh'];
@@ -34,11 +36,11 @@ describe('native-first installation', () => {
         }>;
       };
       const selected = content.installChannels.filter((channel) =>
-        ['brew', 'script', 'npm'].includes(channel.id),
+        ['brew', 'script', 'powershell', 'npm'].includes(channel.id),
       );
       assert.deepEqual(
         selected.map((channel) => channel.id),
-        ['brew', 'npm', 'script'],
+        ['brew', 'npm', 'script', 'powershell'],
         locale,
       );
       assert.equal(selected.filter((channel) => channel.recommended).length, 1, locale);
@@ -47,10 +49,31 @@ describe('native-first installation', () => {
       assert.equal(selected[0]?.invocation, 'agentplugins');
       assert.equal(selected[1]?.invocation, 'npx universal-agent-plugins');
       assert.equal(selected[2]?.invocation, '$HOME/.local/bin/agentplugins');
+      assert.equal(selected[3]?.invocation, '& "$HOME\\.local\\bin\\agentplugins.exe"');
       assert.ok(
         selected.every((channel) => !channel.command?.includes('plugin-kit-ai')),
         locale,
       );
     }
+  });
+
+  it('maps current browser OS names to the safest default channel', () => {
+    const userAgents = {
+      macos:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',
+      windows:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',
+      linux: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',
+    };
+
+    for (const [expectedPlatform, userAgent] of Object.entries(userAgents)) {
+      const platform = normalizeInstallPlatform(Bowser.getParser(userAgent).getOSName(true));
+      assert.equal(platform, expectedPlatform);
+    }
+
+    assert.equal(recommendedInstallChannelId('macos'), 'brew');
+    assert.equal(recommendedInstallChannelId('linux'), 'script');
+    assert.equal(recommendedInstallChannelId('windows'), 'powershell');
+    assert.equal(recommendedInstallChannelId('other'), 'npm');
   });
 });
