@@ -74,6 +74,54 @@ test('homepage omits the counter when discovery cannot load', async ({ page }) =
   await expect(page.locator('.hero__plugin-count')).toHaveCount(0);
 });
 
+test('below-fold sections reveal quickly on scroll without animating the hero', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 480 });
+  await page.goto('./');
+
+  await expect(page.locator('.hero-shell')).not.toHaveClass(/scroll-reveal/);
+  await expect(page.locator('#plugins')).toHaveClass(/scroll-reveal/);
+  const section = page.locator('#why');
+  await expect(section).toHaveClass(/scroll-reveal/);
+  await expect(page.locator('html')).toHaveClass(/scroll-reveal-active/);
+  await expect(section).not.toHaveClass(/scroll-reveal--visible/);
+  await expect(section).toHaveCSS('opacity', '0');
+
+  await section.scrollIntoViewIfNeeded();
+  await expect(section).toHaveClass(/scroll-reveal--visible/);
+  await expect(section).toHaveCSS('opacity', '1', { timeout: 1_000 });
+});
+
+test('scroll reveals respect reduced motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./');
+
+  const section = page.locator('#why');
+  await expect(section).toHaveClass(/scroll-reveal--visible/);
+  await expect(section).toHaveCSS('opacity', '1');
+  expect(
+    await section.evaluate((node) => Number.parseFloat(getComputedStyle(node).transitionDuration)),
+  ).toBeLessThanOrEqual(0.00001);
+});
+
+test(
+  'below-fold content stays visible when JavaScript is disabled',
+  async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      const page = await context.newPage();
+      await page.goto(baseURL!);
+      const section = page.locator('#why');
+      await expect(section).toBeVisible();
+      await expect(section).not.toHaveClass(/scroll-reveal/);
+      await expect(section).toHaveCSS('opacity', '1');
+    } finally {
+      await context.close();
+    }
+  },
+);
+
 test('plugin counter stays inside the hero on a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 280, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });

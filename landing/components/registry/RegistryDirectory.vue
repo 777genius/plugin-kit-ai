@@ -16,7 +16,7 @@ const intro = computed(() => {
 </script>
 
 <template>
-  <div id="plugins" class="container catalog-wrap">
+  <div id="plugins" class="container catalog-wrap" data-scroll-reveal>
     <PluginCatalog :plugins="registry.plugins" heading="Find your plugin" :intro="intro" />
   </div>
 </template>

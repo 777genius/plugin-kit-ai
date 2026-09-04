@@ -151,10 +151,14 @@ test('larger breathing background never changes layout or blocks the foreground'
       .evaluate((node) => Number.parseFloat(getComputedStyle(node).width));
     const fieldWidth = (await field.boundingBox())!.width;
     expect(await field.locator('.hero-agent-field__plane')
-      .evaluate((node) => Number.parseFloat(getComputedStyle(node).left))).toBeCloseTo(fieldWidth * 0.62 + 100, 1);
+      .evaluate((node) => Number.parseFloat(getComputedStyle(node).left))).toBeCloseTo(fieldWidth * 0.62 - 100, 1);
     expect(planeWidth).toBeCloseTo(Math.min(width <= 720 ? 492 : 720, fieldWidth * 1.5), 1);
     expect(await field.locator('.hero-agent-field__node').first()
       .evaluate((node) => Number.parseFloat(getComputedStyle(node).width))).toBe(width <= 720 ? 30 : 38);
+    expect(await field.locator('.hero-agent-field__hub')
+      .evaluate((node) => Number.parseFloat(getComputedStyle(node).width))).toBe(width <= 720 ? 96 : 116);
+    expect(await field.locator('.hero-agent-field__hub img')
+      .evaluate((node) => Number.parseFloat(getComputedStyle(node).width))).toBe(width <= 720 ? 64 : 76);
     await field.evaluate((node: HTMLElement) => { node.style.display = 'none'; });
     expect(await page.locator('.hero__window').boundingBox()).toEqual(windowBefore);
     expect(await page.locator('.hero').boundingBox()).toEqual(heroBefore);

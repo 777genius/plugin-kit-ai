@@ -9,7 +9,7 @@
 .hero-agent-field__plane {
   position: absolute;
   top: 50%;
-  left: calc(62% + 100px);
+  left: calc(62% - 100px);
   width: min(720px, 150%);
   aspect-ratio: 1;
   translate: -50% -50%;
@@ -87,12 +87,16 @@
   left: 50%;
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
+  width: 116px;
+  height: 116px;
   border: 1px solid var(--line-strong);
-  border-radius: 18px;
+  border-radius: 36px;
   background: var(--surface-solid);
   transform: translate(-50%, -50%) translateZ(12px);
+}
+.hero-agent-field__hub img {
+  width: 76px;
+  height: 76px;
 }
 @keyframes agent-orbit-spin {
   to { transform: rotate(360deg); }
@@ -113,8 +117,8 @@
   .hero-agent-field__plane { width: min(492px, 150%); }
   .hero-agent-field__node { width: 30px; height: 30px; }
   .hero-agent-field__node img { width: 22px; height: 22px; }
-  .hero-agent-field__hub { width: 48px; height: 48px; border-radius: 14px; }
-  .hero-agent-field__hub img { width: 32px; height: 32px; }
+  .hero-agent-field__hub { width: 96px; height: 96px; border-radius: 28px; }
+  .hero-agent-field__hub img { width: 64px; height: 64px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero-agent-field__plane,
