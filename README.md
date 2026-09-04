@@ -10,51 +10,69 @@ Install and manage Agent Plugins 1.0 across your AI agents with one CLI.
 
 ## Quick start
 
-Choose the shortest path for your computer. Every option runs the same verified
-Go CLI; the difference is whether it stays installed.
+Choose your operating system below. Already have Node.js 22+? You can use `npx`
+on any supported desktop OS without permanently installing the CLI.
 
-| Your setup                      | Best option               | What happens                                                         |
-| ------------------------------- | ------------------------- | -------------------------------------------------------------------- |
-| macOS                           | Homebrew                  | Installs `agentplugins` and keeps it upgradeable                     |
-| Linux                           | Verified native installer | Installs the matching Linux binary                                   |
-| Windows                         | PowerShell installer      | Installs the matching Windows binary                                 |
-| Any desktop OS with Node.js 22+ | `npx`                     | Runs the plugin command immediately, without a permanent CLI install |
+<details>
+<summary><strong>macOS</strong></summary>
 
-macOS with Homebrew (also supported on Linux with Homebrew):
+With Homebrew:
 
 ```bash
-# macOS · Homebrew
 brew install 777genius/agentplugins/agentplugins
 agentplugins add context7
 ```
 
-macOS or Linux without a package manager:
+Without Homebrew, use the native installer:
 
 ```bash
-# macOS / Linux · verified native installer
 curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh -s -- add context7
 ```
 
-Windows PowerShell:
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
+
+Install the matching native binary and add your first plugin:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh -s -- add context7
+```
+
+Homebrew also works on Linux: run `brew install 777genius/agentplugins/agentplugins`,
+then `agentplugins add context7`.
+
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+Run in PowerShell:
 
 ```powershell
-# Windows · PowerShell
 irm https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.ps1 | iex
 & "$HOME\.local\bin\agentplugins.exe" add context7
 ```
+
+</details>
+
+<details>
+<summary><strong>Any OS with Node.js 22+ (npx)</strong></summary>
+
+Run the command without permanently installing the CLI. `npx` downloads the
+verified Go binary and immediately runs the plugin command:
+
+```bash
+npx universal-agent-plugins add context7
+```
+
+</details>
 
 Homebrew and the installers select the native binary for your OS and
 architecture. The scripts verify its published SHA-256 and reported version,
 then replace the CLI atomically. They install into `$HOME/.local/bin` unless
 `AGENTPLUGINS_BIN_DIR` is set.
-
-Already have Node.js 22 or newer? `npx` is the fastest zero-install path: it
-downloads the verified Go binary and immediately runs the plugin command.
-
-```bash
-# macOS / Linux / Windows · Node.js 22+
-npx universal-agent-plugins add context7
-```
 
 Node.js is not a requirement of the native CLI. Individual plugins may declare
 their own runtime requirements; the CLI checks those separately before
