@@ -970,6 +970,10 @@ function toggleExpanded() {
   color: #475569;
 }
 
+.v-theme--light .plugin-install__platform-note {
+  color: #92400e;
+}
+
 .v-theme--light .plugin-install__target-tab,
 .v-theme--light .plugin-install__channel-tab {
   color: #0f172a;

@@ -705,6 +705,10 @@ const quickstartSteps = computed(() => {
   background: linear-gradient(135deg, #67e8f9, #22d3ee);
 }
 
+.v-theme--light .download-section__platform-note--warning {
+  color: #92400e;
+}
+
 @media (max-width: 700px) {
   .download-section__step {
     grid-template-columns: 1fr;
