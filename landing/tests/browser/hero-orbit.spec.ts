@@ -141,6 +141,43 @@ test('twice-sized breathing background never changes layout or blocks the foregr
   expect(sizes[2]!).toBeCloseTo(sizes[0]!, 1);
 });
 
+test('logo thickness follows the viewing angle without extra animation loops', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('./');
+  const field = page.locator('.hero-agent-field');
+  await expect(field).toHaveClass(/hero-agent-field--active/);
+  await expect(field.locator('.hero-agent-field__rim')).toHaveCount(uniqueLogos.length * 4);
+  // Only the existing plane, track and counter-rotations animate, never individual slices.
+  expect(await field.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(uniqueLogos.length + 3);
+  const offsets: { x: number; y: number }[][] = [];
+  for (const fraction of [0, 1]) {
+    await field.evaluate((node, progress) => {
+      for (const animation of node.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = (animation as CSSAnimation).animationName === 'agent-plane-tilt'
+          ? Number(animation.effect!.getTiming().duration) * progress : 0;
+      }
+    }, fraction);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    offsets.push(await field.locator('.hero-agent-field__rotor').evaluateAll((rotors) => rotors.map((rotor) => {
+      const front = rotor.querySelector('.hero-agent-field__face')!.getBoundingClientRect();
+      const back = rotor.querySelector('.hero-agent-field__rim:nth-child(4)')!.getBoundingClientRect();
+      return { x: back.x + back.width / 2 - front.x - front.width / 2,
+        y: back.y + back.height / 2 - front.y - front.height / 2 };
+    })));
+  }
+  for (const [index, first] of offsets[0]!.entries()) {
+    const opposite = offsets[1]![index]!;
+    // Projected rear/front displacement, not just CSS strings: a flattened stack fails here.
+    expect(Math.hypot(first.x, first.y)).toBeGreaterThan(1);
+    expect(Math.hypot(opposite.x, opposite.y)).toBeGreaterThan(1);
+    expect(first.x * opposite.x + first.y * opposite.y).toBeLessThan(-1);
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(await field.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(0);
+  await expect(field.locator('.hero-agent-field__face')).toHaveCount(uniqueLogos.length);
+});
+
 test('installation works with WebGL forbidden and the orbit has no canvas or optional renderer', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.addInitScript(() => {
