@@ -58,7 +58,7 @@ test('directory filters and reviewed detail keep automatic detection as the defa
     .filter({ has: page.getByRole('heading', { name: 'GitLab', exact: true }) });
   await expect(gitlabCard).toHaveCount(1);
   await Promise.all([
-    page.waitForURL(/\/plugins\/gitlab$/),
+    page.waitForURL(/\/plugins\/gitlab\/?$/),
     gitlabCard.getByRole('link', { name: 'GitLab', exact: true }).click(),
   ]);
   await expect(page.getByRole('heading', { name: 'GitLab', exact: true })).toBeVisible();
