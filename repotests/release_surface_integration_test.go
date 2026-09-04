@@ -134,6 +134,7 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, ciWorkflow, "name: Required")
 	mustContain(t, ciWorkflow, "- name: Run required lane")
 	mustContain(t, ciWorkflow, "- name: Check generated artifacts")
+	mustContain(t, ciWorkflow, "npm ci --ignore-scripts --no-audit --no-fund")
 	mustContain(t, polyglotWorkflow, "name: Polyglot Smoke")
 	mustContain(t, polyglotWorkflow, "push:")
 	mustContain(t, polyglotWorkflow, "name: polyglot-smoke (${{ matrix.os }})")
