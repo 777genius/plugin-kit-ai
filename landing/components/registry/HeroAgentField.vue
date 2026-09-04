@@ -50,8 +50,16 @@ onBeforeUnmount(() => {
           :style="{ '--angle': `${(index * 360) / orbitClients.length}deg` }"
         >
           <span class="hero-agent-field__node">
-            <span class="hero-agent-field__face">
-              <img :src="asset(`client-icons/${client.icon}`)" alt="" width="26" height="26" >
+            <span class="hero-agent-field__rotor">
+              <span
+                v-for="depth in 4"
+                :key="depth"
+                class="hero-agent-field__rim"
+                :style="{ '--rim-depth': `${-depth}px` }"
+              />
+              <span class="hero-agent-field__face">
+                <img :src="asset(`client-icons/${client.icon}`)" alt="" width="26" height="26" >
+              </span>
             </span>
           </span>
         </span>
