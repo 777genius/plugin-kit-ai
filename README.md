@@ -121,17 +121,17 @@ The CLI has adapters for:
 
 | Client | Delivery |
 | --- | --- |
-| Codex | managed package or OpenAI compatibility package |
-| ChatGPT | registered app/binding where the package provides one |
-| Cursor | native Agent Plugin and MCP/skills projection |
-| GitHub Copilot CLI | native plugin and managed marketplace path |
-| VS Code | prepared Copilot-compatible package |
-| Kiro | native folder and Power import guidance |
-| Claude Code | client-specific skills/MCP projection |
-| Gemini CLI | client-specific configuration projection |
-| OpenCode | client-specific configuration projection |
-| Cline | client-specific configuration projection |
-| Windsurf | client-specific configuration projection |
+| <img src="landing/public/client-icons/openai.svg" width="24" height="24" alt="" align="middle"> Codex | managed package or OpenAI compatibility package |
+| <img src="landing/public/client-icons/openai.svg" width="24" height="24" alt="" align="middle"> ChatGPT | registered app/binding where the package provides one |
+| <img src="landing/public/client-icons/cursor.svg" width="24" height="24" alt="" align="middle"> Cursor | native Agent Plugin and MCP/skills projection |
+| <img src="landing/public/client-icons/github-copilot.svg" width="24" height="24" alt="" align="middle"> GitHub Copilot CLI | native plugin and managed marketplace path |
+| <img src="landing/public/client-icons/vscode.svg" width="24" height="24" alt="" align="middle"> VS Code | prepared Copilot-compatible package |
+| <img src="landing/public/client-icons/kiro.svg" width="24" height="24" alt="" align="middle"> Kiro | native folder and Power import guidance |
+| <img src="landing/public/client-icons/claude.svg" width="24" height="24" alt="" align="middle"> Claude Code | client-specific skills/MCP projection |
+| <img src="landing/public/client-icons/gemini.svg" width="24" height="24" alt="" align="middle"> Gemini CLI | client-specific configuration projection |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/client-icons/opencode-dark.svg"><img src="landing/public/client-icons/opencode.svg" width="24" height="24" alt="" align="middle"></picture> OpenCode | client-specific configuration projection |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/client-icons/cline-dark.svg"><img src="landing/public/client-icons/cline.svg" width="24" height="24" alt="" align="middle"></picture> Cline | client-specific configuration projection |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="assets/client-icons/windsurf-dark.svg"><img src="landing/public/client-icons/windsurf.svg" width="24" height="24" alt="" align="middle"></picture> Windsurf | client-specific configuration projection |
 
 Compatibility is package-specific. A schema pass means that the package is
 well-formed; it does not prove runtime, OAuth, or activation in every client.
