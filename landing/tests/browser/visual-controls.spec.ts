@@ -62,6 +62,8 @@ test('numbered benefits remain readable in both themes and responsive layouts', 
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
+    // The desktop theme control is intentionally absent from the compact mobile header.
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('button', { name: 'Toggle theme', exact: true }).click();
   }
 });
