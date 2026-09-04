@@ -76,8 +76,18 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	seo := string(seoBody)
 	mustContain(t, seo, `https://777genius.github.io/universal-agent-plugins`)
 	mustNotContain(t, seo, `hookplex.dev`)
-	mustNotContain(t, seo, `priceCurrency`)
-	mustNotContain(t, seo, `offers:`)
+
+	seoUtilsBody, err := os.ReadFile(filepath.Join(landingRoot, "utils", "seo.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seoUtils := string(seoUtilsBody)
+	mustContain(t, seoUtils, `'@type': 'SoftwareApplication'`)
+	mustContain(t, seoUtils, `isAccessibleForFree: true`)
+	mustContain(t, seoUtils, `offers:`)
+	mustContain(t, seoUtils, `price: '0'`)
+	mustContain(t, seoUtils, `priceCurrency: 'USD'`)
+	mustNotContain(t, seoUtils, `hookplex.dev`)
 
 	nuxtConfigBody, err := os.ReadFile(filepath.Join(landingRoot, "nuxt.config.ts"))
 	if err != nil {
@@ -240,7 +250,8 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	}
 	pluginsPage := string(pluginsPageBody)
 	mustContain(t, pluginsPage, `const registry = useRegistry()`)
-	mustContain(t, pluginsPage, `useSeoMeta({`)
+	mustContain(t, pluginsPage, `usePageSeo('Agent Plugins Directory | Universal Agent Plugins'`)
+	mustContain(t, pluginsPage, `'@type': 'ItemList'`)
 	mustContain(t, pluginsPage, `<PluginCatalog`)
 	mustContain(t, pluginsPage, `:plugins="registry.plugins"`)
 
@@ -250,7 +261,9 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	}
 	pluginDetailPage := string(pluginDetailPageBody)
 	mustContain(t, pluginDetailPage, `registry.plugins.find`)
-	mustContain(t, pluginDetailPage, `useSeoMeta({`)
+	mustContain(t, pluginDetailPage, `usePageSeo(`)
+	mustContain(t, pluginDetailPage, `'@type': 'SoftwareSourceCode'`)
+	mustContain(t, pluginDetailPage, `'@type': 'BreadcrumbList'`)
 	mustContain(t, pluginDetailPage, `<InstallPanel`)
 	mustContain(t, pluginDetailPage, `sourceUrl(plugin)`)
 

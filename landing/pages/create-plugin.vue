@@ -1,5 +1,14 @@
 <script setup lang="ts">
-usePageSeo('meta.homeTitle', 'meta.homeDescription');
+// Keep the legacy authoring page out of search until its plugin.yaml workflow
+// is replaced by the approved plugin.json-first Agent Plugins 1.0 flow.
+usePageSeo(
+  'Create an Agent Plugin 1.0 Package | Universal Agent Plugins',
+  'A future guide for creating portable Agent Plugins 1.0 packages for multiple AI agents.',
+  {
+    translate: false,
+    robots: 'noindex, follow',
+  },
+);
 useTrackSections();
 const { containerRef } = useParallaxSections();
 </script>
