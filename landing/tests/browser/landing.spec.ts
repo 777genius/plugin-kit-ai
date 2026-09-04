@@ -10,6 +10,14 @@ const parseJsonLd = async (page: import('@playwright/test').Page) => {
 
 test('homepage installs with auto-detection and exposes the full directory', async ({ page }) => {
   const errors: string[] = [];
+  let releaseDiscovery!: () => void;
+  const discoveryGate = new Promise<void>((resolve) => {
+    releaseDiscovery = resolve;
+  });
+  await page.route('**/discovery/**', async (route) => {
+    await discoveryGate;
+    await route.continue();
+  });
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
@@ -18,6 +26,10 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   });
 
   await page.goto('./');
+  const explorePlugins = page.getByRole('link', { name: 'Explore plugins' });
+  await expect(explorePlugins).toBeVisible();
+  await expect(explorePlugins.locator('.hero__plugin-count')).toHaveCount(0);
+  releaseDiscovery();
   await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute(
     'href',
     /icon\.svg$/,
@@ -35,7 +47,9 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   await expect(page.locator('.catalog-count')).toContainText(/[2-9]\d{3} plugins/, {
     timeout: 15_000,
   });
-  await expect(page.getByRole('link', { name: /Explore [\d,]+ plugins/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Explore [\d,]+ plugins/ })).toBeVisible({
+    timeout: 5_000,
+  });
   await expect(page.getByRole('link', { name: 'Add a plugin', exact: true })).toContainText(
     'Add plugin',
   );

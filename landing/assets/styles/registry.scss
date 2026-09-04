@@ -309,11 +309,15 @@ img {
   gap: 12px;
 }
 .hero__actions .button--primary {
+  min-width: 225px;
   border: 0;
   background: linear-gradient(120deg, var(--cyan), #7c6cff 54%, var(--primary));
   box-shadow:
     0 14px 34px color-mix(in srgb, var(--primary) 20%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.hero__plugin-count {
+  font-variant-numeric: tabular-nums;
 }
 .hero__demo {
   position: relative;

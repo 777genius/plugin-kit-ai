@@ -1,17 +1,60 @@
 <script setup lang="ts">
 import type { ClientID, RegistryIndex } from '~/types/registry';
 import { pluginCommands } from '~/utils/commands';
+import { countAtElapsed, PLUGIN_COUNT_ANIMATION_MS } from '~/utils/countAnimation';
 import { deliveryLabel, expectedDistribution, resolveDistribution } from '~/utils/registry';
 
 const props = defineProps<{ registry: RegistryIndex }>();
 const config = useRuntimeConfig();
 const { current, expired, published } = useDirectoryStatus();
+const discovery = useDiscoveryStatus();
 const { asset } = useSite();
 const cliRepositoryUrl = computed(() => `https://github.com/${config.public.githubRepo}`);
 const preferredDemoNames = ['chrome-devtools', 'context7', 'cloudflare-docs'];
+const displayedPluginCount = ref<number | null>(null);
 const pluginCount = computed(() =>
-  new Intl.NumberFormat('en').format(props.registry.plugins.length),
+  displayedPluginCount.value === null
+    ? null
+    : new Intl.NumberFormat('en').format(displayedPluginCount.value),
 );
+const countAnimationCompleted = useState('hero-plugin-count-animated', () => false);
+let countAnimationFrame: number | undefined;
+
+if (import.meta.client) {
+  watch(
+    () => discovery.value.state,
+    (state) => {
+      if (state !== 'current' && state !== 'cached') return;
+
+      const target = props.registry.plugins.length;
+      if (
+        countAnimationCompleted.value ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        displayedPluginCount.value = target;
+        countAnimationCompleted.value = true;
+        return;
+      }
+
+      countAnimationCompleted.value = true;
+      displayedPluginCount.value = 0;
+      const startedAt = performance.now();
+      const updateCount = (now: number) => {
+        const elapsed = now - startedAt;
+        displayedPluginCount.value = countAtElapsed(target, elapsed);
+        if (elapsed < PLUGIN_COUNT_ANIMATION_MS) {
+          countAnimationFrame = requestAnimationFrame(updateCount);
+        }
+      };
+      countAnimationFrame = requestAnimationFrame(updateCount);
+    },
+    { immediate: true },
+  );
+
+  onBeforeUnmount(() => {
+    if (countAnimationFrame !== undefined) cancelAnimationFrame(countAnimationFrame);
+  });
+}
 
 const demoPlugin = computed(() => {
   const ranked = [
@@ -95,9 +138,11 @@ function updateTargets(values: string[]) {
           command. Let the CLI detect installed agents, or choose exactly where the plugin goes.
         </p>
         <div class="hero__actions">
-          <a class="button button--primary" href="#plugins"
-            >Explore {{ pluginCount }} plugins <span aria-hidden="true">→</span></a
-          >
+          <a class="button button--primary" href="#plugins">
+            Explore
+            <span v-if="pluginCount !== null" class="hero__plugin-count">{{ pluginCount }}</span>
+            plugins <span aria-hidden="true">→</span>
+          </a>
           <a
             class="button button--secondary"
             :href="cliRepositoryUrl"
