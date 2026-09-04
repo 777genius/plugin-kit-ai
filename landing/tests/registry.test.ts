@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { pluginCommands } from '../utils/commands.ts';
 import { discoveryPlugin } from '../utils/discovery.ts';
 import { catalogVisiblePlugins, filterPlugins } from '../utils/filter.ts';
-import { parseDirectoryData } from '../utils/registry.ts';
+import { mirroredIconPath, parseDirectoryData } from '../utils/registry.ts';
 import type { DiscoveryRecord, DiscoverySnapshot } from '../types/discovery.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -56,8 +56,11 @@ describe('unified registry landing', () => {
   it('omits --target for installed-agent detection', () => {
     const plugin = registry.plugins.find((item) => item.installable);
     assert.ok(plugin);
-    assert.equal(pluginCommands(plugin).add.includes('--target'), false);
-    assert.match(pluginCommands(plugin).add, /^agentplugins add /);
+    const commands = pluginCommands(plugin);
+    assert.equal(commands.add.includes('--target'), false);
+    assert.match(commands.add, /^npx universal-agent-plugins add /);
+    for (const command of Object.values(commands))
+      assert.match(command, /^npx universal-agent-plugins /);
   });
 
   it('uses one comma-separated target flag for explicit multi-agent installation', () => {
@@ -68,6 +71,17 @@ describe('unified registry landing', () => {
     );
     assert.ok(plugin);
     assert.match(pluginCommands(plugin, ['codex', 'cursor']).add, / --target codex,cursor$/);
+  });
+
+  it('gives every reviewed plugin a local logo', () => {
+    for (const plugin of registry.plugins) {
+      const iconPath = mirroredIconPath(plugin);
+      assert.ok(iconPath, `${plugin.name} must have a local logo`);
+      assert.doesNotThrow(
+        () => readFileSync(resolve(root, 'public', iconPath)),
+        `${plugin.name} logo must exist`,
+      );
+    }
   });
 
   it('keeps reviewed results ahead of automatic discovery', () => {

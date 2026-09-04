@@ -1112,12 +1112,19 @@ export function githubSourceUrl(
 }
 
 export function mirroredIconPath(plugin: RegistryPlugin): string | undefined {
-  if (!plugin.built_in || !plugin.icon || !plugin.icon.path.startsWith('assets/plugin-icons/'))
-    return undefined;
-  const filename = plugin.icon.path.split('/').at(-1);
-  if (!filename) return undefined;
+  if (!plugin.built_in) return undefined;
+
+  const filename = plugin.icon?.path.startsWith('assets/plugin-icons/')
+    ? plugin.icon.path.split('/').at(-1)
+    : undefined;
   if (filename === 'context7.png') return 'plugin-icons/context7.svg';
   if (filename === 'greptile.png') return 'plugin-icons/greptile.svg';
-  if (filename.endsWith('.png')) return undefined;
-  return `plugin-icons/${filename}`;
+  if (filename === 'heroku.png') return 'plugin-icons/heroku.svg';
+  if (filename?.endsWith('.svg')) return `plugin-icons/${filename}`;
+
+  // Reviewed packages always receive a local, controlled identity. Reuse the
+  // publisher mark for Cloudflare's product family and the UAP mark as the
+  // honest fallback until a package-specific asset is added to the Directory.
+  if (plugin.name.startsWith('cloudflare-')) return 'plugin-icons/cloudflare.svg';
+  return 'icon.svg';
 }

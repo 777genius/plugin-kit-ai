@@ -41,7 +41,9 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   await expect(page.locator('.hero-agent-field__hub img')).toHaveAttribute('src', /icon\.svg$/);
   await expect(page.getByRole('heading', { name: /One plugin/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'One plugin All your agents' })).toBeVisible();
-  await expect(page.locator('.command-snippet').first()).toContainText('agentplugins add');
+  await expect(page.locator('.command-snippet').first()).toContainText(
+    'npx universal-agent-plugins add',
+  );
   await expect(page.locator('.command-snippet').first()).not.toContainText('--target');
   await expect(page.getByText('Supported clients')).toBeVisible();
   await expect(page.locator('.client-strip li')).toHaveCount(11);
@@ -273,9 +275,12 @@ test('community plugin titles open an installable plugin page instead of GitHub'
 test('metadata-only community records stay out of the install catalog', async ({ page }) => {
   await page.goto('./plugins');
   await page.getByRole('searchbox', { name: 'Search plugins' }).fill('remotion');
-  await expect(page.locator('.plugin-card[data-trust="community"]')).toHaveCount(0, {
-    timeout: 15_000,
-  });
+  await expect(
+    page.locator(
+      '.plugin-card[data-install-source="discovery:remotion-dev/remotion//packages/agent-plugin"]',
+    ),
+  ).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.locator('.plugin-card[data-trust="community"]').first()).toBeVisible();
 });
 
 test('metadata-only community direct links explain why installation is unavailable', async ({
@@ -359,8 +364,10 @@ test('directory filters and reviewed detail keep automatic detection as the defa
   await expect(page).toHaveURL(/\/plugins\/gitlab\/?$/, { timeout: 15_000 });
   await expect(page.getByRole('heading', { name: 'GitLab', exact: true })).toBeVisible();
   await expect(page.getByText('All installed agents')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Native Go CLI · no Node.js' })).toBeVisible();
-  await expect(page.locator('.command-snippet').first()).toContainText('agentplugins add');
+  await expect(page.getByRole('link', { name: 'Run with npx' })).toBeVisible();
+  await expect(page.locator('.command-snippet').first()).toContainText(
+    'npx universal-agent-plugins add',
+  );
   await expect(page.locator('.command-snippet').first()).not.toContainText('--target');
 });
 
