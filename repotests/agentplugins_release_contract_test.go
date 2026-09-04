@@ -279,6 +279,47 @@ func TestAgentpluginsReadmesUseUnversionedNpxExamples(t *testing.T) {
 	}
 }
 
+func TestAgentpluginsNativeInstallSurfaceIsChecksumAndVersionBound(t *testing.T) {
+	root := RepoRoot(t)
+	unixInstaller := readRepoFile(t, root, "install.sh")
+	windowsInstaller := readRepoFile(t, root, "install.ps1")
+	workflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-native-install.yml")
+	guide := readRepoFile(t, root, "docs", "NATIVE_INSTALL.md")
+
+	for _, want := range []string{
+		"checksums.txt must contain exactly one entry",
+		"checksum mismatch",
+		"OBSERVED_VERSION",
+		"agentplugins $VERSION",
+		"mktemp \"$BIN_DIR/.agentplugins.XXXXXX\"",
+		"mv -f \"$INSTALL_TEMP\" \"$DEST_PATH\"",
+	} {
+		mustContain(t, unixInstaller, want)
+	}
+	for _, want := range []string{
+		"Get-FileHash",
+		"checksums.txt must contain exactly one valid entry",
+		"ObservedVersion",
+		"[System.IO.File]::Replace($InstallTemp, $Destination, $null, $true)",
+		"[System.IO.File]::Move($InstallTemp, $Destination)",
+	} {
+		mustContain(t, windowsInstaller, want)
+	}
+	for _, target := range []string{
+		"darwin-amd64",
+		"darwin-arm64",
+		"linux-amd64",
+		"linux-arm64",
+		"windows-amd64",
+		"windows-arm64",
+	} {
+		mustContain(t, workflow, target)
+	}
+	mustContain(t, workflow, "Install the published native binary without Node.js")
+	mustContain(t, guide, "The native installation path does not require")
+	mustContain(t, guide, "atomically replaces the destination only after all checks pass")
+}
+
 func mustAppearBefore(t *testing.T, text, first, second string) {
 	t.Helper()
 	firstIndex := strings.Index(text, first)
