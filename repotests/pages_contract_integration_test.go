@@ -80,8 +80,16 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 		t.Fatal(err)
 	}
 	pluginDetailPage := string(pluginDetailPageBody)
-	mustContain(t, pluginDetailPage, `plugins.openRepository`)
-	mustContain(t, pluginDetailPage, `plugins.backToCatalog`)
+	mustContain(t, pluginDetailPage, `sourceUrl(plugin)`)
+	mustContain(t, pluginDetailPage, `aria-label="Back to plugin directory"`)
+
+	docsConfigBody, err := os.ReadFile(filepath.Join(root, "website", ".vitepress", "config", "shared.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docsConfig := string(docsConfigBody)
+	mustContain(t, docsConfig, `logo: "/icon.svg"`)
+	mustNotContain(t, docsConfig, "logo: `${docsBasePath}")
 
 	robotsBody, err := os.ReadFile(filepath.Join(root, "landing", "server", "routes", "robots.txt.ts"))
 	if err != nil {

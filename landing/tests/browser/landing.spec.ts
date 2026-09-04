@@ -10,6 +10,12 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   });
 
   await page.goto('./');
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute(
+    'href',
+    /icon\.svg$/,
+  );
+  await expect(page.locator('.app-logo__mark')).toHaveAttribute('src', /icon\.svg$/);
+  await expect(page.locator('.hero-agent-field__hub img')).toHaveAttribute('src', /icon\.svg$/);
   await expect(page.getByRole('heading', { name: /One plugin/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'One plugin All your agents' })).toBeVisible();
   await expect(page.locator('.command-snippet').first()).not.toContainText('--target');
