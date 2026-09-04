@@ -153,7 +153,7 @@ func TestOSRunnerClassifiesRealGitTreeOverflowAsSoleLimit(t *testing.T) {
 	}
 	repository := newRepository(t)
 	for index := range 1024 {
-		writeRepo(t, repository, fmt.Sprintf("packages/plugin-%04d-%s/plugin.json", index, strings.Repeat("x", 160)), "{}", 0o644)
+		writeRepo(t, repository, fmt.Sprintf("packages/plugin-%04d/plugin.json", index), "{}", 0o644)
 	}
 	revision := commit(t, repository)
 
