@@ -51,7 +51,7 @@ jobs:
       - name: Build pinned conformance corpus
         working-directory: .ci/agent-plugins-conformance-kit
         run: |
-          npm ci --ignore-scripts
+          npm ci --ignore-scripts --no-audit --no-fund
           npm run build
 
       - name: Run Agent Plugins loader conformance
