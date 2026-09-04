@@ -1,4 +1,5 @@
 .hero-agent-field {
+  --orbit-duration: 36s;
   position: absolute;
   inset: 0;
   perspective: 1125px;
@@ -8,7 +9,7 @@
 .hero-agent-field__plane {
   position: absolute;
   top: 50%;
-  left: 62%;
+  left: calc(62% + 100px);
   width: min(720px, 150%);
   aspect-ratio: 1;
   translate: -50% -50%;
@@ -27,7 +28,12 @@
   box-shadow:
     0 0 28px color-mix(in srgb, var(--cyan) 7%, transparent),
     inset 0 0 38px color-mix(in srgb, var(--primary) 6%, transparent);
-  animation: agent-orbit-spin 72s linear infinite;
+}
+.hero-agent-field__orbit {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: agent-orbit-spin var(--orbit-duration) linear infinite;
 }
 .hero-agent-field__spoke {
   position: absolute;
@@ -48,7 +54,7 @@
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  animation: agent-orbit-spin 72s linear infinite reverse;
+  animation: agent-orbit-spin var(--orbit-duration) linear infinite reverse;
 }
 .hero-agent-field__rim {
   position: absolute;
@@ -100,7 +106,7 @@
 }
 .hero-agent-field:not(.hero-agent-field--active) {
   .hero-agent-field__plane,
-  .hero-agent-field__track,
+  .hero-agent-field__orbit,
   .hero-agent-field__rotor { animation-play-state: paused; }
 }
 @media (max-width: 720px) {
@@ -112,6 +118,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .hero-agent-field__plane,
-  .hero-agent-field__track,
+  .hero-agent-field__orbit,
   .hero-agent-field__rotor { animation: none; }
 }
