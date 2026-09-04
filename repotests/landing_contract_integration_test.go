@@ -12,6 +12,13 @@ import (
 func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	root := RepoRoot(t)
 	landingRoot := filepath.Join(root, "landing")
+	canonicalLogo := readRepoFile(t, root, "assets", "logo.svg")
+	if got := readRepoFile(t, landingRoot, "public", "icon.svg"); got != canonicalLogo {
+		t.Fatal("landing favicon must match the canonical Universal Agent Plugins logo")
+	}
+	if got := readRepoFile(t, root, "website", "public", "icon.svg"); got != canonicalLogo {
+		t.Fatal("documentation favicon must match the canonical Universal Agent Plugins logo")
+	}
 
 	i18nBody, err := os.ReadFile(filepath.Join(landingRoot, "data", "i18n.ts"))
 	if err != nil {
@@ -206,6 +213,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	logo := string(logoBody)
 	mustContain(t, logo, `const localePath = useLocalePath();`)
 	mustContain(t, logo, `<NuxtLink :to="homePath" class="app-logo">`)
+	mustContain(t, logo, `:src="asset('icon.svg')"`)
 	mustContain(t, logo, `Universal Agent Plugins`)
 	mustNotContain(t, logo, `plugin-kit-ai`)
 	mustNotContain(t, logo, `Hookplex`)
@@ -215,8 +223,9 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	hero := string(heroBody)
-	mustContain(t, hero, `<span class="hero-section__logo">P</span>`)
-	mustNotContain(t, hero, `<span class="hero-section__logo">H</span>`)
+	mustContain(t, hero, `class="hero-section__logo"`)
+	mustContain(t, hero, `:src="asset('icon.svg')"`)
+	mustNotContain(t, hero, `<span class="hero-section__logo">`)
 
 	indexBody, err := os.ReadFile(filepath.Join(landingRoot, "pages", "index.vue"))
 	if err != nil {
@@ -230,22 +239,20 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	pluginsPage := string(pluginsPageBody)
-	mustContain(t, pluginsPage, `usePageSeo('meta.pluginsTitle', 'meta.pluginsDescription')`)
-	mustContain(t, pluginsPage, `v-model="searchQuery"`)
-	mustContain(t, pluginsPage, `filteredPlugins`)
-	mustContain(t, pluginsPage, `selectedCategory`)
-	mustContain(t, pluginsPage, `plugins.categories.`)
-	mustContain(t, pluginsPage, `pluginDetailPath`)
+	mustContain(t, pluginsPage, `const registry = useRegistry()`)
+	mustContain(t, pluginsPage, `useSeoMeta({`)
+	mustContain(t, pluginsPage, `<PluginCatalog`)
+	mustContain(t, pluginsPage, `:plugins="registry.plugins"`)
 
 	pluginDetailPageBody, err := os.ReadFile(filepath.Join(landingRoot, "pages", "plugins", "[slug].vue"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	pluginDetailPage := string(pluginDetailPageBody)
-	mustContain(t, pluginDetailPage, `getPluginBySlug`)
-	mustContain(t, pluginDetailPage, `usePageSeo(detailTitle, detailDescription, { translate: false })`)
-	mustContain(t, pluginDetailPage, `plugins.useCasesTitle`)
-	mustContain(t, pluginDetailPage, `plugins.highlightsTitle`)
+	mustContain(t, pluginDetailPage, `registry.plugins.find`)
+	mustContain(t, pluginDetailPage, `useSeoMeta({`)
+	mustContain(t, pluginDetailPage, `<InstallPanel`)
+	mustContain(t, pluginDetailPage, `sourceUrl(plugin)`)
 
 	enContentBody, err := os.ReadFile(filepath.Join(landingRoot, "content", "en.json"))
 	if err != nil {
