@@ -55,7 +55,7 @@ onBeforeUnmount(() => {
                 v-for="depth in 4"
                 :key="depth"
                 class="hero-agent-field__rim"
-                :style="{ '--rim-depth': `${-depth}px` }"
+                :style="{ '--rim-depth': `${-depth * 1.5}px` }"
               />
               <span class="hero-agent-field__face">
                 <img :src="asset(`client-icons/${client.icon}`)" alt="" width="26" height="26" >
