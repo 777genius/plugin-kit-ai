@@ -225,6 +225,6 @@ make vet
 
 ## License
 
-The Go engine and this repository remain under the existing MIT license. The
-registry keeps its Apache 2.0 license and third-party attribution. No code is
-relicensed by the repository rename.
+Universal Agent Plugins is licensed under the [Apache License 2.0](LICENSE).
+Third-party components retain their original licenses; see [NOTICE](NOTICE) for
+attribution.
