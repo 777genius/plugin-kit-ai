@@ -131,7 +131,11 @@ watch([query, category, component, source, trust, client, authentication, owner]
 </script>
 
 <template>
-  <section class="catalog" aria-labelledby="catalog-title">
+  <section
+    class="catalog"
+    aria-labelledby="catalog-title"
+    :data-discovery-state="discovery.state"
+  >
     <div class="section-heading">
       <p class="eyebrow">Plugin directory</p>
       <div class="catalog-heading-row">

@@ -274,13 +274,15 @@ test('community plugin titles open an installable plugin page instead of GitHub'
 
 test('metadata-only community records stay out of the install catalog', async ({ page }) => {
   await page.goto('./plugins');
+  await expect(page.locator('.catalog')).toHaveAttribute('data-discovery-state', /current|cached/, {
+    timeout: 15_000,
+  });
   await page.getByRole('searchbox', { name: 'Search plugins' }).fill('remotion');
   await expect(
     page.locator(
       '.plugin-card[data-install-source="discovery:remotion-dev/remotion//packages/agent-plugin"]',
     ),
-  ).toHaveCount(0, { timeout: 15_000 });
-  await expect(page.locator('.plugin-card[data-trust="community"]').first()).toBeVisible();
+  ).toHaveCount(0);
 });
 
 test('metadata-only community direct links explain why installation is unavailable', async ({
