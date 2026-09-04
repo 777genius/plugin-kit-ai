@@ -985,7 +985,7 @@
     {
       "id": "fastestStart",
       "question": "¿Cuál es la forma más rápida de empezar?",
-      "answer": "Ejecuta <code>npx universal-agent-plugins add context7 --target codex,cursor</code>. Elige uno o varios agentes y sigue cualquier paso de activación que muestre el cliente."
+      "answer": "Instala la CLI nativa de Go y ejecuta <code>agentplugins add context7 --target codex,cursor</code>. Elige uno o varios agentes y sigue cualquier paso de activación que muestre el cliente."
     },
     {
       "id": "whichPathFirst",
@@ -1001,20 +1001,21 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Instalación permanente recomendada para máquinas que ya usan Homebrew.",
-      "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "La mejor opción cuando planea usar plugin-kit-ai todos los días.",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
+      "description": "CLI nativa de Go para macOS y Linux. No requiere Node.js.",
+      "href": "https://github.com/777genius/homebrew-agentplugins",
+      "note": "Recomendado para una instalación permanente con actualizaciones de Homebrew.",
+      "command": "brew install 777genius/agentplugins/agentplugins",
+      "invocation": "agentplugins",
+      "recommended": true
     },
     {
       "id": "npm",
       "title": "npx",
-      "description": "Ejecute plugin-kit-ai sin una instalación permanente cuando quiera añadir un plugin real lo más rápido posible.",
-      "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "La ruta más rápida cuando primero quiere una instalación de plugin con un solo comando.",
-      "command": "npx plugin-kit-ai@latest version",
-      "invocation": "npx plugin-kit-ai@latest",
-      "recommended": true
+      "description": "Ejecuta el instalador sin una instalación permanente.",
+      "href": "https://www.npmjs.com/package/universal-agent-plugins",
+      "note": "Alternativa sin instalación si ya tienes Node.js 22 o posterior.",
+      "command": "npx universal-agent-plugins version",
+      "invocation": "npx universal-agent-plugins"
     },
     {
       "id": "pipx",
@@ -1027,10 +1028,11 @@
     {
       "id": "script",
       "title": "Script de instalación verificado",
-      "description": "Ruta de arranque alternativa que resuelve la última versión estable publicada y verifica las sumas de comprobación.",
-      "href": "https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh",
-      "note": "Good cuando la configuración del administrador de paquetes no es lo que desea primero.",
-      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh"
+      "description": "Instalación nativa sin gestor de paquetes. No requiere Node.js.",
+      "href": "https://github.com/777genius/universal-agent-plugins/blob/main/docs/NATIVE_INSTALL.md",
+      "note": "Descarga el binario correcto y verifica su SHA-256 y versión.",
+      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh",
+      "invocation": "$HOME/.local/bin/agentplugins"
     },
     {
       "id": "releases",

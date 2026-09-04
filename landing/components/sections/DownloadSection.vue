@@ -21,7 +21,7 @@ const supportAccent = ['#39ff14', '#00f0ff', '#ffb703', '#f472b6', '#94a3b8'];
 
 const installChannels = computed(() =>
   content.value.installChannels
-    .filter((channel) => channel.id === 'npm')
+    .filter((channel) => ['brew', 'script', 'npm'].includes(channel.id))
     .map((channel) =>
       channel.id === 'docs' ? { ...channel, href: quickstartUrl.value } : channel,
     ),

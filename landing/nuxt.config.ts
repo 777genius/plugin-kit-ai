@@ -104,6 +104,7 @@ export default defineNuxtConfig({
       routes: [
         '/',
         '/create-plugin',
+        '/download',
         '/plugins',
         '/plugins/community',
         ...registryIndex.plugins.map((plugin) => `/plugins/${plugin.name}`),

@@ -985,7 +985,7 @@
     {
       "id": "fastestStart",
       "question": "Как начать быстрее всего?",
-      "answer": "Запустите <code>npx universal-agent-plugins add context7 --target codex,cursor</code>. Выберите одного или нескольких агентов и выполните показанный шаг активации."
+      "answer": "Установите нативный Go CLI, затем запустите <code>agentplugins add context7 --target codex,cursor</code>. Выберите одного или нескольких агентов и выполните показанный шаг активации."
     },
     {
       "id": "whichPathFirst",
@@ -1001,20 +1001,21 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Рекомендуемый постоянный способ установки для машин, где уже используется Homebrew.",
-      "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "Лучший вариант, если вы планируете пользоваться plugin-kit-ai каждый день.",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
+      "description": "Нативный Go CLI для macOS и Linux. Node.js не требуется.",
+      "href": "https://github.com/777genius/homebrew-agentplugins",
+      "note": "Рекомендуется для постоянной установки и обновлений через Homebrew.",
+      "command": "brew install 777genius/agentplugins/agentplugins",
+      "invocation": "agentplugins",
+      "recommended": true
     },
     {
       "id": "npm",
       "title": "npx",
       "description": "Запускайте установщик без постоянной установки.",
       "href": "https://www.npmjs.com/package/universal-agent-plugins",
-      "note": "Самый быстрый путь к первой установке плагина в несколько агентов.",
+      "note": "Вариант без установки, если Node.js 22 или новее уже доступен.",
       "command": "npx universal-agent-plugins version",
-      "invocation": "npx universal-agent-plugins",
-      "recommended": true
+      "invocation": "npx universal-agent-plugins"
     },
     {
       "id": "pipx",
@@ -1027,10 +1028,11 @@
     {
       "id": "script",
       "title": "Проверяемый установочный скрипт",
-      "description": "Резервный путь установки, который находит последний опубликованный стабильный релиз и проверяет контрольные суммы.",
-      "href": "https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh",
-      "note": "Подходит, когда не хочется начинать с пакетного менеджера.",
-      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh"
+      "description": "Нативная установка без пакетного менеджера. Node.js не требуется.",
+      "href": "https://github.com/777genius/universal-agent-plugins/blob/main/docs/NATIVE_INSTALL.md",
+      "note": "Скачивает нужный бинарник релиза и проверяет его SHA-256 и версию.",
+      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh",
+      "invocation": "$HOME/.local/bin/agentplugins"
     },
     {
       "id": "releases",
