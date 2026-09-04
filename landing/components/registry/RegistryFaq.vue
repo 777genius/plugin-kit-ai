@@ -3,7 +3,12 @@ import { registryFaqItems } from '~/data/registryFaq';
 </script>
 
 <template>
-  <section id="faq" class="registry-faq container" aria-labelledby="faq-title">
+  <section
+    id="faq"
+    class="registry-faq container"
+    aria-labelledby="faq-title"
+    data-scroll-reveal
+  >
     <div class="section-heading section-heading--center">
       <p class="eyebrow">FAQ</p>
       <h2 id="faq-title">Common questions</h2>

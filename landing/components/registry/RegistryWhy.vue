@@ -1,5 +1,10 @@
 <template>
-  <section id="why" class="registry-benefits container" aria-labelledby="why-title">
+  <section
+    id="why"
+    class="registry-benefits container"
+    aria-labelledby="why-title"
+    data-scroll-reveal
+  >
     <div class="section-heading section-heading--center">
       <p class="eyebrow">Why it works</p>
       <h2 id="why-title">One standard. Native delivery.</h2>
