@@ -320,6 +320,41 @@ func TestAgentpluginsNativeInstallSurfaceIsChecksumAndVersionBound(t *testing.T)
 	mustContain(t, guide, "atomically replaces the destination only after all checks pass")
 }
 
+func TestAgentpluginsHomebrewTapIsReleaseAndAttestationBound(t *testing.T) {
+	root := RepoRoot(t)
+	publisher := readRepoFile(t, root, "scripts", "update-agentplugins-homebrew-tap.sh")
+	workflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-homebrew-tap.yml")
+	guide := readRepoFile(t, root, "docs", "NATIVE_INSTALL.md")
+	runbook := readRepoFile(t, root, "docs", "agentplugins-release.md")
+
+	for _, want := range []string{
+		"TAG must be an exact stable agentplugins-vX.Y.Z tag",
+		"release-manifest.json",
+		"release tag does not match the attested source commit",
+		"gh attestation verify",
+		"agentplugins-release.yml",
+		"--source-digest \"$COMMIT\"",
+		"ruby -c \"$FORMULA\"",
+		"GIT_ASKPASS",
+		"git -C \"$TEMP_ROOT/tap\" diff --cached --quiet",
+		"chore: update agentplugins to",
+	} {
+		mustContain(t, publisher, want)
+	}
+	for _, want := range []string{
+		"workflows: [Agentplugins Release Assets]",
+		"github.event.workflow_run.conclusion == 'success'",
+		"persist-credentials: false",
+		"HOMEBREW_TAP_TOKEN",
+		"777genius/homebrew-agentplugins",
+	} {
+		mustContain(t, workflow, want)
+	}
+	mustContain(t, guide, "brew install 777genius/agentplugins/agentplugins")
+	mustContain(t, runbook, "verifies the GitHub artifact attestation")
+	mustContain(t, runbook, "Do not edit a released formula by hand")
+}
+
 func mustAppearBefore(t *testing.T, text, first, second string) {
 	t.Helper()
 	firstIndex := strings.Index(text, first)
