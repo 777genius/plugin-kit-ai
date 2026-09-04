@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
 
+const parseJsonLd = async (page: import('@playwright/test').Page) => {
+  const values = await page.locator('script[type="application/ld+json"]').allTextContents();
+  return values.flatMap((value) => {
+    const parsed = JSON.parse(value) as { '@graph'?: Array<Record<string, unknown>> };
+    return parsed['@graph'] ?? [];
+  });
+};
+
 test('homepage installs with auto-detection and exposes the full directory', async ({ page }) => {
   const errors: string[] = [];
   page.on('console', (message) => {
@@ -33,6 +41,47 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   );
   await expect(page.getByText(/recently found community packages/i)).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('homepage publishes canonical social metadata and complete product schema', async ({
+  page,
+}) => {
+  const response = await page.goto('./');
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveTitle('Universal Agent Plugins - Install Plugins Across AI Agents');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://777genius.github.io/universal-agent-plugins/',
+  );
+  await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(0);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+    'content',
+    'https://777genius.github.io/universal-agent-plugins/og-image.png',
+  );
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+    'content',
+    'summary_large_image',
+  );
+
+  const graph = await parseJsonLd(page);
+  expect(graph.map((item) => item['@type'])).toEqual(
+    expect.arrayContaining([
+      'WebPage',
+      'WebSite',
+      'Organization',
+      'SoftwareApplication',
+      'FAQPage',
+    ]),
+  );
+  const software = graph.find((item) => item['@type'] === 'SoftwareApplication');
+  expect(software?.offers).toEqual({ '@type': 'Offer', price: '0', priceCurrency: 'USD' });
+  const faq = graph.find((item) => item['@type'] === 'FAQPage') as
+    { mainEntity?: unknown[] } | undefined;
+  expect(faq?.mainEntity).toHaveLength(5);
+
+  const html = await response!.text();
+  expect(html).toContain('rel="canonical"');
+  expect(html).toContain('application/ld+json');
 });
 
 test.describe('mobile navigation and catalog', () => {
@@ -113,6 +162,94 @@ test('directory filters and reviewed detail keep automatic detection as the defa
   await expect(page.getByRole('link', { name: 'Native Go CLI · no Node.js' })).toBeVisible();
   await expect(page.locator('.command-snippet').first()).toContainText('agentplugins add');
   await expect(page.locator('.command-snippet').first()).not.toContainText('--target');
+});
+
+test('directory and reviewed plugin pages expose unique crawlable entities', async ({ page }) => {
+  await page.goto('./plugins');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://777genius.github.io/universal-agent-plugins/plugins/',
+  );
+  let graph = await parseJsonLd(page);
+  const itemList = graph.find((item) => item['@type'] === 'ItemList') as
+    { numberOfItems?: number; itemListElement?: unknown[] } | undefined;
+  expect(itemList?.numberOfItems).toBeGreaterThanOrEqual(20);
+  expect(itemList?.itemListElement).toHaveLength(itemList?.numberOfItems ?? 0);
+
+  await page.goto('./plugins/gitlab');
+  await expect(page).toHaveTitle('GitLab Agent Plugin | Universal Agent Plugins');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://777genius.github.io/universal-agent-plugins/plugins/gitlab/',
+  );
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
+    'Plugins/GitLab',
+  );
+  const description = await page.locator('meta[name="description"]').getAttribute('content');
+  expect(description).toContain('Install the GitLab Agent Plugin');
+  expect(description?.length).toBeLessThanOrEqual(160);
+  graph = await parseJsonLd(page);
+  expect(graph.map((item) => item['@type'])).toEqual(
+    expect.arrayContaining(['WebPage', 'SoftwareSourceCode', 'BreadcrumbList']),
+  );
+});
+
+test('sitemap lists only live canonical pages and unstable routes stay out of the index', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  const sitemapResponse = await request.get(new URL('sitemap.xml', baseURL).href);
+  expect(sitemapResponse.status()).toBe(200);
+  const sitemap = await sitemapResponse.text();
+  const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!);
+  expect(locations.length).toBeGreaterThanOrEqual(20);
+  expect(locations.every((location) => location.endsWith('/'))).toBe(true);
+  expect(locations.some((location) => /\/(ru|es|fr|zh)(?:\/|$)/.test(location))).toBe(false);
+  expect(sitemap).not.toContain('<lastmod>');
+  expect(sitemap).not.toContain('/plugins/community/');
+  expect(sitemap).not.toContain('/create-plugin/');
+
+  const prefix = '/universal-agent-plugins/';
+  const statuses = await Promise.all(
+    locations.map((location) => {
+      const pathname = new URL(location).pathname;
+      const relative = pathname.startsWith(prefix) ? pathname.slice(prefix.length) : pathname;
+      return request.get(new URL(relative, baseURL).href).then((response) => response.status());
+    }),
+  );
+  expect(new Set(statuses)).toEqual(new Set([200]));
+
+  const robotsResponse = await request.get(new URL('robots.txt', baseURL).href);
+  expect(robotsResponse.status()).toBe(200);
+  const robots = await robotsResponse.text();
+  expect(robots).toContain(
+    'Sitemap: https://777genius.github.io/universal-agent-plugins/sitemap.xml',
+  );
+  expect(robots).toContain(
+    'Sitemap: https://777genius.github.io/universal-agent-plugins/docs/sitemap.xml',
+  );
+
+  await page.goto('./plugins/community?source=discovery%3Aexample');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+  await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(0);
+
+  await page.goto('./create-plugin');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
+});
+
+test('an unsupported localized route is never selected for browser-language visitors', async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({ locale: 'ru-RU' });
+  const page = await context.newPage();
+  const response = await page.goto(baseURL!);
+  expect(response?.status()).toBe(200);
+  expect(new URL(page.url()).pathname).toBe(new URL(baseURL!).pathname);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await context.close();
 });
 
 test('download page recommends the detected OS path and preserves the npx alternative', async ({

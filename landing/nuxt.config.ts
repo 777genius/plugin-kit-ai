@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { supportedLocales } from './data/i18n';
 import { loadRegistryIndex } from './build/load-registry';
+import { canonicalPath } from './utils/seo';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const process: any;
@@ -47,6 +48,12 @@ function resolveRegistrySnapshot(): string {
 }
 
 const registryIndex = loadRegistryIndex(resolveRegistrySnapshot(), 'published_snapshot');
+const sitemapRoutes = [
+  '/',
+  '/download',
+  '/plugins',
+  ...registryIndex.plugins.map((plugin) => `/plugins/${plugin.name}`),
+].map(canonicalPath);
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-01-19',
@@ -129,13 +136,9 @@ export default defineNuxtConfig({
     bundle: {
       optimizeTranslationDirective: false,
     },
-    detectBrowserLanguage: {
-      useCookie: true,
-      cookieKey: 'i18n_redirected',
-      redirectOn: 'root',
-      alwaysRedirect: false,
-      fallbackLocale: 'en',
-    },
+    // Localized landing routes are not published yet. Avoid redirecting users
+    // and crawlers to locale URLs that GitHub Pages correctly serves as 404.
+    detectBrowserLanguage: false,
   },
   // @ts-expect-error - field provided by nuxt modules
   site: {
@@ -143,6 +146,9 @@ export default defineNuxtConfig({
     name: productName,
   },
   runtimeConfig: {
+    seo: {
+      sitemapRoutes,
+    },
     github: {
       token: process.env.GITHUB_TOKEN,
     },

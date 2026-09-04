@@ -1,7 +1,8 @@
 export default defineEventHandler((event) => {
   const config = useRuntimeConfig();
-  const siteUrl =
-    (config.public.siteUrl as string) || 'https://777genius.github.io/universal-agent-plugins';
+  const siteUrl = String(
+    config.public.siteUrl || 'https://777genius.github.io/universal-agent-plugins',
+  ).replace(/\/+$/, '');
   const docsSitemapUrl =
     (config.public.docsSitemapUrl as string) ||
     'https://777genius.github.io/universal-agent-plugins/docs/sitemap.xml';

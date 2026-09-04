@@ -1,12 +1,32 @@
 <script setup lang="ts">
 const registry = useRegistry();
-const description = 'Browse reviewed and automatically discovered Agent Plugins 1.0 packages.';
+const config = useRuntimeConfig();
+const description =
+  'Search reviewed and community Agent Plugins 1.0 for Codex, Claude Code, Cursor, Gemini CLI, OpenCode, and more.';
+const siteUrl = String(config.public.siteUrl).replace(/\/+$/, '');
+const listId = `${siteUrl}/plugins/#plugin-list`;
+const reviewedPlugins = registry.plugins.filter(
+  (plugin) => plugin.trust_state !== 'conformant_unreviewed',
+);
 
-useSeoMeta({
-  title: 'Plugin directory · Universal Agent Plugins',
-  description,
-  ogTitle: 'Plugin directory · Universal Agent Plugins',
-  ogDescription: description,
+usePageSeo('Agent Plugins Directory | Universal Agent Plugins', description, {
+  translate: false,
+  pageType: 'CollectionPage',
+  pageProperties: { mainEntity: { '@id': listId } },
+  structuredData: [
+    {
+      '@type': 'ItemList',
+      '@id': listId,
+      name: 'Reviewed Agent Plugins 1.0 packages',
+      numberOfItems: reviewedPlugins.length,
+      itemListElement: reviewedPlugins.map((plugin, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: plugin.display_name,
+        url: `${siteUrl}/plugins/${plugin.name}/`,
+      })),
+    },
+  ],
 });
 </script>
 

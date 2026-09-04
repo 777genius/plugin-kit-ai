@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { mdiArrowLeft, mdiDownload, mdiOpenInNew } from '@mdi/js';
+import { seoDescription, spdxLicenseUrl } from '~/utils/seo';
 import type { ClientID } from '~/types/registry';
 
 const route = useRoute();
 const registry = useRegistry();
+const config = useRuntimeConfig();
 const { asset, pluginIcon, sourceUrl } = useSite();
 const plugin = registry.plugins.find((item) => item.name === String(route.params.slug));
 
@@ -20,18 +22,66 @@ const initialTarget =
   supportedClients.find((client) => client.id === 'cursor')?.id ?? supportedClients[0]?.id;
 const targets = ref<ClientID[]>(initialTarget ? [initialTarget] : []);
 const autoDetect = ref(true);
-const trustLabel =
-  plugin.trust_state === 'conformant_unreviewed' ? 'Community package' : 'Reviewed package';
+const trustLabel = 'Reviewed package';
+const siteUrl = String(config.public.siteUrl).replace(/\/+$/, '');
+const pluginUrl = `${siteUrl}/plugins/${plugin.name}/`;
+const pluginSchemaId = `${pluginUrl}#plugin`;
+const breadcrumbId = `${pluginUrl}#breadcrumb`;
+const clientNames = supportedClients.map((client) => client.name);
+const description = seoDescription([
+  `Install the ${plugin.display_name} Agent Plugin for ${clientNames.join(', ')}.`,
+  plugin.description,
+]);
+const licenseUrl = spdxLicenseUrl(plugin.license);
 
 function openInstallSection() {
   document.getElementById('plugin-install')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-useSeoMeta({
-  title: `${plugin.display_name} · Universal Agent Plugins`,
-  description: plugin.description,
-  ogTitle: `${plugin.display_name} · Universal Agent Plugins`,
-  ogDescription: plugin.description,
+usePageSeo(`${plugin.display_name} Agent Plugin | Universal Agent Plugins`, description, {
+  translate: false,
+  pageProperties: {
+    breadcrumb: { '@id': breadcrumbId },
+    mainEntity: { '@id': pluginSchemaId },
+  },
+  structuredData: [
+    {
+      '@type': 'SoftwareSourceCode',
+      '@id': pluginSchemaId,
+      name: `${plugin.display_name} Agent Plugin`,
+      description: plugin.description,
+      url: pluginUrl,
+      codeRepository: sourceUrl(plugin),
+      softwareVersion: plugin.version,
+      runtimePlatform: clientNames,
+      keywords: plugin.keywords.join(', '),
+      author: {
+        '@type': 'Organization',
+        name: plugin.author.name,
+        ...(plugin.author.url ? { url: plugin.author.url } : {}),
+      },
+      ...(licenseUrl ? { license: licenseUrl } : {}),
+      isPartOf: { '@id': `${siteUrl}/plugins/#webpage` },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': breadcrumbId,
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Plugin directory',
+          item: `${siteUrl}/plugins/`,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: plugin.display_name,
+          item: pluginUrl,
+        },
+      ],
+    },
+  ],
 });
 </script>
 
@@ -50,6 +100,10 @@ useSeoMeta({
           >
             <v-icon :icon="mdiArrowLeft" size="22" />
           </v-btn>
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <NuxtLink to="/plugins">Plugins</NuxtLink><span aria-hidden="true">/</span
+            ><span>{{ plugin.display_name }}</span>
+          </nav>
         </div>
 
         <div class="plugin-detail__hero-shell">
@@ -108,12 +162,7 @@ useSeoMeta({
                   :key="client.id"
                   class="plugin-detail__client"
                 >
-                  <img
-                    :src="asset(`client-icons/${client.icon}`)"
-                    alt=""
-                    width="22"
-                    height="22"
-                  >
+                  <img :src="asset(`client-icons/${client.icon}`)" alt="" width="22" height="22" >
                   {{ client.name }}
                 </span>
               </div>
@@ -166,6 +215,7 @@ useSeoMeta({
 .plugin-detail__hero-topbar {
   display: flex;
   align-items: center;
+  gap: 8px;
   margin-bottom: 10px;
   padding-left: 4px;
 }

@@ -1,15 +1,40 @@
 <script setup lang="ts">
+import { registryFaqItems } from '~/data/registryFaq';
+import { productSoftwareSchema } from '~/utils/seo';
+
 const registry = useRegistry();
+const config = useRuntimeConfig();
 const description =
   'Install, update, repair, and remove Agent Plugins 1.0 across supported AI agents with one CLI.';
+const siteUrl = String(config.public.siteUrl).replace(/\/+$/, '');
+const githubUrl = `https://github.com/${config.public.githubRepo}`;
+const softwareId = `${siteUrl}/#software`;
 
-useSeoMeta({
-  title: 'Universal Agent Plugins',
-  description,
-  ogTitle: 'Universal Agent Plugins',
-  ogDescription: description,
-  ogType: 'website',
-  twitterCard: 'summary',
+usePageSeo('Universal Agent Plugins - Install Plugins Across AI Agents', description, {
+  translate: false,
+  siteIdentity: true,
+  pageProperties: { about: { '@id': softwareId } },
+  structuredData: [
+    productSoftwareSchema({
+      siteUrl,
+      githubUrl,
+      releasesUrl: String(config.public.githubReleasesUrl),
+      docsUrl: String(config.public.docsUrl),
+      description,
+    }),
+    {
+      '@type': 'FAQPage',
+      '@id': `${siteUrl}/#faq`,
+      mainEntity: registryFaqItems.map((item) => ({
+        '@type': 'Question',
+        name: item.question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: item.answer,
+        },
+      })),
+    },
+  ],
 });
 </script>
 

@@ -31,20 +31,19 @@ watch(
   { immediate: true },
 );
 
-useSeoMeta({
-  title: () =>
+usePageSeo(
+  () =>
     plugin.value
-      ? `${plugin.value.display_name} · Universal Agent Plugins`
-      : 'Community plugin · Universal Agent Plugins',
-  description: () =>
-    plugin.value?.description ?? 'Install a community Agent Plugin across supported AI agents.',
-  ogTitle: () =>
-    plugin.value
-      ? `${plugin.value.display_name} · Universal Agent Plugins`
-      : 'Community plugin · Universal Agent Plugins',
-  ogDescription: () =>
-    plugin.value?.description ?? 'Install a community Agent Plugin across supported AI agents.',
-});
+      ? `${plugin.value.display_name} Agent Plugin | Universal Agent Plugins`
+      : 'Community Agent Plugin | Universal Agent Plugins',
+  () => plugin.value?.description ?? 'Install a community Agent Plugin across supported AI agents.',
+  {
+    translate: false,
+    robots: 'noindex, follow',
+    canonical: false,
+    includeWebPage: false,
+  },
+);
 </script>
 
 <template>
