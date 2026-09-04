@@ -169,3 +169,25 @@ test('Windows visitors receive the PowerShell installer and invocation', async (
 
   await context.close();
 });
+
+test('mobile visitors are not told that a desktop CLI command is recommended', async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 ' +
+      '(KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1',
+  });
+  const page = await context.newPage();
+
+  await page.goto(new URL('download', baseURL).href);
+  const tabs = page.locator('.download-section__install-tabs');
+  await expect(tabs.getByText('Recommended')).toHaveCount(0);
+  await expect(tabs.getByText('The CLI runs on desktop.')).toBeVisible();
+  await expect(
+    tabs.locator('.download-section__install-tab').filter({ hasText: 'npx' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+
+  await context.close();
+});

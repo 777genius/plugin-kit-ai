@@ -140,7 +140,13 @@ const quickstartSteps = computed(() => {
               </button>
             </div>
             <p
-              v-if="detectedInstallPlatform && detectedInstallPlatform !== 'other'"
+              v-if="detectedInstallPlatform === 'mobile'"
+              class="download-section__platform-note download-section__platform-note--warning"
+            >
+              {{ t('download.mobileUnsupported') }}
+            </p>
+            <p
+              v-else-if="detectedInstallPlatform && detectedInstallPlatform !== 'other'"
               class="download-section__platform-note"
             >
               {{
@@ -388,6 +394,10 @@ const quickstartSteps = computed(() => {
   color: #00f0ff;
   font-size: 0.8rem;
   font-family: 'JetBrains Mono', monospace;
+}
+
+.download-section__platform-note--warning {
+  color: #ffb703;
 }
 
 .download-section__steps {

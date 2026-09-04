@@ -78,6 +78,7 @@
     "quickstartSubtitle": "Esta es la ruta más rápida hacia una instalación real de plugin o un repositorio validado.",
     "installTabsLabel": "Elija cómo ejecutar Universal Agent Plugins",
     "detectedRecommendation": "Seleccionada la mejor opción para {platform}",
+    "mobileUnsupported": "La CLI funciona en un ordenador. Copie un comando aquí y ejecútelo en macOS, Linux o Windows.",
     "platforms": {
       "macos": "macOS",
       "windows": "Windows",

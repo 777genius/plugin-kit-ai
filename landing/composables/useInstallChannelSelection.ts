@@ -12,14 +12,18 @@ export function useInstallChannelSelection(channels: ComputedRef<InstallChannel[
   const manuallySelected = ref(false);
 
   const recommendedChannelId = computed(() => {
-    const detectedRecommendation = detectedInstallPlatform.value
-      ? recommendedInstallChannelId(detectedInstallPlatform.value)
-      : null;
-    if (
-      detectedRecommendation &&
-      channels.value.some((channel) => channel.id === detectedRecommendation)
-    ) {
-      return detectedRecommendation;
+    if (detectedInstallPlatform.value) {
+      const detectedRecommendation = recommendedInstallChannelId(detectedInstallPlatform.value);
+      if (
+        detectedRecommendation &&
+        channels.value.some((channel) => channel.id === detectedRecommendation)
+      ) {
+        return detectedRecommendation;
+      }
+
+      if (detectedInstallPlatform.value === 'mobile') {
+        return null;
+      }
     }
 
     return (
@@ -32,7 +36,11 @@ export function useInstallChannelSelection(channels: ComputedRef<InstallChannel[
       (channel) => channel.id === selectedInstallChannelId.value,
     );
     if (!selectionStillExists || !manuallySelected.value) {
-      selectedInstallChannelId.value = recommendedChannelId.value;
+      selectedInstallChannelId.value =
+        recommendedChannelId.value ??
+        channels.value.find((channel) => channel.id === 'npm')?.id ??
+        channels.value[0]?.id ??
+        null;
     }
   });
 

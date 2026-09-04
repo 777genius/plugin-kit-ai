@@ -1,4 +1,4 @@
-export type InstallPlatform = 'macos' | 'windows' | 'linux' | 'other';
+export type InstallPlatform = 'macos' | 'windows' | 'linux' | 'mobile' | 'other';
 
 export function normalizeInstallPlatform(osName?: string | null): InstallPlatform {
   const normalized = osName?.trim().toLowerCase() ?? '';
@@ -12,11 +12,20 @@ export function normalizeInstallPlatform(osName?: string | null): InstallPlatfor
   if (normalized.includes('linux')) {
     return 'linux';
   }
+  if (
+    normalized.includes('android') ||
+    normalized.includes('ios') ||
+    normalized.includes('iphone') ||
+    normalized.includes('ipad') ||
+    normalized.includes('ipod')
+  ) {
+    return 'mobile';
+  }
 
   return 'other';
 }
 
-export function recommendedInstallChannelId(platform: InstallPlatform): string {
+export function recommendedInstallChannelId(platform: InstallPlatform): string | null {
   switch (platform) {
     case 'macos':
       return 'brew';
@@ -24,6 +33,8 @@ export function recommendedInstallChannelId(platform: InstallPlatform): string {
       return 'powershell';
     case 'linux':
       return 'script';
+    case 'mobile':
+      return null;
     default:
       return 'npm';
   }
