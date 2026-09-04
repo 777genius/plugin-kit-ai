@@ -5,7 +5,6 @@ package sourceacquisition
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -55,6 +54,9 @@ func (OSRunner) Run(ctx context.Context, command Command) ([]byte, error) {
 	}, 5*time.Second)
 	output := append(append([]byte(nil), result.Stdout...), result.Stderr...)
 	if err != nil {
+		if processadapter.IsOnlyStdoutLimitExceeded(err) {
+			return nil, processadapter.ErrStdoutLimitExceeded
+		}
 		return nil, fmt.Errorf("git %s failed: %w: %s", strings.Join(command.Args, " "), err, strings.TrimSpace(string(output)))
 	}
 	if result.ExitCode != 0 {
@@ -158,7 +160,7 @@ func (acquirer Acquirer) DiscoverGitHubPackages(ctx context.Context, repository,
 	tree, err := acquirer.runner().Run(ctx, Command{Dir: tempRoot,
 		Args: []string{"-C", repoRoot, "ls-tree", "-r", "-z", revision}, MaxOutputBytes: maxGitHubDiscoveryMetadataBytes})
 	if err != nil {
-		if errors.Is(err, processadapter.ErrStdoutLimitExceeded) {
+		if err == processadapter.ErrStdoutLimitExceeded {
 			return nil, fmt.Errorf("repository package metadata exceeds the safe auto-discovery limit; choose a package explicitly with //path")
 		}
 		return nil, gitAcquisitionFailure(repository, revision, "inspect repository for Agent Plugins packages")

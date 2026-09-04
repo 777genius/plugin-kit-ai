@@ -16,9 +16,37 @@ import (
 
 type OS struct{}
 
-// ErrStdoutLimitExceeded reports that a command completed after producing more
-// stdout than its caller allowed the runner to retain.
+// ErrStdoutLimitExceeded reports that a command produced more stdout than its
+// caller allowed the runner to retain. The runner stops consuming output so
+// the supervised producer terminates at the configured bound.
 var ErrStdoutLimitExceeded = errors.New("command stdout exceeded configured limit")
+
+// IsOnlyStdoutLimitExceeded distinguishes a sole wrapped output-limit cause
+// from a joined containment, cancellation, or execution failure.
+func IsOnlyStdoutLimitExceeded(err error) bool {
+	if err == nil {
+		return false
+	}
+	if err == ErrStdoutLimitExceeded {
+		return true
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := joined.Unwrap()
+		if len(causes) == 0 {
+			return false
+		}
+		for _, cause := range causes {
+			if !IsOnlyStdoutLimitExceeded(cause) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return IsOnlyStdoutLimitExceeded(wrapped.Unwrap())
+	}
+	return false
+}
 
 type terminationResult struct {
 	leaderStopped              bool
@@ -190,7 +218,11 @@ func runDuplexMode(ctx context.Context, command ports.Command, exchange func(io.
 		containmentClosed = err == nil
 		return err
 	}
-	defer func() { resultErr = errors.Join(resultErr, closeContainment()) }()
+	defer func() {
+		if closeErr := closeContainment(); closeErr != nil {
+			resultErr = errors.Join(resultErr, closeErr)
+		}
+	}()
 	defer stdout.Close()
 	cmd.Stdout = childStdout
 	stderr := newBoundedDiagnosticBuffer(32 * 1024)
@@ -637,15 +669,21 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 	// return; no second Wait or Process.Release may abandon a future zombie.
 	waitErr := closeContainmentAndWait(closeContainment, c.Wait, processReapTimeout)
 	capturedResult, capturedErr := finishExplicitCommand(termination.err, waitErr, stdout.Bytes(), stderr.Bytes())
-	capturedErr = errors.Join(capturedErr, stdout.Err())
+	stdoutErr := stdout.Err()
 	if supervisionErr != nil {
-		return capturedResult, withDuplexDiagnostic(errors.Join(supervisionErr, capturedErr), stderr.Bytes())
+		return capturedResult, withDuplexDiagnostic(errors.Join(supervisionErr, capturedErr, stdoutErr), stderr.Bytes())
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return capturedResult, withDuplexDiagnostic(errors.Join(ctxErr, capturedErr), stderr.Bytes())
+		return capturedResult, withDuplexDiagnostic(errors.Join(ctxErr, capturedErr, stdoutErr), stderr.Bytes())
 	}
 	if termination.forcedMembers {
-		return capturedResult, withDuplexDiagnostic(errors.Join(fmt.Errorf("process left live descendants that required forced cleanup"), capturedErr), stderr.Bytes())
+		return capturedResult, withDuplexDiagnostic(errors.Join(fmt.Errorf("process left live descendants that required forced cleanup"), capturedErr, stdoutErr), stderr.Bytes())
+	}
+	if stdoutErr != nil {
+		if capturedErr == nil || errors.Is(capturedErr, ErrStdoutLimitExceeded) {
+			return capturedResult, ErrStdoutLimitExceeded
+		}
+		return capturedResult, errors.Join(capturedErr, stdoutErr)
 	}
 	return capturedResult, capturedErr
 }
@@ -723,19 +761,14 @@ func (buffer *synchronizedOutputBuffer) Write(value []byte) (int, error) {
 		return buffer.buffer.Write(value)
 	}
 	remaining := buffer.limit - buffer.buffer.Len()
+	if len(value) <= remaining {
+		return buffer.buffer.Write(value)
+	}
 	if remaining > 0 {
-		prefix := value
-		if len(prefix) > remaining {
-			prefix = prefix[:remaining]
-		}
-		_, _ = buffer.buffer.Write(prefix)
+		_, _ = buffer.buffer.Write(value[:remaining])
 	}
-	if len(value) > remaining {
-		buffer.exceeded = true
-	}
-	// Report the complete write so the supervised child can exit naturally;
-	// bytes beyond the configured bound are deliberately discarded.
-	return len(value), nil
+	buffer.exceeded = true
+	return max(remaining, 0), ErrStdoutLimitExceeded
 }
 
 func (buffer *synchronizedOutputBuffer) Bytes() []byte {

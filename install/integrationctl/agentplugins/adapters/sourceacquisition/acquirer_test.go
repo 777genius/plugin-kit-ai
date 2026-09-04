@@ -146,6 +146,16 @@ func TestDiscoverGitHubPackagesBoundsGitTreeMetadata(t *testing.T) {
 	}
 }
 
+func TestDiscoverGitHubPackagesDoesNotMaskConcurrentLimitFailure(t *testing.T) {
+	revision := strings.Repeat("c", 40)
+	runner := &joinedDiscoveryLimitRunner{revision: revision}
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: runner}
+	_, err := acquirer.DiscoverGitHubPackages(context.Background(), "example/plugin", revision)
+	if err == nil || strings.Contains(err.Error(), "metadata exceeds") || !strings.Contains(err.Error(), "inspect repository") {
+		t.Fatalf("joined discovery failure = %v", err)
+	}
+}
+
 func TestDiscoverGitHubPackagesFindsRootBeforeRecursiveMetadataLimit(t *testing.T) {
 	revision := strings.Repeat("b", 40)
 	runner := &rootBeforeRecursiveLimitRunner{revision: revision}
@@ -344,6 +354,25 @@ func (runner *discoveryLimitRunner) Run(_ context.Context, command Command) ([]b
 type rootBeforeRecursiveLimitRunner struct {
 	revision       string
 	recursiveCalls int
+}
+
+type joinedDiscoveryLimitRunner struct{ revision string }
+
+func (runner *joinedDiscoveryLimitRunner) Run(_ context.Context, command Command) ([]byte, error) {
+	for _, argument := range command.Args {
+		switch argument {
+		case "rev-parse":
+			return []byte(runner.revision + "\n"), nil
+		case "ls-tree":
+			for _, treeArgument := range command.Args {
+				if treeArgument == "-r" {
+					return nil, errors.Join(processadapter.ErrStdoutLimitExceeded, errors.New("synthetic containment failure"))
+				}
+			}
+			return nil, nil
+		}
+	}
+	return nil, nil
 }
 
 func (runner *rootBeforeRecursiveLimitRunner) Run(_ context.Context, command Command) ([]byte, error) {

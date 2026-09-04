@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -86,8 +87,35 @@ func TestOSRunnerBoundsStdoutAndReturnsLimitError(t *testing.T) {
 	if !errors.Is(err, ErrStdoutLimitExceeded) {
 		t.Fatalf("limit error = %v", err)
 	}
-	if got := string(result.Stdout); got != "output" {
-		t.Fatalf("bounded stdout = %q", got)
+	if len(result.Stdout) > 6 {
+		t.Fatalf("bounded stdout length = %d", len(result.Stdout))
+	}
+}
+
+func TestOSRunnerStdoutLimitStopsProducerBeforeRemainingOutput(t *testing.T) {
+	marker := os.Getenv("AGENTPLUGINS_PROCESS_STDOUT_LIMIT_MARKER")
+	if marker != "" {
+		chunk := []byte(strings.Repeat("x", 1024))
+		for range 100_000 {
+			if _, err := os.Stdout.Write(chunk); err != nil {
+				os.Exit(0)
+			}
+		}
+		_ = os.WriteFile(marker, []byte("producer completed"), 0o600)
+		os.Exit(0)
+	}
+	marker = filepath.Join(t.TempDir(), "completed")
+	environment := append(os.Environ(), "AGENTPLUGINS_PROCESS_STDOUT_LIMIT_MARKER="+marker)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := (OS{}).Run(ctx, ports.Command{
+		Argv: []string{os.Args[0], "-test.run=TestOSRunnerStdoutLimitStopsProducerBeforeRemainingOutput"}, Env: environment, StdoutLimitBytes: 4096,
+	})
+	if !errors.Is(err, ErrStdoutLimitExceeded) || !IsOnlyStdoutLimitExceeded(err) {
+		t.Fatalf("limit error = %v", err)
+	}
+	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
+		t.Fatalf("producer was not stopped at output bound: %v", statErr)
 	}
 }
 
@@ -398,7 +426,7 @@ func TestSynchronizedOutputSnapshotIsImmutableWhileSoleReaperFinishesLateWrite(t
 
 func TestSynchronizedOutputBufferBoundsCapturedStdout(t *testing.T) {
 	buffer := newSynchronizedOutputBuffer(5)
-	if written, err := buffer.Write([]byte("123456789")); err != nil || written != 9 {
+	if written, err := buffer.Write([]byte("123456789")); err != ErrStdoutLimitExceeded || written != 5 {
 		t.Fatalf("write = %d, %v", written, err)
 	}
 	if got := string(buffer.Bytes()); got != "12345" {
@@ -406,6 +434,31 @@ func TestSynchronizedOutputBufferBoundsCapturedStdout(t *testing.T) {
 	}
 	if !errors.Is(buffer.Err(), ErrStdoutLimitExceeded) {
 		t.Fatalf("limit error = %v", buffer.Err())
+	}
+}
+
+func TestSynchronizedOutputBufferAllowsExactlyConfiguredLimit(t *testing.T) {
+	buffer := newSynchronizedOutputBuffer(5)
+	if written, err := buffer.Write([]byte("12345")); err != nil || written != 5 {
+		t.Fatalf("exact-limit write = %d, %v", written, err)
+	}
+	if err := buffer.Err(); err != nil {
+		t.Fatalf("exact-limit result = %v", err)
+	}
+	if written, err := buffer.Write([]byte("6")); err != ErrStdoutLimitExceeded || written != 0 {
+		t.Fatalf("overflow write = %d, %v", written, err)
+	}
+	if got := string(buffer.Bytes()); got != "12345" {
+		t.Fatalf("bounded bytes = %q", got)
+	}
+}
+
+func TestStdoutLimitClassificationRejectsJoinedStrongerFailure(t *testing.T) {
+	if !IsOnlyStdoutLimitExceeded(fmt.Errorf("wrapped: %w", ErrStdoutLimitExceeded)) {
+		t.Fatal("sole wrapped stdout limit was not recognized")
+	}
+	if IsOnlyStdoutLimitExceeded(errors.Join(ErrStdoutLimitExceeded, errors.New("containment failed"))) {
+		t.Fatal("joined stronger failure was classified as only an stdout limit")
 	}
 }
 
