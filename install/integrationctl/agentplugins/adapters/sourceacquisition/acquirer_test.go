@@ -3,6 +3,7 @@ package sourceacquisition
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,6 +144,26 @@ func TestDiscoverGitHubPackagesBoundsGitTreeMetadata(t *testing.T) {
 	}
 	if !runner.sawBoundedTree {
 		t.Fatal("Git tree inspection was not output-bounded")
+	}
+}
+
+func TestOSRunnerClassifiesRealGitTreeOverflowAsSoleLimit(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repository := newRepository(t)
+	for index := range 1024 {
+		writeRepo(t, repository, fmt.Sprintf("packages/plugin-%04d-%s/plugin.json", index, strings.Repeat("x", 160)), "{}", 0o644)
+	}
+	revision := commit(t, repository)
+
+	_, err := (OSRunner{}).Run(context.Background(), Command{
+		Dir:            t.TempDir(),
+		Args:           []string{"-C", repository, "ls-tree", "-r", "-z", revision},
+		MaxOutputBytes: 128,
+	})
+	if !processadapter.IsOnlyStdoutLimitExceeded(err) {
+		t.Fatalf("real Git metadata limit error = %v", err)
 	}
 }
 

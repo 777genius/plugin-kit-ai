@@ -48,6 +48,38 @@ func IsOnlyStdoutLimitExceeded(err error) bool {
 	return false
 }
 
+// IsExactStdoutLimitExitCode recognizes the runner's direct nonzero-exit marker
+// without accepting ordinary wrappers or joins with another cause. Callers may
+// use it only when a specific trusted executable defines that exit code as its
+// broken-pipe status.
+func IsExactStdoutLimitExitCode(err error, exitCode int) bool {
+	if typed, ok := err.(*stdoutLimitExitError); ok {
+		return typed.exitCode == exitCode
+	}
+	// runExplicit's deferred containment close uses errors.Join even when the
+	// close succeeds. Peel only that sole multi-error cause; ordinary wrappers
+	// and joins containing any concurrent failure must not match.
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := joined.Unwrap()
+		return len(causes) == 1 && IsExactStdoutLimitExitCode(causes[0], exitCode)
+	}
+	return false
+}
+
+type stdoutLimitExitError struct {
+	exitCode int
+	waitErr  error
+	limitErr error
+}
+
+func (err *stdoutLimitExitError) Error() string {
+	return fmt.Sprintf("command exited with code %d while stdout exceeded its configured limit: %v", err.exitCode, errors.Join(err.waitErr, err.limitErr))
+}
+
+func (err *stdoutLimitExitError) Unwrap() []error {
+	return []error{err.waitErr, err.limitErr}
+}
+
 type terminationResult struct {
 	leaderStopped              bool
 	leaderTerminationInitiated bool
@@ -680,16 +712,28 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 		return capturedResult, withDuplexDiagnostic(errors.Join(fmt.Errorf("process left live descendants that required forced cleanup"), capturedErr, stdoutErr), stderr.Bytes())
 	}
 	if stdoutErr != nil {
-		return capturedResult, explicitStdoutError(capturedResult, capturedErr, stdoutErr)
+		return capturedResult, explicitStdoutError(capturedResult, capturedErr, stdoutErr, waitErr)
 	}
 	return capturedResult, capturedErr
 }
 
-func explicitStdoutError(result ports.CommandResult, commandErr, stdoutErr error) error {
+func explicitStdoutError(result ports.CommandResult, commandErr, stdoutErr, waitErr error) error {
 	if stdoutErr == nil {
 		return commandErr
 	}
 	if result.ExitCode != 0 {
+		// Returning ErrStdoutLimitExceeded closes exec's stdout copy pipe. Native
+		// producers such as Git then terminate with the platform's broken-pipe
+		// status. That status is a consequence of the bound, not an independent
+		// command failure. Only collapse the exact raw Wait result for that status;
+		// cancellation, containment/cleanup failures, and every other nonzero exit
+		// retain their stronger causality.
+		if commandErr == nil && isStdoutLimitPipeExit(waitErr) {
+			return ErrStdoutLimitExceeded
+		}
+		if commandErr == nil {
+			return &stdoutLimitExitError{exitCode: result.ExitCode, waitErr: waitErr, limitErr: stdoutErr}
+		}
 		return errors.Join(fmt.Errorf("command exited with code %d while stdout exceeded its configured limit", result.ExitCode), commandErr, stdoutErr)
 	}
 	if commandErr == nil || IsOnlyStdoutLimitExceeded(commandErr) {
