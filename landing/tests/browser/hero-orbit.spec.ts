@@ -92,10 +92,11 @@ test('CSS background depth animates on the right and pauses offscreen or hidden'
   expect(await field.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(0);
 });
 
-test('twice-sized breathing background never changes layout or blocks the foreground', async ({ page }) => {
+test('larger breathing background never changes layout or blocks the foreground', async ({ page }) => {
   await page.goto('./');
   const field = page.locator('.hero-agent-field');
   await expect(field).toHaveClass(/hero-agent-field--active/);
+  await expect(field).toHaveCSS('perspective', '1125px');
   for (const width of [1440, 1280, 1024, 800, 390, 280]) {
     await page.setViewportSize({ width, height: 1000 });
     await field.scrollIntoViewIfNeeded();
@@ -103,8 +104,10 @@ test('twice-sized breathing background never changes layout or blocks the foregr
     const heroBefore = (await page.locator('.hero').boundingBox())!;
     const planeWidth = await field.locator('.hero-agent-field__plane')
       .evaluate((node) => Number.parseFloat(getComputedStyle(node).width));
-    expect(planeWidth).toBeLessThanOrEqual(width <= 720 ? 328 : 480);
-    if (width >= 390) expect(planeWidth).toBe(width <= 720 ? 328 : 480);
+    const fieldWidth = (await field.boundingBox())!.width;
+    expect(planeWidth).toBeCloseTo(Math.min(width <= 720 ? 492 : 720, fieldWidth * 1.5), 1);
+    expect(await field.locator('.hero-agent-field__node').first()
+      .evaluate((node) => Number.parseFloat(getComputedStyle(node).width))).toBe(width <= 720 ? 30 : 38);
     await field.evaluate((node: HTMLElement) => { node.style.display = 'none'; });
     expect(await page.locator('.hero__window').boundingBox()).toEqual(windowBefore);
     expect(await page.locator('.hero').boundingBox()).toEqual(heroBefore);
