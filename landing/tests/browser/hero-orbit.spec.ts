@@ -18,6 +18,8 @@ test('CSS orbit is visible without JavaScript and keeps every logo on the circle
     await field.locator('.hero-agent-field__plane').evaluate((node: HTMLElement) => {
       node.style.transform = 'none';
     });
+    await expect.poll(() => field.locator('.hero-agent-field__plane')
+      .evaluate((node) => getComputedStyle(node).transform)).toBe('none');
     const error = await field.evaluate((element) => {
       const track = element.querySelector('.hero-agent-field__track')!.getBoundingClientRect();
       return Math.max(...[...element.querySelectorAll('.hero-agent-field__node')].map((node) => {
