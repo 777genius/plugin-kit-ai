@@ -89,6 +89,11 @@ const provenanceURL = computed(() => {
   const suffix = source.path ? `/${source.path}` : '';
   return `https://github.com/${source.repository}/tree/${source.revision}${suffix}`;
 });
+const detailURL = computed(() =>
+  isDiscovered.value
+    ? { path: '/plugins/community', query: { source: props.plugin.install_source } }
+    : `/plugins/${props.plugin.name}`,
+);
 
 function updateTargets(values: string[]) {
   const allowed = new Set(availableClients.value.map((client) => client.id));
@@ -104,7 +109,11 @@ function updateAutoDetect(value: boolean) {
 </script>
 
 <template>
-  <article class="plugin-card" :class="{ 'plugin-card--expanded': installExpanded }">
+  <article
+    class="plugin-card"
+    :class="{ 'plugin-card--expanded': installExpanded }"
+    :data-trust="isDiscovered ? 'community' : 'reviewed'"
+  >
     <span
       v-if="!isDiscovered"
       class="plugin-card__ribbon"
@@ -131,14 +140,7 @@ function updateAutoDetect(value: boolean) {
       ></span>
       <div class="plugin-card__identity-copy">
         <h3>
-          <a
-            v-if="isDiscovered"
-            class="plugin-card__title-link"
-            :href="provenanceURL"
-            target="_blank"
-            rel="noreferrer"
-            >{{ plugin.display_name }}</a
-          ><NuxtLink v-else class="plugin-card__title-link" :to="`/plugins/${plugin.name}`">{{
+          <NuxtLink class="plugin-card__title-link" :to="detailURL">{{
             plugin.display_name
           }}</NuxtLink>
         </h3>

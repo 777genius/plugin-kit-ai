@@ -183,16 +183,13 @@ watch([query, category, component, source, trust, client, authentication, owner]
           Showing {{ displayed.length }} of {{ visible.length }} matching plugins ·
           {{ plugins.length }} total
         </div>
-        <p class="discovery-status" :class="`discovery-status--${discovery.state}`">
+        <p
+          v-if="['loading', 'stale', 'unavailable'].includes(discovery.state)"
+          class="discovery-status"
+          :class="`discovery-status--${discovery.state}`"
+        >
           <template v-if="discovery.state === 'loading'"
             >Finding more community plugins on GitHub…</template
-          >
-          <template v-else-if="discovery.state === 'current'"
-            >{{ discovery.count }} community packages found on GitHub · popular repositories are
-            mixed for variety</template
-          >
-          <template v-else-if="discovery.state === 'cached'"
-            >Showing {{ discovery.count }} recently found community packages</template
           >
           <template v-else-if="discovery.state === 'stale'"
             >Community results are refreshing. Reviewed plugins remain available.</template
@@ -201,7 +198,6 @@ watch([query, category, component, source, trust, client, authentication, owner]
             >Community results are temporarily unavailable. Reviewed plugins remain
             available.</template
           >
-          <template v-else>Reviewed plugins are ready.</template>
         </p>
       </div>
     </div>

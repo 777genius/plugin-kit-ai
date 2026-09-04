@@ -102,6 +102,7 @@ export default defineNuxtConfig({
         '/',
         '/create-plugin',
         '/plugins',
+        '/plugins/community',
         ...registryIndex.plugins.map((plugin) => `/plugins/${plugin.name}`),
         '/api/releases/latest',
         '/sitemap.xml',

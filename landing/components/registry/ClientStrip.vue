@@ -10,7 +10,7 @@ const { asset } = useSite();
       ></span>
       <span class="client-strip__copy"
         ><strong>{{ client.name }}</strong
-        ><small><span aria-hidden="true">✓</span> {{ client.status }}</small></span
+        ><small>{{ client.status }}</small></span
       >
     </li>
   </ul>
