@@ -47,7 +47,9 @@ const selectedTargets = computed(() =>
 );
 
 const installChannels = computed<InstallChannel[]>(() =>
-  content.value.installChannels.filter((channel) => channel.command && channel.id === 'npm'),
+  content.value.installChannels.filter(
+    (channel) => channel.command && ['brew', 'script', 'npm'].includes(channel.id),
+  ),
 );
 
 watchEffect(() => {

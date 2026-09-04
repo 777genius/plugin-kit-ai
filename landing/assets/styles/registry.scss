@@ -2218,14 +2218,19 @@ img {
   margin-bottom: 0;
   font-size: 1.35rem;
 }
-.install-panel__heading > span {
+.install-panel__cli-link {
   padding: 5px 8px;
   border: 1px solid var(--line);
   border-radius: 7px;
   color: var(--subtle);
+  text-decoration: none;
   font:
     0.61rem 'SFMono-Regular',
     monospace;
+}
+.install-panel__cli-link:hover {
+  border-color: var(--violet);
+  color: var(--ink);
 }
 .install-command-row {
   display: grid;

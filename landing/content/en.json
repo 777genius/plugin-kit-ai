@@ -985,7 +985,7 @@
     {
       "id": "fastestStart",
       "question": "What is the fastest way to start?",
-      "answer": "Run <code>npx universal-agent-plugins add context7 --target codex,cursor</code>. Choose one or more targets explicitly, then follow any client activation step."
+      "answer": "Install the native Go CLI, then run <code>agentplugins add context7 --target codex,cursor</code>. Choose one or more targets explicitly, then follow any client activation step."
     },
     {
       "id": "whichPathFirst",
@@ -1001,20 +1001,21 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Recommended permanent install for machines that already use Homebrew.",
-      "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "Best when you plan to use plugin-kit-ai every day.",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
+      "description": "Native Go CLI for macOS and Linux. Node.js is not required.",
+      "href": "https://github.com/777genius/homebrew-agentplugins",
+      "note": "Recommended for a permanent install with automatic Homebrew upgrades.",
+      "command": "brew install 777genius/agentplugins/agentplugins",
+      "invocation": "agentplugins",
+      "recommended": true
     },
     {
       "id": "npm",
       "title": "npx",
       "description": "Run the installer without a permanent install.",
       "href": "https://www.npmjs.com/package/universal-agent-plugins",
-      "note": "Fastest path to your first multi-agent plugin install.",
+      "note": "Zero-install alternative when Node.js 22 or newer is already available.",
       "command": "npx universal-agent-plugins version",
-      "invocation": "npx universal-agent-plugins",
-      "recommended": true
+      "invocation": "npx universal-agent-plugins"
     },
     {
       "id": "pipx",
@@ -1027,10 +1028,11 @@
     {
       "id": "script",
       "title": "Verified install script",
-      "description": "Fallback bootstrap path that resolves the latest published stable release and verifies checksums.",
-      "href": "https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh",
-      "note": "Good when package-manager setup is not what you want first.",
-      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh"
+      "description": "Native install without a package manager. Node.js is not required.",
+      "href": "https://github.com/777genius/universal-agent-plugins/blob/main/docs/NATIVE_INSTALL.md",
+      "note": "Downloads the correct release binary and verifies its SHA-256 and version.",
+      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh",
+      "invocation": "$HOME/.local/bin/agentplugins"
     },
     {
       "id": "releases",

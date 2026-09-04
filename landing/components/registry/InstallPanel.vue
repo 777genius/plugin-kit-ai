@@ -80,7 +80,13 @@ watch(availableClients, (next) => {
         <p class="eyebrow">Installer</p>
         <h2 id="install-title">Use with your agent</h2>
       </div>
-      <span>Node.js 22+</span>
+      <a
+        class="install-panel__cli-link"
+        href="https://github.com/777genius/universal-agent-plugins#quick-start"
+        target="_blank"
+        rel="noreferrer"
+        >Native Go CLI · no Node.js</a
+      >
     </div>
     <div v-if="commands" class="command-stack">
       <div class="install-command-row">
