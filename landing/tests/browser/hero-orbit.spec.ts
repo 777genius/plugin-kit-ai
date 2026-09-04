@@ -42,10 +42,10 @@ test('CSS background depth animates on the right and pauses offscreen or hidden'
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('./');
   const field = page.locator('.hero__demo .hero-agent-field');
-  const track = field.locator('.hero-agent-field__track');
+  const orbit = field.locator('.hero-agent-field__orbit');
   await expect(field).toHaveClass(/hero-agent-field--active/);
-  const first = await track.evaluate((node) => getComputedStyle(node).transform);
-  await expect.poll(() => track.evaluate((node) => getComputedStyle(node).transform)).not.toBe(first);
+  const first = await orbit.evaluate((node) => getComputedStyle(node).transform);
+  await expect.poll(() => orbit.evaluate((node) => getComputedStyle(node).transform)).not.toBe(first);
   expect(await field.locator('.hero-agent-field__plane').evaluate((node) => getComputedStyle(node).transform)).toMatch(/^matrix3d\(/);
   expect(await field.evaluate((node) => getComputedStyle(node).pointerEvents)).toBe('none');
   const copy = (await page.locator('.hero__copy').boundingBox())!;
@@ -75,7 +75,7 @@ test('CSS background depth animates on the right and pauses offscreen or hidden'
   expect(Math.abs(tiltMatrices[0]![1]! - tiltMatrices[1]![1]!)).toBeGreaterThan(0.5);
   await page.getByRole('contentinfo').scrollIntoViewIfNeeded();
   await expect(field).not.toHaveClass(/hero-agent-field--active/);
-  expect(await track.evaluate((node) => getComputedStyle(node).animationPlayState)).toBe('paused');
+  expect(await orbit.evaluate((node) => getComputedStyle(node).animationPlayState)).toBe('paused');
   await field.scrollIntoViewIfNeeded();
   await expect(field).toHaveClass(/hero-agent-field--active/);
   await page.evaluate(() => {
@@ -90,6 +90,51 @@ test('CSS background depth animates on the right and pauses offscreen or hidden'
   await expect(field).toHaveClass(/hero-agent-field--active/);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   expect(await field.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(0);
+});
+
+test('logos travel clockwise along a stationary ring and stay upright', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('./');
+  const field = page.locator('.hero-agent-field');
+  await expect(field).toHaveClass(/hero-agent-field--active/);
+  await expect(field.locator('.hero-agent-field__orbit')).toHaveCSS('animation-duration', '36s');
+  await expect(field.locator('.hero-agent-field__rotor').first()).toHaveCSS('animation-duration', '36s');
+  expect(await field.locator('.hero-agent-field__track').evaluate((node) => node.getAnimations().length)).toBe(0);
+  // Isolate travel from the camera tilt: a fixed ring alone cannot make this pass.
+  await field.locator('.hero-agent-field__plane').evaluate((node: HTMLElement) => {
+    node.style.animation = 'none';
+    node.style.transform = 'none';
+  });
+  const positions: { x: number; y: number; logoWidth: number; logoHeight: number }[][] = [];
+  for (const fraction of [0, 0.125]) {
+    await field.evaluate((node, progress) => {
+      for (const animation of node.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = Number(animation.effect!.getTiming().duration) * progress;
+      }
+    }, fraction);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    positions.push(await field.evaluate((node) => {
+      const ring = node.querySelector('.hero-agent-field__track')!.getBoundingClientRect();
+      return [...node.querySelectorAll('.hero-agent-field__node')].map((badge) => {
+        const rect = badge.getBoundingClientRect();
+        const logo = badge.querySelector('img')!.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2 - ring.x - ring.width / 2,
+          y: rect.y + rect.height / 2 - ring.y - ring.height / 2,
+          logoWidth: logo.width, logoHeight: logo.height };
+      });
+    }));
+  }
+  for (const [index, start] of positions[0]!.entries()) {
+    const moved = positions[1]![index]!;
+    // +45 degrees is clockwise in screen coordinates (positive y points down).
+    expect(moved.x).toBeCloseTo((start.x - start.y) / Math.SQRT2, 0);
+    expect(moved.y).toBeCloseTo((start.x + start.y) / Math.SQRT2, 0);
+    expect(Math.hypot(moved.x, moved.y)).toBeCloseTo(Math.hypot(start.x, start.y), 0);
+    // At 45 degrees a missing counter-rotation enlarges the image bounding box.
+    expect(moved.logoWidth).toBeCloseTo(start.logoWidth, 1);
+    expect(moved.logoHeight).toBeCloseTo(start.logoHeight, 1);
+  }
 });
 
 test('larger breathing background never changes layout or blocks the foreground', async ({ page }) => {
@@ -155,7 +200,7 @@ test('logo thickness follows the viewing angle without extra animation loops', a
   expect(await field.locator('.hero-agent-field__rotor').first().locator('.hero-agent-field__rim')
     .evaluateAll((rims) => rims.map((rim) => new DOMMatrix(getComputedStyle(rim).transform).m43)))
     .toEqual([-1.5, -3, -4.5, -6]);
-  // Only the existing plane, track and counter-rotations animate, never individual slices.
+  // Only the plane, icon orbit and counter-rotations animate, never individual slices.
   expect(await field.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(uniqueLogos.length + 3);
   const offsets: { x: number; y: number }[][] = [];
   for (const fraction of [0, 1]) {
