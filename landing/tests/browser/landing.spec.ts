@@ -270,6 +270,63 @@ test('community plugin titles open an installable plugin page instead of GitHub'
   await expect(page.locator('.install-panel')).toBeVisible();
 });
 
+test('metadata-only community records stay out of the install catalog', async ({ page }) => {
+  await page.goto('./plugins');
+  await page.getByRole('searchbox', { name: 'Search plugins' }).fill('remotion');
+  await expect(page.locator('.plugin-card[data-trust="community"]')).toHaveCount(0, {
+    timeout: 15_000,
+  });
+});
+
+test('metadata-only community direct links explain why installation is unavailable', async ({
+  page,
+}) => {
+  await page.goto(
+    './plugins/community?source=discovery%3Aremotion-dev%2Fremotion%2F%2Fpackages%2Fagent-plugin',
+  );
+  await expect(page.getByRole('heading', { name: 'remotion', exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('heading', { name: 'Not ready to install' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('This plugin is not installable yet');
+  await expect(page.getByRole('status')).toContainText("doesn't include any tools");
+  await expect(page.getByText('No supported agents yet')).toBeVisible();
+  await expect(page.getByText('No installable tools')).toBeVisible();
+  await expect(page.locator('.command-snippet')).toHaveCount(0);
+});
+
+test('community install controls use the full panel width for long sources', async ({ page }) => {
+  await page.goto(
+    './plugins/community?source=discovery%3Avectorize-io%2Fhindsight%2F%2Fhindsight-integrations%2Fagent-plugin',
+  );
+
+  const selector = page.locator('.install-command-row .target-select');
+  const addCommand = page.locator('.install-command-row > .command-snippet');
+  await expect(selector).toBeVisible({ timeout: 15_000 });
+  await expect(addCommand).toBeVisible();
+
+  for (const width of [1280, 980, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const selectorBox = (await selector.boundingBox())!;
+    const commandBox = (await addCommand.boundingBox())!;
+    expect(Math.abs(selectorBox.x - commandBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(selectorBox.width - commandBox.width)).toBeLessThanOrEqual(1);
+    expect(commandBox.y).toBeGreaterThan(selectorBox.y + selectorBox.height);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+
+    if (width <= 980) {
+      const gridBox = (await page.locator('.plugin-page__grid').boundingBox())!;
+      const panelBox = (await page.locator('.install-panel').boundingBox())!;
+      expect(Math.abs(gridBox.x - panelBox.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(gridBox.width - panelBox.width)).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
 test('directory filters and reviewed detail keep automatic detection as the default', async ({
   page,
 }) => {

@@ -2,6 +2,7 @@
 import type { ClientID, RegistryIndex } from '~/types/registry';
 import { pluginCommands } from '~/utils/commands';
 import { countAtElapsed, PLUGIN_COUNT_ANIMATION_MS } from '~/utils/countAnimation';
+import { catalogVisiblePlugins } from '~/utils/filter';
 import { deliveryLabel, expectedDistribution, resolveDistribution } from '~/utils/registry';
 
 const props = defineProps<{ registry: RegistryIndex }>();
@@ -26,7 +27,7 @@ if (import.meta.client) {
     (state) => {
       if (state !== 'current' && state !== 'cached') return;
 
-      const target = props.registry.plugins.length;
+      const target = catalogVisiblePlugins(props.registry.plugins).length;
       if (
         countAnimationCompleted.value ||
         window.matchMedia('(prefers-reduced-motion: reduce)').matches

@@ -4,8 +4,10 @@ import { describe, it } from 'node:test';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pluginCommands } from '../utils/commands.ts';
-import { filterPlugins } from '../utils/filter.ts';
+import { discoveryPlugin } from '../utils/discovery.ts';
+import { catalogVisiblePlugins, filterPlugins } from '../utils/filter.ts';
 import { parseDirectoryData } from '../utils/registry.ts';
+import type { DiscoveryRecord, DiscoverySnapshot } from '../types/discovery.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pointer = JSON.parse(
@@ -15,6 +17,35 @@ const snapshot = JSON.parse(
   readFileSync(resolve(root, 'public/registry/schemas/1', pointer.snapshot_path), 'utf8'),
 ) as unknown;
 const registry = parseDirectoryData(snapshot, 'published_snapshot');
+const discoverySnapshot = {
+  sequence: 1,
+  generated_at: '2026-01-01T00:00:00Z',
+  expires_at: '2027-01-01T00:00:00Z',
+} as DiscoverySnapshot;
+const discoveryRecord = {
+  slug: 'discovery:example/plugin',
+  name: 'example',
+  description: 'Example package',
+  owner: 'example',
+  repository: 'example/plugin',
+  package_path: '',
+  revision: '1'.repeat(40),
+  version: '1.0.0',
+  license: 'Apache-2.0',
+  schema_version: '1.0.0',
+  components: { extensions: 0, mcp: 0, skills: 0 },
+  mcp_transports: [],
+  compatible_clients: [],
+  authentication: 'not_required',
+  status: 'conformant_unreviewed',
+  runtime_reviewed: false,
+  tree_digest: `sha256:${'2'.repeat(64)}`,
+  manifest_digest: `sha256:${'3'.repeat(64)}`,
+  stars: 1,
+  repository_updated_at: '2026-01-01T00:00:00Z',
+  reviewed_distribution_id: null,
+  availability: 'available',
+} satisfies DiscoveryRecord;
 
 describe('unified registry landing', () => {
   it('loads the signed reviewed directory used by the site', () => {
@@ -61,5 +92,25 @@ describe('unified registry landing', () => {
       },
     };
     assert.equal(filterPlugins([discovered, reviewed], {})[0]?.name, reviewed.name);
+  });
+
+  it('keeps metadata-only discovery records out of the install catalog', () => {
+    const metadataOnly = discoveryPlugin(discoveryRecord, discoverySnapshot);
+    const portable = discoveryPlugin(
+      {
+        ...discoveryRecord,
+        slug: 'discovery:example/portable',
+        name: 'portable',
+        components: { extensions: 0, mcp: 0, skills: 1 },
+        compatible_clients: ['codex'],
+      },
+      discoverySnapshot,
+    );
+
+    assert.equal(metadataOnly.installable, false);
+    assert.equal(metadataOnly.distributions[0]?.selectable, false);
+    assert.equal(metadataOnly.distributions[0]?.releases[0]?.selectable, false);
+    assert.equal(portable.installable, true);
+    assert.deepEqual(catalogVisiblePlugins([metadataOnly, portable]), [portable]);
   });
 });

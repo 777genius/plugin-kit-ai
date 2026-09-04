@@ -11,6 +11,13 @@ export interface CatalogFilters {
   owner?: string;
 }
 
+/** Keep metadata-only Discovery records available by direct URL, not in the install catalog. */
+export function catalogVisiblePlugins(plugins: RegistryPlugin[]): RegistryPlugin[] {
+  return plugins.filter(
+    (plugin) => plugin.trust_state !== 'conformant_unreviewed' || plugin.installable,
+  );
+}
+
 function normalized(value: string): string {
   return value.trim().toLowerCase();
 }

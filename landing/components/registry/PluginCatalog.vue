@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { availableFilters, filterPlugins } from '~/utils/filter';
+import { availableFilters, catalogVisiblePlugins, filterPlugins } from '~/utils/filter';
 import type { RegistryPlugin } from '~/types/registry';
 
 const props = withDefaults(
@@ -22,7 +22,8 @@ const mobileFiltersOpen = ref(false);
 const pageSize = 48;
 const displayLimit = ref(pageSize);
 const discovery = useDiscoveryStatus();
-const filters = computed(() => availableFilters(props.plugins));
+const catalogPlugins = computed(() => catalogVisiblePlugins(props.plugins));
+const filters = computed(() => availableFilters(catalogPlugins.value));
 type FilterOption = { value: string; label: string };
 let previousCategoryOptions: FilterOption[] = [];
 let previousComponentOptions: FilterOption[] = [];
@@ -81,7 +82,7 @@ const ownerOptions = computed(() => [
   ...filters.value.owners.map((item) => ({ value: item, label: item })),
 ]);
 const visible = computed(() =>
-  filterPlugins(props.plugins, {
+  filterPlugins(catalogPlugins.value, {
     query: query.value,
     category: category.value === 'all' ? '' : category.value,
     component:
@@ -104,7 +105,7 @@ const activeFilterCount = computed(
     ).length,
 );
 const catalogSummary = computed(() => {
-  const total = props.plugins.length;
+  const total = catalogPlugins.value.length;
   if (!visible.value.length) return `No matches · ${total} total`;
   if (visible.value.length === total) return `${displayed.value.length} shown · ${total} plugins`;
   if (displayed.value.length < visible.value.length)

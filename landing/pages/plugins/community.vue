@@ -62,7 +62,9 @@ usePageSeo(
               <img :src="pluginIcon(plugin)" alt="" width="54" height="54" loading="eager" >
             </span>
             <div>
-              <div class="plugin-profile__meta">Community plugin</div>
+              <div class="plugin-profile__meta">
+                {{ plugin.installable ? 'Community plugin' : 'Community listing' }}
+              </div>
               <h1>{{ plugin.display_name }}</h1>
             </div>
           </div>
@@ -75,11 +77,19 @@ usePageSeo(
             </div>
             <div>
               <dt>Works with</dt>
-              <dd>{{ availableClients.map((client) => client.name).join(', ') }}</dd>
+              <dd>
+                {{
+                  availableClients.length
+                    ? availableClients.map((client) => client.name).join(', ')
+                    : 'No supported agents yet'
+                }}
+              </dd>
             </div>
             <div>
               <dt>Components</dt>
-              <dd>{{ plugin.components.join(', ') }}</dd>
+              <dd>
+                {{ plugin.components.length ? plugin.components.join(', ') : 'No installable tools' }}
+              </dd>
             </div>
             <div>
               <dt>Source</dt>
