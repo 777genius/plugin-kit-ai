@@ -1,5 +1,10 @@
 export const registryFaqItems = [
   {
+    question: 'Which AI agents are supported?',
+    answer:
+      'Codex, ChatGPT, Cursor, GitHub Copilot CLI, VS Code, Kiro, Claude Code, Gemini CLI, OpenCode, Cline, and Windsurf are supported or prepared through an explicit client-specific path.',
+  },
+  {
     question: 'Does one command install into every agent?',
     answer:
       'By default the CLI detects installed compatible agents and asks you to confirm. You can also select one or many agents explicitly.',

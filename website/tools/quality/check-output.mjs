@@ -39,6 +39,10 @@ if (sitemap.includes(`<loc>${docsBaseUrl}</loc>`)) {
   console.error("Gateway root leaked into sitemap.xml.");
   hasError = true;
 }
+if (/<loc>[^<]*\/404\/?<\/loc>/.test(sitemap)) {
+  console.error("The not-found document leaked into sitemap.xml.");
+  hasError = true;
+}
 
 const robots = await fs.readFile(path.join(distRoot, "robots.txt"), "utf8");
 if (!robots.includes(`Sitemap: ${new URL("sitemap.xml", docsBaseUrl).toString()}`)) {
@@ -103,13 +107,15 @@ if (!latestReleaseAlias.includes('http-equiv="refresh"')) {
   console.error("Latest public release alias is missing its redirect metadata.");
   hasError = true;
 }
-if (!latestReleaseAlias.includes("https://777genius.github.io/plugin-kit-ai/docs/en/releases/v1-1-2")) {
+const latestReleaseUrl = new URL("en/releases/v1-1-2", docsBaseUrl).toString();
+if (!latestReleaseAlias.includes(latestReleaseUrl)) {
   console.error("Latest public release alias is missing its canonical EN destination.");
   hasError = true;
 }
 
 const guideAlias = await fs.readFile(path.join(distRoot, "guide", "index.html"), "utf8");
-if (!guideAlias.includes("https://777genius.github.io/plugin-kit-ai/docs/en/guide/")) {
+const guideUrl = new URL("en/guide/", docsBaseUrl).toString();
+if (!guideAlias.includes(guideUrl)) {
   console.error("Guide alias is missing its canonical EN destination.");
   hasError = true;
 }

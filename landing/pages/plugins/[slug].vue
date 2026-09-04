@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { mdiArrowLeft, mdiDownload, mdiOpenInNew } from '@mdi/js';
+import { clientLandingById } from '~/data/clients';
 import { seoDescription, spdxLicenseUrl } from '~/utils/seo';
 import type { ClientID } from '~/types/registry';
 
@@ -157,14 +158,15 @@ usePageSeo(`${plugin.display_name} Agent Plugin | Universal Agent Plugins`, desc
             <div class="plugin-detail__summary-block">
               <div class="plugin-detail__summary-title">Supported clients</div>
               <div class="plugin-detail__client-list">
-                <span
+                <NuxtLink
                   v-for="client in supportedClients"
                   :key="client.id"
+                  :to="`/agents/${clientLandingById.get(client.id)?.slug}`"
                   class="plugin-detail__client"
                 >
                   <img :src="asset(`client-icons/${client.icon}`)" alt="" width="22" height="22" >
                   {{ client.name }}
-                </span>
+                </NuxtLink>
               </div>
             </div>
             <div class="plugin-detail__summary-block">
@@ -434,6 +436,15 @@ usePageSeo(`${plugin.display_name} Agent Plugin | Universal Agent Plugins`, desc
   border-radius: 12px;
   color: #cbd5e1;
   font-size: 0.74rem;
+  text-decoration: none;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.plugin-detail__client:hover {
+  color: #fff;
+  border-color: rgba(0, 240, 255, 0.32);
 }
 
 .plugin-detail__client img {

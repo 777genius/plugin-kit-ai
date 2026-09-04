@@ -134,14 +134,18 @@ export const usePageSeo = (
         '@type': 'Organization',
         '@id': organizationId,
         name: siteName,
+        alternateName: 'UAP',
+        description:
+          'Open-source multi-agent installer and lifecycle manager for Agent Plugins 1.0.',
         url: `${siteUrl}/`,
         logo: {
           '@type': 'ImageObject',
           url: `${siteUrl}/logo-192.png`,
+          contentUrl: `${siteUrl}/logo-192.png`,
           width: 192,
           height: 192,
         },
-        sameAs: [githubUrl],
+        sameAs: [githubUrl, 'https://www.npmjs.com/package/universal-agent-plugins'],
       });
     }
 

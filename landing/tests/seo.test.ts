@@ -40,6 +40,9 @@ describe('SEO foundations', () => {
       priceCurrency: 'USD',
     });
     assert.equal(schema.isAccessibleForFree, true);
+    assert.equal(schema.installUrl, 'https://www.npmjs.com/package/universal-agent-plugins');
+    assert.equal(schema.screenshot, 'https://example.com/product/og-image.png');
+    assert.deepEqual(schema.publisher, { '@id': 'https://example.com/product/#organization' });
     assert.equal(spdxLicenseUrl('Apache-2.0'), 'https://spdx.org/licenses/Apache-2.0.html');
     assert.equal(spdxLicenseUrl('invalid license'), undefined);
   });

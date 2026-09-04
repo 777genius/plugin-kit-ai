@@ -1,6 +1,7 @@
 import vuetify from 'vite-plugin-vuetify';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { clientLandingPages } from './data/clients';
 import { supportedLocales } from './data/i18n';
 import { loadRegistryIndex } from './build/load-registry';
 import { canonicalPath } from './utils/seo';
@@ -52,6 +53,7 @@ const sitemapRoutes = [
   '/',
   '/download',
   '/plugins',
+  ...clientLandingPages.map((client) => `/agents/${client.slug}`),
   ...registryIndex.plugins.map((plugin) => `/plugins/${plugin.name}`),
 ].map(canonicalPath);
 
@@ -112,6 +114,7 @@ export default defineNuxtConfig({
         '/',
         '/create-plugin',
         '/download',
+        ...clientLandingPages.map((client) => `/agents/${client.slug}`),
         '/plugins',
         '/plugins/community',
         ...registryIndex.plugins.map((plugin) => `/plugins/${plugin.name}`),

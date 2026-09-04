@@ -87,6 +87,8 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, seoUtils, `offers:`)
 	mustContain(t, seoUtils, `price: '0'`)
 	mustContain(t, seoUtils, `priceCurrency: 'USD'`)
+	mustContain(t, seoUtils, `installUrl: npmUrl`)
+	mustContain(t, seoUtils, `softwareRequirements:`)
 	mustNotContain(t, seoUtils, `hookplex.dev`)
 
 	nuxtConfigBody, err := os.ReadFile(filepath.Join(landingRoot, "nuxt.config.ts"))
@@ -250,7 +252,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	}
 	pluginsPage := string(pluginsPageBody)
 	mustContain(t, pluginsPage, `const registry = useRegistry()`)
-	mustContain(t, pluginsPage, `usePageSeo('Agent Plugins Directory | Universal Agent Plugins'`)
+	mustContain(t, pluginsPage, `usePageSeo('Agent Plugins 1.0 Directory | Search 2,500+ Plugins'`)
 	mustContain(t, pluginsPage, `'@type': 'ItemList'`)
 	mustContain(t, pluginsPage, `<PluginCatalog`)
 	mustContain(t, pluginsPage, `:plugins="registry.plugins"`)
@@ -266,6 +268,16 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, pluginDetailPage, `'@type': 'BreadcrumbList'`)
 	mustContain(t, pluginDetailPage, `<InstallPanel`)
 	mustContain(t, pluginDetailPage, `sourceUrl(plugin)`)
+
+	agentPageBody, err := os.ReadFile(filepath.Join(landingRoot, "pages", "agents", "[client].vue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	agentPage := string(agentPageBody)
+	mustContain(t, agentPage, `clientLandingBySlug.get`)
+	mustContain(t, agentPage, `'@type': 'ItemList'`)
+	mustContain(t, agentPage, `'@type': 'BreadcrumbList'`)
+	mustContain(t, agentPage, `npx universal-agent-plugins add <plugin> --target`)
 
 	enContentBody, err := os.ReadFile(filepath.Join(landingRoot, "content", "en.json"))
 	if err != nil {

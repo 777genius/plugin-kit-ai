@@ -10,7 +10,7 @@ const siteUrl = String(config.public.siteUrl).replace(/\/+$/, '');
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
 const softwareId = `${siteUrl}/#software`;
 
-usePageSeo('Universal Agent Plugins - Install Plugins Across AI Agents', description, {
+usePageSeo('Universal Agent Plugins CLI | Install Agent Plugins 1.0', description, {
   translate: false,
   siteIdentity: true,
   pageProperties: { about: { '@id': softwareId } },
