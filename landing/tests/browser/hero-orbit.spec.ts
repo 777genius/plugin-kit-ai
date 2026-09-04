@@ -96,6 +96,7 @@ test('larger breathing background never changes layout or blocks the foreground'
   await page.goto('./');
   const field = page.locator('.hero-agent-field');
   await expect(field).toHaveClass(/hero-agent-field--active/);
+  await expect(field).toHaveCSS('perspective', '1125px');
   for (const width of [1440, 1280, 1024, 800, 390, 280]) {
     await page.setViewportSize({ width, height: 1000 });
     await field.scrollIntoViewIfNeeded();
