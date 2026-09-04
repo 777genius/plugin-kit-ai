@@ -9,9 +9,6 @@ export function normalizeInstallPlatform(osName?: string | null): InstallPlatfor
   if (normalized.includes('windows')) {
     return 'windows';
   }
-  if (normalized.includes('linux')) {
-    return 'linux';
-  }
   if (
     normalized.includes('android') ||
     normalized.includes('ios') ||
@@ -20,6 +17,9 @@ export function normalizeInstallPlatform(osName?: string | null): InstallPlatfor
     normalized.includes('ipod')
   ) {
     return 'mobile';
+  }
+  if (normalized.includes('linux')) {
+    return 'linux';
   }
 
   return 'other';
