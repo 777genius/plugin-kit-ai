@@ -113,4 +113,39 @@ describe('unified registry landing', () => {
     assert.equal(portable.installable, true);
     assert.deepEqual(catalogVisiblePlugins([metadataOnly, portable]), [portable]);
   });
+
+  it('keeps every non-installable Discovery state out of the install catalog', () => {
+    const unavailable = discoveryPlugin(
+      {
+        ...discoveryRecord,
+        components: { extensions: 0, mcp: 1, skills: 0 },
+        compatible_clients: ['codex'],
+        availability: 'unavailable',
+      },
+      discoverySnapshot,
+    );
+    const unsupported = discoveryPlugin(
+      {
+        ...discoveryRecord,
+        slug: 'discovery:example/unsupported',
+        components: { extensions: 1, mcp: 0, skills: 0 },
+      },
+      discoverySnapshot,
+    );
+    const skillOnly = discoveryPlugin(
+      {
+        ...discoveryRecord,
+        slug: 'discovery:example/skill-only',
+        name: 'skill-only',
+        components: { extensions: 0, mcp: 0, skills: 1 },
+        compatible_clients: ['codex'],
+      },
+      discoverySnapshot,
+    );
+
+    assert.equal(unavailable.installable, false);
+    assert.equal(unsupported.installable, false);
+    assert.equal(skillOnly.installable, true);
+    assert.deepEqual(catalogVisiblePlugins([unavailable, unsupported, skillOnly]), [skillOnly]);
+  });
 });
