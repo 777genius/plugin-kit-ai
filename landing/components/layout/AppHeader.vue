@@ -1,5 +1,15 @@
 <script setup lang="ts">
 import { mdiClose, mdiGithub, mdiMenu } from '@mdi/js';
+import {
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogRoot,
+  DialogTitle,
+  DialogTrigger,
+} from 'reka-ui';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -58,52 +68,60 @@ onMounted(() => {
         <div v-else class="app-header__control-fallback" aria-hidden="true" />
       </div>
       <div class="app-header__mobile-actions">
-        <v-btn :icon="mdiMenu" variant="text" @click="menuOpen = true" />
-        <Teleport to="body">
-          <Transition name="mobile-menu-fade">
-            <div v-if="menuOpen" class="mobile-menu-overlay" @click.self="menuOpen = false">
-              <div class="mobile-menu">
-                <div class="mobile-menu__header">
-                  <div @click="menuOpen = false">
-                    <AppLogo />
-                  </div>
-                  <div style="flex: 1" />
-                  <v-btn :icon="mdiClose" variant="text" @click="menuOpen = false" />
+        <DialogRoot v-model:open="menuOpen">
+          <DialogTrigger as-child>
+            <v-btn :icon="mdiMenu" variant="text" aria-label="Open navigation menu" />
+          </DialogTrigger>
+          <DialogPortal>
+            <DialogOverlay class="mobile-menu-overlay" />
+            <DialogContent class="mobile-menu">
+              <DialogTitle class="sr-only">Navigation menu</DialogTitle>
+              <DialogDescription class="sr-only">
+                Jump to plugins, product details, frequently asked questions, or GitHub.
+              </DialogDescription>
+              <div class="mobile-menu__header">
+                <div @click="menuOpen = false">
+                  <AppLogo />
                 </div>
-                <hr class="mobile-menu__divider" >
-                <nav class="mobile-menu__list">
-                  <a
-                    v-for="item in navItems"
-                    :key="item.id"
-                    :href="sectionHref(item.id)"
-                    class="mobile-menu__link"
-                    @click="menuOpen = false"
-                  >
-                    {{ item.label }}
-                  </a>
-                  <a
-                    :href="githubUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="mobile-menu__link"
-                    @click="menuOpen = false"
-                  >
-                    {{ t('nav.viewOnGithub') }}
-                  </a>
-                </nav>
-                <hr class="mobile-menu__divider" >
-                <div class="mobile-menu__actions">
-                  <template v-if="interactiveReady">
-                    <ThemeToggle />
-                  </template>
-                  <template v-else>
-                    <div class="app-header__control-fallback" aria-hidden="true" />
-                  </template>
-                </div>
+                <div style="flex: 1" />
+                <DialogClose as-child>
+                  <v-btn :icon="mdiClose" variant="text" aria-label="Close navigation menu" />
+                </DialogClose>
               </div>
-            </div>
-          </Transition>
-        </Teleport>
+              <hr class="mobile-menu__divider" >
+              <nav class="mobile-menu__list">
+                <a
+                  v-for="item in navItems"
+                  :key="item.id"
+                  :href="sectionHref(item.id)"
+                  class="mobile-menu__link"
+                  @click="menuOpen = false"
+                >
+                  {{ item.label }}
+                </a>
+                <a
+                  :href="githubUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="mobile-menu__link"
+                  @click="menuOpen = false"
+                >
+                  {{ t('nav.viewOnGithub') }}
+                </a>
+              </nav>
+              <hr class="mobile-menu__divider" >
+              <div class="mobile-menu__actions">
+                <span>Appearance</span>
+                <template v-if="interactiveReady">
+                  <ThemeToggle />
+                </template>
+                <template v-else>
+                  <div class="app-header__control-fallback" aria-hidden="true" />
+                </template>
+              </div>
+            </DialogContent>
+          </DialogPortal>
+        </DialogRoot>
       </div>
     </v-container>
   </header>
@@ -209,21 +227,22 @@ onMounted(() => {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(6, 8, 16, 0.94);
+  background: color-mix(in srgb, var(--surface-solid) 94%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
-.v-theme--light .mobile-menu-overlay {
-  background: rgba(248, 250, 252, 0.96);
-}
-
 .mobile-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
   padding: 16px 16px 24px;
   height: 100%;
   overflow-y: auto;
+  color: var(--text);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0)), transparent;
+    linear-gradient(180deg, color-mix(in srgb, var(--cyan) 3%, transparent), transparent 32%),
+    var(--surface-solid);
 }
 
 .mobile-menu__header {
@@ -264,17 +283,30 @@ onMounted(() => {
   flex-direction: row;
   gap: 8px;
   align-items: center;
-  justify-content: center;
-  padding-top: 16px;
+  justify-content: space-between;
+  padding: 12px 16px 0;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
-.mobile-menu-fade-enter-active,
-.mobile-menu-fade-leave-active {
-  transition: opacity 0.2s ease;
+.mobile-menu-overlay[data-state='open'] {
+  animation: mobile-menu-overlay-in 0.18s ease-out;
 }
 
-.mobile-menu-fade-enter-from,
-.mobile-menu-fade-leave-to {
-  opacity: 0;
+.mobile-menu[data-state='open'] {
+  animation: mobile-menu-content-in 0.2s ease-out;
+}
+
+@keyframes mobile-menu-overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes mobile-menu-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 </style>

@@ -18,6 +18,7 @@ const trust = ref('all');
 const client = ref('all');
 const authentication = ref('all');
 const owner = ref('all');
+const mobileFiltersOpen = ref(false);
 const pageSize = 48;
 const displayLimit = ref(pageSize);
 const discovery = useDiscoveryStatus();
@@ -96,6 +97,33 @@ const visible = computed(() =>
 );
 const displayed = computed(() => visible.value.slice(0, displayLimit.value));
 const remaining = computed(() => Math.max(0, visible.value.length - displayed.value.length));
+const activeFilterCount = computed(
+  () =>
+    [category, component, source, trust, client, authentication, owner].filter(
+      (filter) => filter.value !== 'all',
+    ).length,
+);
+const catalogSummary = computed(() => {
+  const total = props.plugins.length;
+  if (!visible.value.length) return `No matches · ${total} total`;
+  if (visible.value.length === total) return `${displayed.value.length} shown · ${total} plugins`;
+  if (displayed.value.length < visible.value.length)
+    return `${displayed.value.length} shown · ${visible.value.length} matching · ${total} total`;
+  return `${visible.value.length} matching · ${total} total`;
+});
+
+function clearFilters() {
+  query.value = '';
+  category.value = 'all';
+  component.value = 'all';
+  source.value = 'all';
+  trust.value = 'all';
+  client.value = 'all';
+  authentication.value = 'all';
+  owner.value = 'all';
+  mobileFiltersOpen.value = false;
+}
+
 watch([query, category, component, source, trust, client, authentication, owner], () => {
   displayLimit.value = pageSize;
 });
@@ -113,12 +141,8 @@ watch([query, category, component, source, trust, client, authentication, owner]
           target="_blank"
           rel="noreferrer"
           aria-label="Add a plugin"
-          aria-describedby="catalog-add-tooltip"
         >
-          <span aria-hidden="true">＋</span>
-          <span id="catalog-add-tooltip" class="catalog-add-button__tooltip" role="tooltip"
-            >Add a plugin</span
-          >
+          <span aria-hidden="true">＋</span><span>Add plugin</span>
         </a>
       </div>
       <p>{{ intro }}</p>
@@ -130,59 +154,90 @@ watch([query, category, component, source, trust, client, authentication, owner]
           <circle cx="11" cy="11" r="6.5" />
           <path d="m16 16 4 4" />
         </svg>
-        <input v-model="query" type="search" placeholder="Search by name, author, or capability…" >
+        <input
+          v-model="query"
+          type="search"
+          aria-label="Search plugins"
+          placeholder="Search by name, author, or capability…"
+        >
+        <button
+          v-if="query"
+          class="search-field__clear"
+          type="button"
+          aria-label="Clear plugin search"
+          @click="query = ''"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
       </label>
-      <AppCombobox
-        v-model="category"
-        leading-icon="category"
-        label="Filter by category"
-        search-placeholder="Search categories…"
-        :options="stableCategoryOptions"
-      />
-      <AppSelect
-        v-model="component"
-        leading-icon="component"
-        label="Filter by component"
-        :options="stableComponentOptions"
-      />
-      <AppSelect
-        v-model="source"
-        leading-icon="source"
-        label="Filter by source"
-        :options="sourceOptions"
-      />
-      <AppSelect
-        v-model="trust"
-        leading-icon="trust"
-        label="Filter by trust level"
-        :options="trustOptions"
-      />
-      <AppSelect
-        v-model="client"
-        leading-icon="agent"
-        label="Filter by agent"
-        :options="clientOptions"
-      />
-      <AppSelect
-        v-model="authentication"
-        leading-icon="authentication"
-        label="Filter by authentication"
-        :options="authenticationOptions"
-      />
-      <AppCombobox
-        v-model="owner"
-        leading-icon="owner"
-        label="Filter by owner"
-        search-placeholder="Search owners…"
-        :options="ownerOptions"
-      />
+      <button
+        class="catalog-filter-toggle"
+        type="button"
+        :aria-expanded="mobileFiltersOpen"
+        aria-controls="catalog-advanced-filters"
+        @click="mobileFiltersOpen = !mobileFiltersOpen"
+      >
+        <FilterIcon name="category" />
+        <span>{{ mobileFiltersOpen ? 'Hide filters' : 'More filters' }}</span>
+        <span v-if="activeFilterCount" class="catalog-filter-toggle__count"
+          >{{ activeFilterCount }} active</span
+        >
+        <span class="catalog-filter-toggle__chevron" aria-hidden="true">⌄</span>
+      </button>
+      <div
+        id="catalog-advanced-filters"
+        class="catalog-advanced-filters"
+        :class="{ 'catalog-advanced-filters--open': mobileFiltersOpen }"
+      >
+        <AppCombobox
+          v-model="category"
+          leading-icon="category"
+          label="Filter by category"
+          search-placeholder="Search categories…"
+          :options="stableCategoryOptions"
+        />
+        <AppSelect
+          v-model="component"
+          leading-icon="component"
+          label="Filter by component"
+          :options="stableComponentOptions"
+        />
+        <AppSelect
+          v-model="source"
+          leading-icon="source"
+          label="Filter by source"
+          :options="sourceOptions"
+        />
+        <AppSelect
+          v-model="trust"
+          leading-icon="trust"
+          label="Filter by trust level"
+          :options="trustOptions"
+        />
+        <AppSelect
+          v-model="client"
+          leading-icon="agent"
+          label="Filter by agent"
+          :options="clientOptions"
+        />
+        <AppSelect
+          v-model="authentication"
+          leading-icon="authentication"
+          label="Filter by authentication"
+          :options="authenticationOptions"
+        />
+        <AppCombobox
+          v-model="owner"
+          leading-icon="owner"
+          label="Filter by owner"
+          search-placeholder="Search owners…"
+          :options="ownerOptions"
+        />
+      </div>
     </div>
     <div class="catalog-meta">
       <div>
-        <div class="catalog-count" aria-live="polite">
-          Showing {{ displayed.length }} of {{ visible.length }} matching plugins ·
-          {{ plugins.length }} total
-        </div>
+        <div class="catalog-count" aria-live="polite">{{ catalogSummary }}</div>
         <p
           v-if="['loading', 'stale', 'unavailable'].includes(discovery.state)"
           class="discovery-status"
@@ -211,20 +266,7 @@ watch([query, category, component, source, trust, client, authentication, owner]
     <div v-else class="empty-state">
       <h3>No matching plugins</h3>
       <p>Try a broader search or clear one of the filters.</p>
-      <button
-        class="button button--secondary"
-        type="button"
-        @click="
-          query = '';
-          category = 'all';
-          component = 'all';
-          source = 'all';
-          trust = 'all';
-          client = 'all';
-          authentication = 'all';
-          owner = 'all';
-        "
-      >
+      <button class="button button--secondary" type="button" @click="clearFilters">
         Clear filters
       </button>
     </div>

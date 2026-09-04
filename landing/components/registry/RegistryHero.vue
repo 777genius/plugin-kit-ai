@@ -159,7 +159,7 @@ function updateTargets(values: string[]) {
       </div>
     </div>
 
-    <footer class="client-section" aria-labelledby="supported-clients-title">
+    <div class="client-section" aria-labelledby="supported-clients-title">
       <div class="client-section__inner container">
         <p id="supported-clients-title">Supported clients</p>
         <ClientStrip />
@@ -168,6 +168,6 @@ function updateTargets(values: string[]) {
           you to finish activation or sign in.
         </p>
       </div>
-    </footer>
+    </div>
   </section>
 </template>

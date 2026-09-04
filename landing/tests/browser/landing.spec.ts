@@ -22,13 +22,59 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   await expect(page.locator('.command-snippet').first()).not.toContainText('--target');
   await expect(page.getByText('Supported clients')).toBeVisible();
   await expect(page.locator('.client-strip li')).toHaveCount(11);
+  await expect(page.getByRole('contentinfo')).toHaveCount(1);
   await expect(page.locator('.plugin-card').first()).toBeVisible();
-  await expect(page.locator('.catalog-count')).toContainText(/[2-9]\d{3} total/, {
+  await expect(page.locator('.catalog-count')).toContainText(/[2-9]\d{3} plugins/, {
     timeout: 15_000,
   });
   await expect(page.getByRole('link', { name: /Explore [\d,]+ plugins/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add a plugin', exact: true })).toContainText(
+    'Add plugin',
+  );
   await expect(page.getByText(/recently found community packages/i)).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test.describe('mobile navigation and catalog', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('navigation is labeled, modal, keyboard-safe, and restores focus', async ({ page }) => {
+    await page.goto('./');
+    const trigger = page.getByRole('button', { name: 'Open navigation menu' });
+
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Navigation menu' });
+    await expect(dialog).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Close navigation menu' })).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test('keeps advanced filters compact and makes search easy to clear', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('.catalog .section-heading').scrollIntoViewIfNeeded();
+
+    const toggle = page.locator('.catalog-filter-toggle');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toContainText('More filters');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    const componentFilter = page.locator('.app-select__trigger[aria-label="Filter by component"]');
+    await expect(componentFilter).toBeHidden();
+
+    const search = page.getByRole('searchbox', { name: 'Search plugins' });
+    await search.fill('gitlab');
+    await expect(page.getByRole('button', { name: 'Clear plugin search' })).toBeVisible();
+    await page.getByRole('button', { name: 'Clear plugin search' }).click();
+    await expect(search).toHaveValue('');
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(toggle).toContainText('Hide filters');
+    await expect(componentFilter).toBeVisible();
+  });
 });
 
 test('community plugin titles open an installable plugin page instead of GitHub', async ({
