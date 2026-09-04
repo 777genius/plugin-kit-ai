@@ -99,7 +99,7 @@ watch(availableClients, (next) => {
         href="https://github.com/777genius/universal-agent-plugins#quick-start"
         target="_blank"
         rel="noreferrer"
-        >Native Go CLI · no Node.js</a
+        >Run with npx</a
       >
     </div>
     <div v-if="unavailableDiscoveryReason" class="install-panel__empty" role="status">

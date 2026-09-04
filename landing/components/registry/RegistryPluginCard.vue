@@ -113,6 +113,7 @@ function updateAutoDetect(value: boolean) {
     class="plugin-card"
     :class="{ 'plugin-card--expanded': installExpanded }"
     :data-trust="isDiscovered ? 'community' : 'reviewed'"
+    :data-install-source="plugin.install_source"
   >
     <span
       v-if="!isDiscovered"
