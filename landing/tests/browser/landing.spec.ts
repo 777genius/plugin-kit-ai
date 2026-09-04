@@ -98,15 +98,16 @@ test('directory filters and reviewed detail keep automatic detection as the defa
   page,
 }) => {
   await page.goto('./plugins');
+  await expect(page.locator('.catalog-count')).toContainText(/[2-9]\d{3}/, {
+    timeout: 15_000,
+  });
   await page.getByPlaceholder(/Search by name/).fill('gitlab');
   const gitlabCard = page
     .locator('.plugin-card')
     .filter({ has: page.getByRole('heading', { name: 'GitLab', exact: true }) });
   await expect(gitlabCard).toHaveCount(1);
-  await Promise.all([
-    page.waitForURL(/\/plugins\/gitlab\/?$/),
-    gitlabCard.getByRole('link', { name: 'GitLab', exact: true }).click(),
-  ]);
+  await gitlabCard.getByRole('link', { name: 'GitLab', exact: true }).click();
+  await expect(page).toHaveURL(/\/plugins\/gitlab\/?$/, { timeout: 15_000 });
   await expect(page.getByRole('heading', { name: 'GitLab', exact: true })).toBeVisible();
   await expect(page.getByText('All installed agents')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Native Go CLI · no Node.js' })).toBeVisible();
