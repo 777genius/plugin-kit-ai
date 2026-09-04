@@ -6,7 +6,7 @@ import { deliveryLabel, expectedDistribution, resolveDistribution } from '~/util
 const props = defineProps<{ plugin: RegistryPlugin }>();
 const targets = defineModel<ClientID[]>('targets', { required: true });
 const autoDetect = defineModel<boolean>('autoDetect', { required: true });
-const { asset } = useSite();
+const { asset, sourceUrl } = useSite();
 const { current, expired, published } = useDirectoryStatus();
 const autoOption = {
   label: 'All installed agents (recommended)',
@@ -53,6 +53,14 @@ const chatgptSelected = computed(
     !autoDetect.value &&
     selectedTargets.value.some((target) => target.client === 'chatgpt' && target.app_binding),
 );
+const unavailableDiscoveryReason = computed(() => {
+  if (props.plugin.trust_state !== 'conformant_unreviewed' || props.plugin.installable) return '';
+  if (props.plugin.discovery?.availability === 'unavailable')
+    return 'This package is no longer available from its source.';
+  if (!props.plugin.components.length)
+    return "We found this project, but it doesn't include any tools the installer can add yet.";
+  return 'This package does not support any of the agents available in the installer yet.';
+});
 
 function updateTargets(values: string[]) {
   const allowed = new Set(availableClients.value.map((client) => client.id));
@@ -78,9 +86,12 @@ watch(availableClients, (next) => {
     <div class="install-panel__heading">
       <div>
         <p class="eyebrow">Installer</p>
-        <h2 id="install-title">Use with your agent</h2>
+        <h2 id="install-title">
+          {{ unavailableDiscoveryReason ? 'Not ready to install' : 'Use with your agent' }}
+        </h2>
       </div>
       <a
+        v-if="!unavailableDiscoveryReason"
         class="install-panel__cli-link"
         href="https://github.com/777genius/universal-agent-plugins#quick-start"
         target="_blank"
@@ -88,7 +99,15 @@ watch(availableClients, (next) => {
         >Native Go CLI · no Node.js</a
       >
     </div>
-    <div v-if="commands" class="command-stack">
+    <div v-if="unavailableDiscoveryReason" class="install-panel__empty" role="status">
+      <span class="install-panel__empty-icon" aria-hidden="true">i</span>
+      <div>
+        <h3>This plugin is not installable yet</h3>
+        <p>{{ unavailableDiscoveryReason }}</p>
+        <a :href="sourceUrl(plugin)" target="_blank" rel="noreferrer">View package source</a>
+      </div>
+    </div>
+    <div v-else-if="commands" class="command-stack">
       <div class="install-command-row">
         <div class="target-select">
           <span>Agents</span
@@ -108,15 +127,22 @@ watch(availableClients, (next) => {
       <CommandSnippet label="Repair" kind="repair" :command="commands.repair" />
       <CommandSnippet label="Remove" kind="remove" :command="commands.remove" />
     </div>
-    <p v-if="expired" class="install-panel__notice" role="status">
+    <p v-if="!unavailableDiscoveryReason && expired" class="install-panel__notice" role="status">
       <strong>Commands unavailable: stale Directory.</strong> This signed snapshot has expired.
       Browse its history, then return after a fresh snapshot is published.
     </p>
-    <p v-else-if="!published" class="install-panel__notice" role="status">
+    <p
+      v-else-if="!unavailableDiscoveryReason && !published"
+      class="install-panel__notice"
+      role="status"
+    >
       <strong>Commands unavailable in review preview.</strong> Unresolved data is for review only;
       production commands require a published signed Directory snapshot.
     </p>
-    <p v-else-if="!autoDetect && !hasCompleteSource" class="install-panel__notice">
+    <p
+      v-else-if="!unavailableDiscoveryReason && !autoDetect && !hasCompleteSource"
+      class="install-panel__notice"
+    >
       <strong>Commands unavailable.</strong> {{ resolution.unavailable_reason }}
     </p>
     <p v-if="autoDetect && commands" class="install-panel__notice">
@@ -129,10 +155,6 @@ watch(availableClients, (next) => {
       {{ plugin.display_name }} in Apps or Plugins, connect it, and start a new chat. Availability
       depends on your account and workspace.
     </p>
-    <p class="install-panel__notice">
-      <strong>Clear outcomes.</strong> If an agent needs activation or sign-in, the CLI shows the
-      exact next step. It never receives your OAuth credentials.
-    </p>
     <p v-if="!autoDetect && resolution.fallback_reason && current" class="install-panel__notice">
       <strong>Expected source fallback: {{ expectedSource?.label }}.</strong>
       {{ resolution.fallback_reason }}
@@ -142,17 +164,9 @@ watch(availableClients, (next) => {
       and suggest compatible target/source combinations; it never mixes distributions across
       clients.
     </p>
-    <p v-if="!plugin.built_in" class="install-panel__notice">
-      <strong>Pinned direct source.</strong> Add uses the full commit pin. Update and remove use the
-      installed manifest name.
-    </p>
-    <p v-if="plugin.client_support.resolution === 'install_time'" class="install-panel__notice">
-      <strong>Checked at install time.</strong> The CLI validates the package and selected target
-      before it changes managed files.
-    </p>
-    <p class="install-panel__footnote">
-      The CLI plans all selected targets before mutation. Use <code>switch</code> to change source;
-      update and repair stay on the recorded distribution.
+    <p v-if="commands" class="install-panel__footnote">
+      The CLI checks every selected agent before changing files and shows any sign-in or activation
+      step. OAuth credentials stay with the agent.
     </p>
   </aside>
 </template>

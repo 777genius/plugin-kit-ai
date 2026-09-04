@@ -2142,6 +2142,7 @@ img {
 }
 .install-panel__heading {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 15px;
   align-items: flex-start;
@@ -2166,9 +2167,8 @@ img {
 }
 .install-command-row {
   display: grid;
-  grid-template-columns: minmax(130px, 0.4fr) minmax(0, 1fr);
-  gap: 8px;
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 .install-command-row .target-select {
   margin: 0;
@@ -2223,6 +2223,43 @@ img {
 .command-stack {
   display: grid;
   gap: 10px;
+}
+.install-panel__empty {
+  margin-top: 22px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-solid) 68%, transparent);
+}
+.install-panel__empty-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 48%, var(--line));
+  border-radius: 50%;
+  color: var(--primary-bright);
+  font-weight: 800;
+}
+.install-panel__empty h3 {
+  margin: 1px 0 7px;
+  font-size: 0.92rem;
+}
+.install-panel__empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+.install-panel__empty a {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--primary-bright);
+  font-size: 0.72rem;
+  font-weight: 750;
 }
 .install-panel__notice {
   margin: 17px 0 0;
@@ -2403,7 +2440,7 @@ img {
   }
   .install-panel {
     position: static;
-    max-width: 680px;
+    width: 100%;
   }
 }
 

@@ -252,6 +252,8 @@ export function discoveryPlugin(
     delivery: 'managed' as const,
     scopes: ['user'],
   }));
+  const installable =
+    record.availability === 'available' && components.length > 0 && targets.length > 0;
   const revision = record.revision;
   const source = {
     repository: record.repository,
@@ -269,7 +271,7 @@ export function discoveryPlugin(
     evidence: [],
     package_evidence: [],
     release_status: 'active' as const,
-    selectable: record.availability === 'available',
+    selectable: installable,
     blocking_clients: [],
     materialized_clients: [],
     meets_minimum_capabilities: true,
@@ -286,7 +288,7 @@ export function discoveryPlugin(
     source,
     install_source: record.slug,
     built_in: false,
-    installable: record.availability === 'available',
+    installable,
     components,
     default_distribution: record.slug,
     declared_default_distribution: record.slug,
@@ -304,7 +306,7 @@ export function discoveryPlugin(
         package_evidence: [],
         status: record.availability === 'available' ? 'active' : 'suspended',
         release_status: 'active',
-        selectable: record.availability === 'available',
+        selectable: installable,
         targets,
         components,
         releases: [release],
