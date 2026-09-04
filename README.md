@@ -10,8 +10,14 @@ Install and manage Agent Plugins 1.0 across your AI agents with one CLI.
 
 ## Quick start
 
-The native Go CLI does not require Node.js. Install it and add Context7 in one
-command on macOS or Linux:
+The native Go CLI does not require Node.js. On macOS or Linux with Homebrew:
+
+```bash
+brew install 777genius/agentplugins/agentplugins
+agentplugins add context7
+```
+
+Or install the same verified native release and add Context7 in one command:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh -s -- add context7
@@ -24,9 +30,10 @@ irm https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/ins
 & "$HOME\.local\bin\agentplugins.exe" add context7
 ```
 
-The installers select the native binary for your OS and architecture, verify its
-published SHA-256 and reported version, then replace the CLI atomically. They
-install into `$HOME/.local/bin` unless `AGENTPLUGINS_BIN_DIR` is set.
+Homebrew and the installers select the native binary for your OS and
+architecture. The scripts verify its published SHA-256 and reported version,
+then replace the CLI atomically. They install into `$HOME/.local/bin` unless
+`AGENTPLUGINS_BIN_DIR` is set.
 
 If you already have Node.js 22 or newer, the npm facade remains the quickest
 zero-install alternative. It downloads and verifies the same Go binary:

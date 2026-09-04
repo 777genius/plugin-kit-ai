@@ -71,6 +71,23 @@ Proof` with `--ref <exact-tag>` and `allow_legacy_manifest=true`. The workflow
 must already exist at that tag, and its source SHA must equal the audited tag
 commit; current `main` is never allowed to impersonate a historical harness.
 
+## Homebrew tap
+
+A successful `Agentplugins Release Assets` run triggers
+`.github/workflows/agentplugins-homebrew-tap.yml`. The publisher downloads only
+the exact public `release-manifest.json`, requires its stable tag to resolve to
+the embedded source commit, verifies the GitHub artifact attestation, and
+generates `777genius/homebrew-agentplugins/Formula/agentplugins.rb` from the six
+closed-set asset identities. The formula exposes the four macOS and Linux
+assets and pins every URL to its release tag and SHA-256.
+
+`HOMEBREW_TAP_TOKEN` must have contents-write access to the tap repository and
+does not need write access to this source repository. The publisher is
+idempotent: an identical formula is a no-op. If automatic publication fails,
+fix the publisher or token and manually dispatch the workflow with the same
+immutable release tag. Do not edit a released formula by hand or repoint it to
+different bytes under the same version.
+
 ## Bootstrap publication record
 
 `universal-agent-plugins@0.1.1` completed the one-time bootstrap publication.

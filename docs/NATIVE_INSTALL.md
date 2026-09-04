@@ -3,6 +3,17 @@
 `agentplugins` is a Go binary. The native installation path does not require
 Node.js, Python, npm, or pip.
 
+## Homebrew on macOS and Linux
+
+```bash
+brew install 777genius/agentplugins/agentplugins
+agentplugins add context7
+```
+
+The tap installs the same platform-specific binary published in the signed
+GitHub release. Its formula pins the release URL and SHA-256 for every supported
+macOS and Linux architecture.
+
 ## macOS and Linux
 
 Install the latest published release and immediately run a command:
