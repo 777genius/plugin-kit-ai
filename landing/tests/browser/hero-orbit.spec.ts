@@ -97,3 +97,43 @@ test('mobile orbit keeps every logo visible and honors reduced motion', async ({
     true,
   );
 });
+
+test('orbit clears navigation and installation throughout responsive rotation', async ({
+  page,
+}) => {
+  await page.goto('./');
+  const field = page.locator('.hero-agent-field');
+  await expect(field).toHaveClass(/hero-agent-field--active/);
+  for (const width of [1440, 1280, 1024, 800, 390, 280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (let time = 0; time < 72_000; time += 9_000) {
+      await field.evaluate((element, elapsed) => {
+        for (const animation of element.getAnimations({ subtree: true })) {
+          animation.pause();
+          animation.currentTime = elapsed;
+        }
+      }, time);
+      await page.evaluate(() => new Promise(requestAnimationFrame));
+      const bounds = await page.evaluate(() => {
+        const installation = document.querySelector('.hero__demo')!.getBoundingClientRect();
+        const header = document.querySelector('.app-header')!.getBoundingClientRect();
+        return {
+          installation: { x: installation.x, y: installation.y },
+          headerBottom: header.bottom,
+          nodes: [...document.querySelectorAll('.hero-agent-field__node')].map((element) => {
+            const rect = element.getBoundingClientRect();
+            return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom };
+          }),
+        };
+      });
+      for (const node of bounds.nodes) {
+        const context = `${width}px at ${time}ms`;
+        expect(node.x, context).toBeGreaterThanOrEqual(0);
+        expect(node.right, context).toBeLessThanOrEqual(width);
+        expect(node.y, context).toBeGreaterThanOrEqual(bounds.headerBottom);
+        if (width > 980) expect(node.right, context).toBeLessThan(bounds.installation.x);
+        else expect(node.bottom, context).toBeLessThan(bounds.installation.y);
+      }
+    }
+  }
+});

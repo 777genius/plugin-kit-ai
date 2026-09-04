@@ -336,9 +336,9 @@ img {
 .hero-agent-field {
   position: absolute;
   z-index: -1;
-  top: 50%;
-  left: 48%;
-  width: calc(100% + clamp(48px, 100vw - 1180px, 200px));
+  top: 54%;
+  left: 50%;
+  width: calc(100% + clamp(16px, 100vw - 1180px, 160px));
   aspect-ratio: 1;
   translate: -50% -50%;
   perspective: 900px;
@@ -2508,8 +2508,11 @@ img {
     margin: 25px auto 0;
   }
   .hero-agent-field {
+    top: 50%;
     left: 50%;
-    width: min(100%, 550px);
+    width: auto;
+    height: calc(100% + 40px);
+    max-width: 100%;
     opacity: 0.34;
   }
   .client-strip {
@@ -2631,8 +2634,9 @@ img {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .hero-agent-field {
-    top: 25%;
-    width: min(100%, 320px);
+    top: 27%;
+    width: min(100%, 300px);
+    height: auto;
     opacity: 0.22;
   }
   .hero-agent-field__node {
