@@ -26,9 +26,12 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   });
 
   await page.goto('./');
-  const explorePlugins = page.getByRole('link', { name: 'Explore plugins' });
+  const explorePlugins = page.locator('.hero__actions .button--primary');
   await expect(explorePlugins).toBeVisible();
+  await expect(explorePlugins).toHaveAccessibleName('Explore plugins');
   await expect(explorePlugins.locator('.hero__plugin-count')).toHaveCount(0);
+  await page.evaluate(() => document.fonts.ready);
+  const initialButtonWidth = (await explorePlugins.boundingBox())!.width;
   releaseDiscovery();
   await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute(
     'href',
@@ -47,14 +50,51 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   await expect(page.locator('.catalog-count')).toContainText(/[2-9]\d{3} plugins/, {
     timeout: 15_000,
   });
-  await expect(page.getByRole('link', { name: /Explore [\d,]+ plugins/ })).toBeVisible({
-    timeout: 5_000,
-  });
+  const catalogSummary = await page.locator('.catalog-count').innerText();
+  const totalPlugins = Number(catalogSummary.match(/(\d+) plugins/)![1]);
+  await expect(explorePlugins).toHaveAccessibleName(
+    `Explore ${totalPlugins.toLocaleString('en')} plugins`,
+    { timeout: 5_000 },
+  );
+  expect((await explorePlugins.boundingBox())!.width).toBe(initialButtonWidth);
   await expect(page.getByRole('link', { name: 'Add a plugin', exact: true })).toContainText(
     'Add plugin',
   );
   await expect(page.getByText(/recently found community packages/i)).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('homepage omits the counter when discovery cannot load', async ({ page }) => {
+  await page.route('**/discovery/**', (route) => route.abort());
+  await page.goto('./');
+  await expect(page.locator('.discovery-status--unavailable')).toBeVisible();
+  await expect(page.locator('.hero__actions .button--primary')).toHaveAccessibleName(
+    'Explore plugins',
+  );
+  await expect(page.locator('.hero__plugin-count')).toHaveCount(0);
+});
+
+test('plugin counter stays inside the hero on a narrow screen', async ({ page }) => {
+  await page.setViewportSize({ width: 280, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  let releaseDiscovery!: () => void;
+  const discoveryGate = new Promise<void>((resolve) => {
+    releaseDiscovery = resolve;
+  });
+  await page.route('**/discovery/**', async (route) => {
+    await discoveryGate;
+    await route.continue();
+  });
+  await page.goto('./');
+  await page.evaluate(() => document.fonts.ready);
+  const initialWidth = (await page.locator('.hero__actions .button--primary').boundingBox())!.width;
+  releaseDiscovery();
+  await expect(page.locator('.hero__plugin-count')).toContainText(/[\d,]+/);
+  const container = (await page.locator('.hero.container').boundingBox())!;
+  const button = (await page.locator('.hero__actions .button--primary').boundingBox())!;
+  expect(button.width).toBe(initialWidth);
+  expect(button.x).toBeGreaterThanOrEqual(container.x);
+  expect(button.x + button.width).toBeLessThanOrEqual(container.x + container.width);
 });
 
 test('homepage publishes canonical social metadata and complete product schema', async ({
