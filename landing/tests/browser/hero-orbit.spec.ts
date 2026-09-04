@@ -1,15 +1,18 @@
 import { expect, test } from '@playwright/test';
 import { clients } from '../../data/clients';
 
-test('CSS orbit is visible without JavaScript and keeps every logo on the circle', async ({ browser, baseURL }) => {
+const uniqueLogos = clients.filter((client, index) => clients.findIndex((item) => item.icon === client.icon) === index);
+
+test('CSS background works without JavaScript and keeps unique logos on the circle', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL, javaScriptEnabled: false, reducedMotion: 'reduce' });
   const page = await context.newPage();
   try {
     await page.goto('./');
     const field = page.locator('.hero__demo .hero-agent-field');
     await expect(field).toHaveAttribute('aria-hidden', 'true');
-    await expect(field.locator('[data-client-id]')).toHaveCount(clients.length);
-    for (const client of clients) {
+    await expect(field.locator('[data-client-id]')).toHaveCount(uniqueLogos.length);
+    await expect(field.locator('img[src$="/openai.svg"]')).toHaveCount(1);
+    for (const client of uniqueLogos) {
       const logo = field.locator(`[data-client-id="${client.id}"] img`);
       await expect(logo).toHaveAttribute('src', new RegExp(`/client-icons/${client.icon}$`));
       await expect.poll(() => logo.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
@@ -35,7 +38,7 @@ test('CSS orbit is visible without JavaScript and keeps every logo on the circle
   }
 });
 
-test('historical CSS depth animates on the right and pauses offscreen or hidden', async ({ page }) => {
+test('CSS background depth animates on the right and pauses offscreen or hidden', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('./');
   const field = page.locator('.hero__demo .hero-agent-field');
@@ -49,7 +52,12 @@ test('historical CSS depth animates on the right and pauses offscreen or hidden'
   const bounds = (await field.boundingBox())!;
   const installation = (await page.locator('.hero__window').boundingBox())!;
   expect(bounds.x).toBeGreaterThan(copy.x + copy.width);
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(installation.y);
+  expect(bounds.y).toBeCloseTo(installation.y, 1);
+  expect(bounds.height).toBeCloseTo(installation.height, 1);
+  expect(await field.evaluate((node) => getComputedStyle(node).position)).toBe('absolute');
+  const sceneAnimations = await field.evaluate((node) => node.getAnimations({ subtree: true })
+    .map((animation) => (animation as CSSAnimation).animationName));
+  expect(sceneAnimations).toContain('agent-orbit-breathe');
   await page.getByRole('contentinfo').scrollIntoViewIfNeeded();
   await expect(field).not.toHaveClass(/hero-agent-field--active/);
   expect(await track.evaluate((node) => getComputedStyle(node).animationPlayState)).toBe('paused');
@@ -69,14 +77,24 @@ test('historical CSS depth animates on the right and pauses offscreen or hidden'
   expect(await field.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(0);
 });
 
-test('all logos stay within the scene and clear the command throughout responsive rotation', async ({ page }) => {
+test('twice-sized breathing background never changes layout or blocks the foreground', async ({ page }) => {
   await page.goto('./');
   const field = page.locator('.hero-agent-field');
   await expect(field).toHaveClass(/hero-agent-field--active/);
   for (const width of [1440, 1280, 1024, 800, 390, 280]) {
     await page.setViewportSize({ width, height: 1000 });
     await field.scrollIntoViewIfNeeded();
-    for (const time of [0, 9000, 18000, 36000, 54000]) {
+    const windowBefore = (await page.locator('.hero__window').boundingBox())!;
+    const heroBefore = (await page.locator('.hero').boundingBox())!;
+    const planeWidth = await field.locator('.hero-agent-field__plane')
+      .evaluate((node) => Number.parseFloat(getComputedStyle(node).width));
+    expect(planeWidth).toBeLessThanOrEqual(width <= 720 ? 328 : 480);
+    if (width >= 390) expect(planeWidth).toBe(width <= 720 ? 328 : 480);
+    await field.evaluate((node: HTMLElement) => { node.style.display = 'none'; });
+    expect(await page.locator('.hero__window').boundingBox()).toEqual(windowBefore);
+    expect(await page.locator('.hero').boundingBox()).toEqual(heroBefore);
+    await field.evaluate((node: HTMLElement) => { node.style.removeProperty('display'); });
+    for (const time of [0, 5000, 10000, 36000, 54000]) {
       await field.evaluate((node, elapsed) => {
         for (const animation of node.getAnimations({ subtree: true })) {
           animation.pause();
@@ -84,20 +102,28 @@ test('all logos stay within the scene and clear the command throughout responsiv
         }
       }, time);
       await page.evaluate(() => new Promise(requestAnimationFrame));
-      const scene = (await field.boundingBox())!;
       const installation = (await page.locator('.hero__window').boundingBox())!;
-      for (const node of await field.locator('.hero-agent-field__node').all()) {
-        const rect = (await node.boundingBox())!;
-        const label = `${width}px, ${time}ms`;
-        expect(rect.x, label).toBeGreaterThanOrEqual(Math.max(0, scene.x));
-        expect(rect.x + rect.width, label).toBeLessThanOrEqual(Math.min(width, scene.x + scene.width));
-        expect(rect.y, label).toBeGreaterThanOrEqual(scene.y);
-        expect(rect.y + rect.height, label).toBeLessThanOrEqual(scene.y + scene.height);
-        expect(rect.y + rect.height, label).toBeLessThan(installation.y);
-      }
+      expect(installation).toEqual(windowBefore);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
   }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await field.scrollIntoViewIfNeeded();
+  const sizes: number[] = [];
+  for (const progress of [0, 0.5, 1]) {
+    await field.evaluate((node, fraction) => {
+      for (const animation of node.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = (animation as CSSAnimation).animationName === 'agent-orbit-breathe'
+          ? Number(animation.effect!.getTiming().duration) * fraction : 0;
+      }
+    }, progress);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    sizes.push((await field.locator('.hero-agent-field__track').boundingBox())!.width);
+  }
+  expect(sizes[1]!).toBeGreaterThan(sizes[0]! * 1.05);
+  expect(sizes[1]!).toBeLessThan(sizes[0]! * 1.25);
+  expect(sizes[2]!).toBeCloseTo(sizes[0]!, 1);
 });
 
 test('installation works with WebGL forbidden and the orbit has no canvas or optional renderer', async ({ page }) => {
@@ -120,6 +146,11 @@ test('installation works with WebGL forbidden and the orbit has no canvas or opt
   await page.keyboard.press('Escape');
   await expect(page.locator('.hero__demo .command-snippet')).toContainText('--target cursor');
   await page.getByRole('button', { name: 'Toggle theme', exact: true }).click();
-  await expect(field.locator('[data-client-id]')).toHaveCount(clients.length);
+  await expect(field.locator('[data-client-id]')).toHaveCount(uniqueLogos.length);
+  // Only decorative logos are deduplicated, never the actual install targets.
+  await page.getByRole('button', { name: /Choose target agents:/ }).click();
+  await expect(page.getByRole('checkbox', { name: /^Codex / })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /^ChatGPT / })).toBeVisible();
+  await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });

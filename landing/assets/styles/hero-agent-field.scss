@@ -1,20 +1,22 @@
 .hero-agent-field {
-  position: relative;
-  width: 100%;
-  height: 290px;
+  position: absolute;
+  inset: 0;
   perspective: 900px;
   pointer-events: none;
+  opacity: 0.55;
 }
 .hero-agent-field__plane {
   position: absolute;
   top: 50%;
-  left: 50%;
-  width: min(240px, calc(100% - 56px));
+  left: 62%;
+  width: min(480px, 100%);
   aspect-ratio: 1;
   translate: -50% -50%;
   transform-style: preserve-3d;
   transform: rotateX(18deg) rotateY(-12deg) rotateZ(-8deg);
-  animation: agent-plane-tilt 18s ease-in-out infinite alternate;
+  animation:
+    agent-plane-tilt 18s ease-in-out infinite alternate,
+    agent-orbit-breathe 12s ease-in-out infinite;
 }
 .hero-agent-field__track {
   position: absolute;
@@ -75,14 +77,17 @@
 @keyframes agent-plane-tilt {
   to { transform: rotateX(-12deg) rotateY(16deg) rotateZ(8deg); }
 }
+@keyframes agent-orbit-breathe {
+  0%, 100% { scale: 0.96; }
+  50% { scale: 1.04; }
+}
 .hero-agent-field:not(.hero-agent-field--active) {
   .hero-agent-field__plane,
   .hero-agent-field__track,
   .hero-agent-field__face { animation-play-state: paused; }
 }
 @media (max-width: 720px) {
-  .hero-agent-field { height: 200px; }
-  .hero-agent-field__plane { width: min(164px, calc(100% - 48px)); }
+  .hero-agent-field__plane { width: min(328px, 100%); }
   .hero-agent-field__node { width: 30px; height: 30px; }
   .hero-agent-field__node img { width: 22px; height: 22px; }
   .hero-agent-field__hub { width: 48px; height: 48px; border-radius: 14px; }

@@ -2,6 +2,10 @@
 import { clients } from '~/data/clients';
 
 const { asset } = useSite();
+// Shared branding appears once here; actual client support and selection stay unchanged.
+const orbitClients = clients.filter(
+  (client, index) => clients.findIndex((candidate) => candidate.icon === client.icon) === index,
+);
 const field = ref<HTMLElement>();
 const inView = ref(false);
 const pageVisible = ref(true);
@@ -39,11 +43,11 @@ onBeforeUnmount(() => {
     <div class="hero-agent-field__plane">
       <div class="hero-agent-field__track">
         <span
-          v-for="(client, index) in clients"
+          v-for="(client, index) in orbitClients"
           :key="client.id"
           class="hero-agent-field__spoke"
           :data-client-id="client.id"
-          :style="{ '--angle': `${(index * 360) / clients.length}deg` }"
+          :style="{ '--angle': `${(index * 360) / orbitClients.length}deg` }"
         >
           <span class="hero-agent-field__node">
             <span class="hero-agent-field__face">
