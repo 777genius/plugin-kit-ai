@@ -285,8 +285,17 @@ img {
   gap: clamp(42px, 5vw, 70px);
 }
 .hero h1 {
+  font-size: clamp(2.7rem, 4.4vw, 4.1rem);
   max-width: 650px;
   margin-bottom: 22px;
+}
+.hero__copy {
+  position: relative;
+  isolation: isolate;
+}
+.hero__copy h1,
+.hero__lead {
+  text-shadow: 0 2px 18px var(--bg);
 }
 .hero h1 em {
   display: inline-block;
@@ -295,6 +304,7 @@ img {
   white-space: nowrap;
   background: linear-gradient(110deg, var(--primary-bright), var(--cyan) 80%);
   background-clip: text;
+  text-shadow: none;
   -webkit-background-clip: text;
 }
 .hero__lead {
@@ -325,129 +335,107 @@ img {
 
 .hero-agent-field {
   position: absolute;
-  z-index: 0;
+  z-index: -1;
   top: 50%;
-  right: clamp(-160px, 3vw, 55px);
-  width: min(48vw, 610px);
+  left: 48%;
+  width: calc(100% + clamp(48px, 100vw - 1180px, 200px));
   aspect-ratio: 1;
-  translate: 0 -50%;
-  opacity: 0.34;
+  translate: -50% -50%;
+  perspective: 900px;
+  opacity: 0.46;
   pointer-events: none;
 }
-.hero-agent-field__orbit,
-.hero-agent-field__hub,
-.hero-agent-field__node,
-.hero-agent-field__signal {
+.hero-agent-field__plane {
   position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(18deg) rotateY(-12deg) rotateZ(-8deg);
+  animation: agent-plane-tilt 18s ease-in-out infinite alternate;
+}
+.hero-agent-field__plane::before {
+  content: '';
+  position: absolute;
+  inset: 26%;
+  border: 1px dashed color-mix(in srgb, var(--primary) 45%, transparent);
   border-radius: 50%;
+  transform: translateZ(-16px);
 }
-.hero-agent-field__orbit {
-  inset: 12%;
-  border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent);
-  box-shadow: inset 0 0 80px color-mix(in srgb, var(--primary) 5%, transparent);
+.hero-agent-field__track {
+  position: absolute;
+  inset: 9%;
+  border: 1px solid color-mix(in srgb, var(--cyan) 65%, transparent);
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  box-shadow:
+    0 0 28px color-mix(in srgb, var(--cyan) 9%, transparent),
+    inset 0 0 45px color-mix(in srgb, var(--primary) 8%, transparent);
+  animation: agent-orbit-spin 72s linear infinite;
 }
-.hero-agent-field__orbit--outer {
-  animation: agent-orbit-spin 34s linear infinite;
+.hero-agent-field__track::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-radius: inherit;
+  transform: translateZ(-10px);
 }
-.hero-agent-field__orbit--inner {
-  inset: 30%;
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--primary) 48%, transparent);
-  animation: agent-orbit-spin 24s linear infinite reverse;
+.hero-agent-field__spoke {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--angle));
 }
-.hero-agent-field__hub,
 .hero-agent-field__node {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%) rotate(calc(-1 * var(--angle)));
+}
+.hero-agent-field__face {
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--cyan) 38%, var(--line));
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow:
-    0 0 0 6px color-mix(in srgb, var(--surface-solid) 55%, transparent),
-    0 0 34px color-mix(in srgb, var(--cyan) 22%, transparent);
-}
-.hero-agent-field__hub {
-  top: 50%;
-  left: 50%;
-  width: 72px;
-  height: 72px;
-  translate: -50% -50%;
-}
-.hero-agent-field__node {
-  width: 46px;
-  height: 46px;
-  animation: agent-node-drift 6s ease-in-out infinite;
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #e1e8f8);
+  box-shadow: 0 4px 0 #a4b6d5, 0 8px 20px rgba(11, 24, 58, 0.3);
+  animation: agent-orbit-spin 72s linear infinite reverse;
 }
 .hero-agent-field__node img {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
 }
-.hero-agent-field__node--1 {
-  top: 6%;
-  left: 47%;
-}
-.hero-agent-field__node--2 {
-  top: 25%;
-  right: 6%;
-  animation-delay: -1s;
-}
-.hero-agent-field__node--3 {
-  right: 14%;
-  bottom: 13%;
-  animation-delay: -2s;
-}
-.hero-agent-field__node--4 {
-  bottom: 4%;
-  left: 38%;
-  animation-delay: -3s;
-}
-.hero-agent-field__node--5 {
-  bottom: 23%;
-  left: 7%;
-  animation-delay: -4s;
-}
-.hero-agent-field__node--6 {
-  top: 19%;
-  left: 9%;
-  animation-delay: -5s;
-}
-.hero-agent-field__signal {
+.hero-agent-field__hub {
+  position: absolute;
   top: 50%;
   left: 50%;
-  width: 90px;
-  height: 90px;
-  border: 1px solid color-mix(in srgb, var(--primary) 55%, transparent);
-  translate: -50% -50%;
-  animation: agent-signal 4.8s ease-out infinite;
-}
-.hero-agent-field__signal--2 {
-  animation-delay: 1.6s;
-}
-.hero-agent-field__signal--3 {
-  animation-delay: 3.2s;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--surface-solid);
+  transform: translate(-50%, -50%) translateZ(12px);
+  opacity: 0.45;
 }
 @keyframes agent-orbit-spin {
   to {
-    rotate: 360deg;
+    transform: rotate(360deg);
   }
 }
-@keyframes agent-node-drift {
-  50% {
-    transform: translateY(-7px) scale(1.04);
+@keyframes agent-plane-tilt {
+  to {
+    transform: rotateX(-12deg) rotateY(16deg) rotateZ(8deg);
   }
 }
-@keyframes agent-signal {
-  0% {
-    opacity: 0;
-    scale: 0.55;
-  }
-  18% {
-    opacity: 0.7;
-  }
-  100% {
-    opacity: 0;
-    scale: 4.4;
-  }
+.hero-agent-field:not(.hero-agent-field--active) .hero-agent-field__plane,
+.hero-agent-field:not(.hero-agent-field--active) .hero-agent-field__track,
+.hero-agent-field:not(.hero-agent-field--active) .hero-agent-field__face {
+  animation-play-state: paused;
 }
 .hero__window {
   overflow: hidden;
@@ -2520,10 +2508,9 @@ img {
     margin: 25px auto 0;
   }
   .hero-agent-field {
-    top: 24%;
-    right: -80px;
-    width: 570px;
-    opacity: 0.24;
+    left: 50%;
+    width: min(100%, 550px);
+    opacity: 0.34;
   }
   .client-strip {
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2644,10 +2631,17 @@ img {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .hero-agent-field {
-    top: 19%;
-    right: -180px;
-    width: 470px;
-    opacity: 0.2;
+    top: 25%;
+    width: min(100%, 320px);
+    opacity: 0.22;
+  }
+  .hero-agent-field__node {
+    width: 34px;
+    height: 34px;
+  }
+  .hero-agent-field__node img {
+    width: 22px;
+    height: 22px;
   }
   .client-strip li > a {
     min-height: 66px;
@@ -2819,9 +2813,9 @@ img {
   .workflow-path--animate::before {
     transform: none;
   }
-  .hero-agent-field__orbit,
-  .hero-agent-field__node,
-  .hero-agent-field__signal {
+  .hero-agent-field__plane,
+  .hero-agent-field__track,
+  .hero-agent-field__face {
     animation: none !important;
   }
 }
