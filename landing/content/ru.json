@@ -1010,10 +1010,10 @@
     },
     {
       "id": "npm",
-      "title": "npx",
-      "description": "Запускайте установщик без постоянной установки.",
+      "title": "npx · Node.js 22+",
+      "description": "Самый быстрый вариант, если Node.js 22+ уже установлен: команда плагина запускается сразу.",
       "href": "https://www.npmjs.com/package/universal-agent-plugins",
-      "note": "Вариант без установки, если Node.js 22 или новее уже доступен.",
+      "note": "Без постоянной установки: npx скачивает проверенный CLI и запускает команду плагина за один шаг.",
       "command": "npx universal-agent-plugins version",
       "invocation": "npx universal-agent-plugins"
     },
@@ -1033,6 +1033,15 @@
       "note": "Скачивает нужный бинарник релиза и проверяет его SHA-256 и версию.",
       "command": "curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh",
       "invocation": "$HOME/.local/bin/agentplugins"
+    },
+    {
+      "id": "powershell",
+      "title": "Windows PowerShell",
+      "description": "Нативный Go CLI для Windows. Node.js не требуется.",
+      "href": "https://github.com/777genius/universal-agent-plugins/blob/main/docs/NATIVE_INSTALL.md#windows-powershell",
+      "note": "Скачивает Windows-бинарник и проверяет его SHA-256 и версию.",
+      "command": "irm https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.ps1 | iex",
+      "invocation": "& \"$HOME\\.local\\bin\\agentplugins.exe\""
     },
     {
       "id": "releases",

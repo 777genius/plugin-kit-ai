@@ -30,7 +30,6 @@ const localePath = useLocalePath();
 const selectedTargetIds = ref<
   Array<(typeof props.installSpec.supportedTargets)[number]['targetId']>
 >([]);
-const selectedInstallChannelId = ref<string | null>(null);
 const isExpanded = computed({
   get: () => props.expanded,
   set: (value: boolean) => emit('update:expanded', value),
@@ -48,23 +47,12 @@ const selectedTargets = computed(() =>
 
 const installChannels = computed<InstallChannel[]>(() =>
   content.value.installChannels.filter(
-    (channel) => channel.command && ['brew', 'script', 'npm'].includes(channel.id),
+    (channel) => channel.command && ['brew', 'script', 'powershell', 'npm'].includes(channel.id),
   ),
 );
 
-watchEffect(() => {
-  if (
-    selectedInstallChannelId.value &&
-    installChannels.value.some((channel) => channel.id === selectedInstallChannelId.value)
-  ) {
-    return;
-  }
-
-  selectedInstallChannelId.value =
-    installChannels.value.find((channel) => channel.recommended)?.id ??
-    installChannels.value[0]?.id ??
-    null;
-});
+const { recommendedChannelId, selectedInstallChannelId, selectInstallChannel } =
+  useInstallChannelSelection(installChannels);
 
 const selectedInstallChannel = computed(
   () =>
@@ -312,10 +300,13 @@ function toggleExpanded() {
                   'plugin-install__channel-tab--active': channel.id === selectedInstallChannelId,
                 }"
                 :aria-pressed="channel.id === selectedInstallChannelId"
-                @click="selectedInstallChannelId = channel.id"
+                @click="selectInstallChannel(channel.id)"
               >
                 <span>{{ channel.title }}</span>
-                <span v-if="channel.recommended" class="plugin-install__channel-tab-badge">
+                <span
+                  v-if="channel.id === recommendedChannelId"
+                  class="plugin-install__channel-tab-badge"
+                >
                   {{ t('plugins.install.recommended') }}
                 </span>
               </button>

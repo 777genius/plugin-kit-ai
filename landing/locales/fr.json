@@ -77,6 +77,13 @@
     "quickstartTitle": "Démarrage le plus rapide",
     "quickstartSubtitle": "C'est le chemin le plus rapide vers une vraie installation de plugin ou un dépôt validé.",
     "installTabsLabel": "Choisissez comment exécuter Universal Agent Plugins",
+    "detectedRecommendation": "Meilleure option sélectionnée pour {platform}",
+    "platforms": {
+      "macos": "macOS",
+      "windows": "Windows",
+      "linux": "Linux",
+      "other": "votre appareil"
+    },
     "supportTitle": "Instantané de prise en charge",
     "supportSubtitle": "Véritable profondeur de support aujourd'hui, basée sur la politique de support actuelle et la matrice cible.",
     "supportLink": "Lire la limite du support"

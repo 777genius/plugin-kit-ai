@@ -1010,10 +1010,10 @@
     },
     {
       "id": "npm",
-      "title": "npx",
-      "description": "无需永久安装即可运行安装器。",
+      "title": "npx · Node.js 22+",
+      "description": "如果已安装 Node.js 22+，这是最快的方式：直接运行插件命令。",
       "href": "https://www.npmjs.com/package/universal-agent-plugins",
-      "note": "如果已有 Node.js 22 或更高版本，可使用此免安装方案。",
+      "note": "无需永久安装：npx 下载已验证的 CLI，并一步运行插件命令。",
       "command": "npx universal-agent-plugins version",
       "invocation": "npx universal-agent-plugins"
     },
@@ -1033,6 +1033,15 @@
       "note": "下载正确的发布二进制文件，并验证 SHA-256 和版本。",
       "command": "curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh",
       "invocation": "$HOME/.local/bin/agentplugins"
+    },
+    {
+      "id": "powershell",
+      "title": "Windows PowerShell",
+      "description": "适用于 Windows 的原生 Go CLI，无需 Node.js。",
+      "href": "https://github.com/777genius/universal-agent-plugins/blob/main/docs/NATIVE_INSTALL.md#windows-powershell",
+      "note": "下载 Windows 二进制文件并验证其 SHA-256 和版本。",
+      "command": "irm https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.ps1 | iex",
+      "invocation": "& \"$HOME\\.local\\bin\\agentplugins.exe\""
     },
     {
       "id": "releases",

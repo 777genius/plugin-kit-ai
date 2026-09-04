@@ -6,7 +6,6 @@ const { content } = useLandingContent();
 const { t, locale } = useI18n();
 const { data: releaseData, fallbackUrl } = useReleaseDownloads();
 const { quickstartUrl, supportBoundaryUrl } = useDocsLinks();
-const selectedInstallId = ref<string | null>(null);
 
 const releaseVersion = computed(() => releaseData.value?.version || null);
 const releaseDate = computed(() => {
@@ -21,7 +20,7 @@ const supportAccent = ['#39ff14', '#00f0ff', '#ffb703', '#f472b6', '#94a3b8'];
 
 const installChannels = computed(() =>
   content.value.installChannels
-    .filter((channel) => ['brew', 'script', 'npm'].includes(channel.id))
+    .filter((channel) => ['brew', 'script', 'powershell', 'npm'].includes(channel.id))
     .map((channel) =>
       channel.id === 'docs' ? { ...channel, href: quickstartUrl.value } : channel,
     ),
@@ -33,19 +32,12 @@ const quickstartInstallChannels = computed(() =>
   ),
 );
 
-watchEffect(() => {
-  if (
-    selectedInstallId.value &&
-    quickstartInstallChannels.value.some((channel) => channel.id === selectedInstallId.value)
-  ) {
-    return;
-  }
-
-  selectedInstallId.value =
-    quickstartInstallChannels.value.find((channel) => channel.recommended)?.id ||
-    quickstartInstallChannels.value[0]?.id ||
-    null;
-});
+const {
+  detectedInstallPlatform,
+  recommendedChannelId,
+  selectedInstallChannelId: selectedInstallId,
+  selectInstallChannel,
+} = useInstallChannelSelection(quickstartInstallChannels);
 
 const selectedInstallChannel = computed(
   () =>
@@ -58,8 +50,13 @@ const selectedCliInvocation = computed(() =>
   getCliInvocation(selectedInstallChannel.value?.invocation),
 );
 
-const quickstartSteps = computed(() =>
-  content.value.quickstartSteps.map((step) => {
+const quickstartSteps = computed(() => {
+  const steps =
+    selectedInstallChannel.value?.id === 'npm'
+      ? content.value.quickstartSteps.filter((step) => step.id !== 'install-cli')
+      : content.value.quickstartSteps;
+
+  return steps.map((step) => {
     if (step.id === 'install-cli' && selectedInstallChannel.value?.command) {
       const command =
         selectedInstallChannel.value.id === 'npm'
@@ -87,8 +84,8 @@ const quickstartSteps = computed(() =>
     }
 
     return step;
-  }),
-);
+  });
+});
 </script>
 
 <template>
@@ -131,14 +128,27 @@ const quickstartSteps = computed(() =>
                   'download-section__install-tab--active': channel.id === selectedInstallId,
                 }"
                 :aria-pressed="channel.id === selectedInstallId"
-                @click="selectedInstallId = channel.id"
+                @click="selectInstallChannel(channel.id)"
               >
                 <span>{{ channel.title }}</span>
-                <span v-if="channel.recommended" class="download-section__install-tab-badge">
+                <span
+                  v-if="channel.id === recommendedChannelId"
+                  class="download-section__install-tab-badge"
+                >
                   {{ t('download.recommended') }}
                 </span>
               </button>
             </div>
+            <p
+              v-if="detectedInstallPlatform && detectedInstallPlatform !== 'other'"
+              class="download-section__platform-note"
+            >
+              {{
+                t('download.detectedRecommendation', {
+                  platform: t(`download.platforms.${detectedInstallPlatform}`),
+                })
+              }}
+            </p>
             <p v-if="selectedInstallChannel" class="download-section__install-tabs-note">
               {{ selectedInstallChannel.description }}
             </p>
@@ -371,6 +381,13 @@ const quickstartSteps = computed(() =>
   color: #a8b3d1;
   font-size: 0.88rem;
   line-height: 1.55;
+}
+
+.download-section__platform-note {
+  margin: 0;
+  color: #00f0ff;
+  font-size: 0.8rem;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .download-section__steps {
