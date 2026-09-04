@@ -309,7 +309,7 @@ img {
   gap: 12px;
 }
 .hero__actions .button--primary {
-  min-width: 16rem;
+  min-width: min(16rem, calc(100vw - 2rem));
   border: 0;
   background: linear-gradient(120deg, var(--cyan), #7c6cff 54%, var(--primary));
   box-shadow:

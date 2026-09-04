@@ -74,6 +74,29 @@ test('homepage omits the counter when discovery cannot load', async ({ page }) =
   await expect(page.locator('.hero__plugin-count')).toHaveCount(0);
 });
 
+test('plugin counter stays inside the hero on a narrow screen', async ({ page }) => {
+  await page.setViewportSize({ width: 280, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  let releaseDiscovery!: () => void;
+  const discoveryGate = new Promise<void>((resolve) => {
+    releaseDiscovery = resolve;
+  });
+  await page.route('**/discovery/**', async (route) => {
+    await discoveryGate;
+    await route.continue();
+  });
+  await page.goto('./');
+  await page.evaluate(() => document.fonts.ready);
+  const initialWidth = (await page.locator('.hero__actions .button--primary').boundingBox())!.width;
+  releaseDiscovery();
+  await expect(page.locator('.hero__plugin-count')).toContainText(/[\d,]+/);
+  const container = (await page.locator('.hero.container').boundingBox())!;
+  const button = (await page.locator('.hero__actions .button--primary').boundingBox())!;
+  expect(button.width).toBe(initialWidth);
+  expect(button.x).toBeGreaterThanOrEqual(container.x);
+  expect(button.x + button.width).toBeLessThanOrEqual(container.x + container.width);
+});
+
 test('homepage publishes canonical social metadata and complete product schema', async ({
   page,
 }) => {
