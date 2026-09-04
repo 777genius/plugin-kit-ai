@@ -78,6 +78,7 @@
     "quickstartSubtitle": "这是通往真实插件安装或已验证仓库的最快路径。",
     "installTabsLabel": "选择如何运行 Universal Agent Plugins",
     "detectedRecommendation": "已为 {platform} 选择最佳方式",
+    "mobileUnsupported": "CLI 需要在电脑上运行。请在此复制命令，然后在 macOS、Linux 或 Windows 上执行。",
     "platforms": {
       "macos": "macOS",
       "windows": "Windows",

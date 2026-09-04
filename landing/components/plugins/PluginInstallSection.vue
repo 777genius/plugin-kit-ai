@@ -51,8 +51,12 @@ const installChannels = computed<InstallChannel[]>(() =>
   ),
 );
 
-const { recommendedChannelId, selectedInstallChannelId, selectInstallChannel } =
-  useInstallChannelSelection(installChannels);
+const {
+  detectedInstallPlatform,
+  recommendedChannelId,
+  selectedInstallChannelId,
+  selectInstallChannel,
+} = useInstallChannelSelection(installChannels);
 
 const selectedInstallChannel = computed(
   () =>
@@ -311,6 +315,9 @@ function toggleExpanded() {
                 </span>
               </button>
             </div>
+            <p v-if="detectedInstallPlatform === 'mobile'" class="plugin-install__platform-note">
+              {{ t('download.mobileUnsupported') }}
+            </p>
           </article>
 
           <div class="plugin-install__stack">
@@ -665,6 +672,14 @@ function toggleExpanded() {
   align-items: center;
 }
 
+.plugin-install__platform-note {
+  margin: 12px 0 0;
+  color: #ffb703;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  font-family: 'JetBrains Mono', monospace;
+}
+
 .plugin-install__target-divider {
   width: 1px;
   align-self: stretch;
@@ -953,6 +968,10 @@ function toggleExpanded() {
 .v-theme--light .plugin-install__muted-note,
 .v-theme--light .plugin-install__microcopy {
   color: #475569;
+}
+
+.v-theme--light .plugin-install__platform-note {
+  color: #92400e;
 }
 
 .v-theme--light .plugin-install__target-tab,

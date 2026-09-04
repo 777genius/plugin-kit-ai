@@ -78,6 +78,7 @@
     "quickstartSubtitle": "Это самый быстрый путь к реальной установке плагина или к валидному репозиторию.",
     "installTabsLabel": "Выберите, как запускать Universal Agent Plugins",
     "detectedRecommendation": "Выбран лучший вариант для {platform}",
+    "mobileUnsupported": "CLI работает на компьютере. Скопируйте команду и запустите её на macOS, Linux или Windows.",
     "platforms": {
       "macos": "macOS",
       "windows": "Windows",

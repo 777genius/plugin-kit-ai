@@ -78,6 +78,7 @@
     "quickstartSubtitle": "This is the fastest path to a real plugin install or a validated repo.",
     "installTabsLabel": "Choose how to run Universal Agent Plugins",
     "detectedRecommendation": "Best option for {platform} selected",
+    "mobileUnsupported": "The CLI runs on desktop. Copy a command here, then run it on macOS, Linux, or Windows.",
     "platforms": {
       "macos": "macOS",
       "windows": "Windows",
