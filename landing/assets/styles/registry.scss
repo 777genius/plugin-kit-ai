@@ -326,11 +326,12 @@ img {
 }
 .hero__demo {
   position: relative;
-  display: grid;
-  gap: 12px;
+  isolation: isolate;
 }
 
 .hero__window {
+  position: relative;
+  z-index: 1;
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 20px;
