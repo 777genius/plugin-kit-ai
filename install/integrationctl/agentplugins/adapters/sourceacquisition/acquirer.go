@@ -10,7 +10,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -56,7 +55,7 @@ func (OSRunner) Run(ctx context.Context, command Command) ([]byte, error) {
 	output := append(append([]byte(nil), result.Stdout...), result.Stderr...)
 	if err != nil {
 		if processadapter.IsOnlyStdoutLimitExceeded(err) ||
-			(runtime.GOOS == "windows" && processadapter.IsExactStdoutLimitExitCode(err, 141)) {
+			processadapter.IsExactStdoutLimitExitCode(err, 141) {
 			return nil, processadapter.ErrStdoutLimitExceeded
 		}
 		return nil, fmt.Errorf("git %s failed: %w: %s", strings.Join(command.Args, " "), err, strings.TrimSpace(string(output)))
