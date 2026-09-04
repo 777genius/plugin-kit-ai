@@ -20,6 +20,9 @@ const availableClients = computed(() =>
     ? clients.filter((client) => plugin.value!.client_support.clients.includes(client.id))
     : [],
 );
+const sourceUnavailable = computed(
+  () => plugin.value?.discovery?.availability === 'unavailable',
+);
 const targets = ref<ClientID[]>([]);
 const autoDetect = ref(true);
 
@@ -76,7 +79,7 @@ usePageSeo(
               <dd>{{ plugin.author.name }}</dd>
             </div>
             <div>
-              <dt>Works with</dt>
+              <dt>{{ sourceUnavailable ? 'Last known agents' : 'Works with' }}</dt>
               <dd>
                 {{
                   availableClients.length
@@ -86,7 +89,7 @@ usePageSeo(
               </dd>
             </div>
             <div>
-              <dt>Components</dt>
+              <dt>{{ sourceUnavailable ? 'Last known components' : 'Components' }}</dt>
               <dd>
                 {{ plugin.components.length ? plugin.components.join(', ') : 'No installable tools' }}
               </dd>

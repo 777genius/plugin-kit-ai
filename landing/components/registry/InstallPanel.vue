@@ -37,7 +37,10 @@ const targetOptions = computed(() =>
   })),
 );
 const commands = computed(() =>
-  current.value && targets.value.length && (autoDetect.value || hasCompleteSource.value)
+  props.plugin.installable &&
+  current.value &&
+  targets.value.length &&
+  (autoDetect.value || hasCompleteSource.value)
     ? pluginCommands(props.plugin, autoDetect.value ? undefined : targets.value)
     : undefined,
 );

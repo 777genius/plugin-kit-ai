@@ -295,6 +295,22 @@ test('metadata-only community direct links explain why installation is unavailab
   await expect(page.locator('.command-snippet')).toHaveCount(0);
 });
 
+test('unavailable community sources never expose stale install guidance', async ({ page }) => {
+  await page.goto(
+    './plugins/community?source=discovery%3A777genius%2Funiversal-agent-plugins%2F%2Fbridges%2Fchrome-devtools%2Foverlay',
+  );
+  await expect(page.getByRole('heading', { name: 'Not ready to install' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('status')).toContainText(
+    'This package is no longer available from its source.',
+  );
+  await expect(page.getByText('Last known agents')).toBeVisible();
+  await expect(page.getByText('Last known components')).toBeVisible();
+  await expect(page.locator('.command-snippet')).toHaveCount(0);
+  await expect(page.getByText('Automatic detection.')).toHaveCount(0);
+});
+
 test('community install controls use the full panel width for long sources', async ({ page }) => {
   await page.goto(
     './plugins/community?source=discovery%3Avectorize-io%2Fhindsight%2F%2Fhindsight-integrations%2Fagent-plugin',
