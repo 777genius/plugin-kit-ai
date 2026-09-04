@@ -12,8 +12,8 @@ verified once, then prepared for every agent you selected.
 
 You need Node.js 22 or newer.
 
-To use the same native Go CLI without Node.js, run the verified installer from
-the [project README](https://github.com/777genius/universal-agent-plugins#quick-start).
+To use the same native Go CLI without Node.js, install it with Homebrew or the
+verified scripts in the [project README](https://github.com/777genius/universal-agent-plugins#quick-start).
 
 ## Quick start
 
