@@ -60,6 +60,9 @@ export default defineNuxtConfig({
     head: {
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: `${baseURL}icon.svg` },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: `${baseURL}favicon-32.png` },
+        { rel: 'shortcut icon', href: `${baseURL}favicon.ico` },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: `${baseURL}apple-touch-icon.png` },
         { rel: 'dns-prefetch', href: 'https://api.github.com' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
@@ -101,7 +104,9 @@ export default defineNuxtConfig({
       routes: [
         '/',
         '/create-plugin',
+        '/download',
         '/plugins',
+        '/plugins/community',
         ...registryIndex.plugins.map((plugin) => `/plugins/${plugin.name}`),
         '/api/releases/latest',
         '/sitemap.xml',

@@ -296,7 +296,7 @@
   },
   "footer": {
     "copyright": "© {year}",
-    "tagline": "Construir una vez. Envío a muchos agentes de IA.",
+    "tagline": "Instala una vez. Gestiona plugins en todos tus agentes de IA.",
     "github": "GitHub",
     "docs": "Documentos"
   },

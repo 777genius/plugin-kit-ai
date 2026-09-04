@@ -8,17 +8,47 @@
 
 Install and manage Agent Plugins 1.0 across your AI agents with one CLI.
 
+## Quick start
+
+The native Go CLI does not require Node.js. On macOS or Linux with Homebrew:
+
+```bash
+brew install 777genius/agentplugins/agentplugins
+agentplugins add context7
+```
+
+Or install the same verified native release and add Context7 in one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh -s -- add context7
+```
+
+On Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.ps1 | iex
+& "$HOME\.local\bin\agentplugins.exe" add context7
+```
+
+Homebrew and the installers select the native binary for your OS and
+architecture. The scripts verify its published SHA-256 and reported version,
+then replace the CLI atomically. They install into `$HOME/.local/bin` unless
+`AGENTPLUGINS_BIN_DIR` is set.
+
+If you already have Node.js 22 or newer, the npm facade remains the quickest
+zero-install alternative. It downloads and verifies the same Go binary:
+
 ```bash
 npx universal-agent-plugins add context7
 ```
 
+Node.js is not a requirement of the native CLI. Individual plugins may declare
+their own runtime requirements; the CLI checks those separately before
+installation.
+
 The CLI finds compatible agents installed on your computer and asks where to
 install the plugin. Choose one or several. The package is downloaded and
 verified once, then prepared for every agent you selected.
-
-## Quick start
-
-You need Node.js 22 or newer.
 
 1. Run the command above.
 2. Select the installed agents you want to use. If only one is found, it is
@@ -107,30 +137,30 @@ Use `--target` in scripts, CI, or whenever you want to name clients explicitly.
 
 ```bash
 # Find and inspect plugins
-npx universal-agent-plugins search docs
-npx universal-agent-plugins info context7
+agentplugins search docs
+agentplugins info context7
 
 # Install in specific agents
-npx universal-agent-plugins add context7 --target codex,cursor,kiro
+agentplugins add context7 --target codex,cursor,kiro
 
 # Manage an installed plugin
-npx universal-agent-plugins update context7 --target codex,cursor
-npx universal-agent-plugins repair context7 --target codex,cursor
-npx universal-agent-plugins remove context7 --target codex,cursor
-npx universal-agent-plugins outdated --all
-npx universal-agent-plugins update --all
-npx universal-agent-plugins doctor
+agentplugins update context7 --target codex,cursor
+agentplugins repair context7 --target codex,cursor
+agentplugins remove context7 --target codex,cursor
+agentplugins outdated --all
+agentplugins update --all
+agentplugins doctor
 
 # Install a local Agent Plugins 1.0 package
-npx universal-agent-plugins validate ./my-plugin
-npx universal-agent-plugins add ./my-plugin
+agentplugins validate ./my-plugin
+agentplugins add ./my-plugin
 
 # Install the only Agent Plugins package found at an exact commit
-npx universal-agent-plugins add \
+agentplugins add \
   owner/repository@0123456789abcdef0123456789abcdef01234567
 
 # Choose a package explicitly when a repository contains several
-npx universal-agent-plugins add \
+agentplugins add \
   owner/repository@0123456789abcdef0123456789abcdef01234567//path/to/plugin
 ```
 
@@ -230,11 +260,12 @@ make vet
 - Contributing: CONTRIBUTING.md
 - Security policy: SECURITY.md
 - Support boundary: docs/SUPPORT.md
+- Native CLI installation: docs/NATIVE_INSTALL.md
 - Client E2E evidence: docs/AGENTPLUGINS_CLIENT_E2E.md
 - Registry: https://github.com/777genius/universal-agent-plugins-registry
 
 ## License
 
-The Go engine and this repository remain under the existing MIT license. The
-registry keeps its Apache 2.0 license and third-party attribution. No code is
-relicensed by the repository rename.
+Universal Agent Plugins is licensed under the [Apache License 2.0](LICENSE).
+Third-party components retain their original licenses; see [NOTICE](NOTICE) for
+attribution.

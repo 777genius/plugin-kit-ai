@@ -26,6 +26,7 @@ describe('unified registry landing', () => {
     const plugin = registry.plugins.find((item) => item.installable);
     assert.ok(plugin);
     assert.equal(pluginCommands(plugin).add.includes('--target'), false);
+    assert.match(pluginCommands(plugin).add, /^agentplugins add /);
   });
 
   it('uses one comma-separated target flag for explicit multi-agent installation', () => {

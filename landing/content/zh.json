@@ -985,7 +985,7 @@
     {
       "id": "fastestStart",
       "question": "最快的开始方式是什么？",
-      "answer": "运行 <code>npx universal-agent-plugins add context7 --target codex,cursor</code>。选择一个或多个代理，然后按客户端提示完成激活。"
+      "answer": "安装原生 Go CLI，然后运行 <code>agentplugins add context7 --target codex,cursor</code>。选择一个或多个代理，然后按客户端提示完成激活。"
     },
     {
       "id": "whichPathFirst",
@@ -1001,20 +1001,21 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "建议已经使用 Homebrew 的机器进行长期安装。",
-      "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "当您计划每天使用 plugin-kit-ai 时，这是更好的选择。",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
+      "description": "适用于 macOS 和 Linux 的原生 Go CLI，无需 Node.js。",
+      "href": "https://github.com/777genius/homebrew-agentplugins",
+      "note": "建议用于长期安装，并通过 Homebrew 自动升级。",
+      "command": "brew install 777genius/agentplugins/agentplugins",
+      "invocation": "agentplugins",
+      "recommended": true
     },
     {
       "id": "npm",
       "title": "npx",
-      "description": "当您想最快添加一个真实插件时，无需永久安装即可运行 plugin-kit-ai。",
-      "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "当您首先想要一次性插件安装时，这是最快的路径。",
-      "command": "npx plugin-kit-ai@latest version",
-      "invocation": "npx plugin-kit-ai@latest",
-      "recommended": true
+      "description": "无需永久安装即可运行安装器。",
+      "href": "https://www.npmjs.com/package/universal-agent-plugins",
+      "note": "如果已有 Node.js 22 或更高版本，可使用此免安装方案。",
+      "command": "npx universal-agent-plugins version",
+      "invocation": "npx universal-agent-plugins"
     },
     {
       "id": "pipx",
@@ -1027,10 +1028,11 @@
     {
       "id": "script",
       "title": "已验证的安装脚本",
-      "description": "后备引导路径，用于解析最新发布的稳定版本并验证校验和。",
-      "href": "https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh",
-      "note": "Good 当包管理器设置不是您首先想要的时。",
-      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh"
+      "description": "无需包管理器的原生安装，无需 Node.js。",
+      "href": "https://github.com/777genius/universal-agent-plugins/blob/main/docs/NATIVE_INSTALL.md",
+      "note": "下载正确的发布二进制文件，并验证 SHA-256 和版本。",
+      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/universal-agent-plugins/main/install.sh | sh",
+      "invocation": "$HOME/.local/bin/agentplugins"
     },
     {
       "id": "releases",

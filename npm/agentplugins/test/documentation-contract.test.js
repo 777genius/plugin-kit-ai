@@ -66,11 +66,16 @@ function commandArgument(command, flag) {
 test("public Agentplugins documentation keeps copyable commands within the CLI contract", () => {
   for (const [label, filename] of packagedDocuments()) {
     const markdown = fs.readFileSync(filename, "utf8");
-    const commands = bashCommands(markdown).filter((command) => command.startsWith("npx universal-agent-plugins "));
+    const commands = bashCommands(markdown).filter(
+      (command) => command.startsWith("npx universal-agent-plugins ") || command.startsWith("agentplugins ")
+    );
     assert.ok(commands.length > 0, `${label} has no copyable universal-agent-plugins commands`);
+    const expectedFirstCommand = label === "root README"
+      ? "agentplugins add context7"
+      : "npx universal-agent-plugins add context7";
     assert.equal(
       commands[0],
-      "npx universal-agent-plugins add context7",
+      expectedFirstCommand,
       `${label}: the first command must keep the no-target interactive quick start`
     );
 
@@ -92,10 +97,36 @@ test("public Agentplugins documentation keeps copyable commands within the CLI c
     }
 
     for (const verb of ["add", "update", "repair", "remove"]) {
-      assert.ok(commands.some((command) => command.startsWith(`npx universal-agent-plugins ${verb} `)), `${label}: missing ${verb} example`);
+      assert.ok(
+        commands.some(
+          (command) =>
+            command.startsWith(`npx universal-agent-plugins ${verb} `) ||
+            command.startsWith(`agentplugins ${verb} `)
+        ),
+        `${label}: missing ${verb} example`
+      );
     }
     assert.ok(commands.some((command) => command.includes("--target codex,cursor,kiro")), `${label}: missing explicit three-target example`);
   }
+});
+
+test("root documentation recommends the native Go installer without hiding npm", (t) => {
+  if (!fs.existsSync(documents[0][1])) {
+    t.skip("root README is intentionally absent from the detached npm package");
+    return;
+  }
+  const markdown = fs.readFileSync(documents[0][1], "utf8");
+  assert.match(markdown, /native Go CLI does not require Node\.js/i);
+  assert.match(markdown, /brew install 777genius\/agentplugins\/agentplugins/);
+  assert.match(
+    markdown,
+    /https:\/\/raw\.githubusercontent\.com\/777genius\/universal-agent-plugins\/main\/install\.sh/
+  );
+  assert.match(
+    markdown,
+    /https:\/\/raw\.githubusercontent\.com\/777genius\/universal-agent-plugins\/main\/install\.ps1/
+  );
+  assert.match(markdown, /npx universal-agent-plugins add context7/);
 });
 
 test("public package documentation points to the authoritative product source", () => {

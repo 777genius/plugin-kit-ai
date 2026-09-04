@@ -279,6 +279,82 @@ func TestAgentpluginsReadmesUseUnversionedNpxExamples(t *testing.T) {
 	}
 }
 
+func TestAgentpluginsNativeInstallSurfaceIsChecksumAndVersionBound(t *testing.T) {
+	root := RepoRoot(t)
+	unixInstaller := readRepoFile(t, root, "install.sh")
+	windowsInstaller := readRepoFile(t, root, "install.ps1")
+	workflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-native-install.yml")
+	guide := readRepoFile(t, root, "docs", "NATIVE_INSTALL.md")
+
+	for _, want := range []string{
+		"checksums.txt must contain exactly one entry",
+		"checksum mismatch",
+		"OBSERVED_VERSION",
+		"agentplugins $VERSION",
+		"mktemp \"$BIN_DIR/.agentplugins.XXXXXX\"",
+		"mv -f \"$INSTALL_TEMP\" \"$DEST_PATH\"",
+	} {
+		mustContain(t, unixInstaller, want)
+	}
+	for _, want := range []string{
+		"Get-FileHash",
+		"checksums.txt must contain exactly one valid entry",
+		"ObservedVersion",
+		"[System.IO.File]::Replace($InstallTemp, $Destination, $null, $true)",
+		"[System.IO.File]::Move($InstallTemp, $Destination)",
+	} {
+		mustContain(t, windowsInstaller, want)
+	}
+	for _, target := range []string{
+		"darwin-amd64",
+		"darwin-arm64",
+		"linux-amd64",
+		"linux-arm64",
+		"windows-amd64",
+		"windows-arm64",
+	} {
+		mustContain(t, workflow, target)
+	}
+	mustContain(t, workflow, "Install the published native binary without Node.js")
+	mustContain(t, guide, "The native installation path does not require")
+	mustContain(t, guide, "atomically replaces the destination only after all checks pass")
+}
+
+func TestAgentpluginsHomebrewTapIsReleaseAndAttestationBound(t *testing.T) {
+	root := RepoRoot(t)
+	publisher := readRepoFile(t, root, "scripts", "update-agentplugins-homebrew-tap.sh")
+	workflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-homebrew-tap.yml")
+	guide := readRepoFile(t, root, "docs", "NATIVE_INSTALL.md")
+	runbook := readRepoFile(t, root, "docs", "agentplugins-release.md")
+
+	for _, want := range []string{
+		"TAG must be an exact stable agentplugins-vX.Y.Z tag",
+		"release-manifest.json",
+		"release tag does not match the attested source commit",
+		"gh attestation verify",
+		"agentplugins-release.yml",
+		"--source-digest \"$COMMIT\"",
+		"ruby -c \"$FORMULA\"",
+		"GIT_ASKPASS",
+		"git -C \"$TEMP_ROOT/tap\" diff --cached --quiet",
+		"chore: update agentplugins to",
+	} {
+		mustContain(t, publisher, want)
+	}
+	for _, want := range []string{
+		"workflows: [Agentplugins Release Assets]",
+		"github.event.workflow_run.conclusion == 'success'",
+		"persist-credentials: false",
+		"HOMEBREW_TAP_TOKEN",
+		"777genius/homebrew-agentplugins",
+	} {
+		mustContain(t, workflow, want)
+	}
+	mustContain(t, guide, "brew install 777genius/agentplugins/agentplugins")
+	mustContain(t, runbook, "verifies the GitHub artifact attestation")
+	mustContain(t, runbook, "Do not edit a released formula by hand")
+}
+
 func mustAppearBefore(t *testing.T, text, first, second string) {
 	t.Helper()
 	firstIndex := strings.Index(text, first)

@@ -191,6 +191,7 @@ export const sharedConfig = defineConfig({
   },
   rewrites: readJson<Record<string, string>>("redirects.json", {}),
   themeConfig: {
+    logo: "/icon.svg",
     siteTitle: "plugin-kit-ai Docs",
     search: {
       provider: "local"
