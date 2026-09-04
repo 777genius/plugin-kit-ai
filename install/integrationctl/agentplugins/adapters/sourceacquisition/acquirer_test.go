@@ -146,6 +146,22 @@ func TestDiscoverGitHubPackagesBoundsGitTreeMetadata(t *testing.T) {
 	}
 }
 
+func TestDiscoverGitHubPackagesFindsRootBeforeRecursiveMetadataLimit(t *testing.T) {
+	revision := strings.Repeat("b", 40)
+	runner := &rootBeforeRecursiveLimitRunner{revision: revision}
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: runner}
+	paths, err := acquirer.DiscoverGitHubPackages(context.Background(), "example/plugin", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "" {
+		t.Fatalf("root package paths = %q", paths)
+	}
+	if runner.recursiveCalls != 0 {
+		t.Fatalf("root package triggered %d recursive tree scans", runner.recursiveCalls)
+	}
+}
+
 func TestAcquireGitHubRepositoryRootExcludesGitDirectoryAndSubmoduleContent(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")
@@ -313,8 +329,36 @@ func (runner *discoveryLimitRunner) Run(_ context.Context, command Command) ([]b
 		case "rev-parse":
 			return []byte(runner.revision + "\n"), nil
 		case "ls-tree":
-			runner.sawBoundedTree = command.MaxOutputBytes == maxGitHubDiscoveryMetadataBytes
-			return nil, processadapter.ErrStdoutLimitExceeded
+			for _, treeArgument := range command.Args {
+				if treeArgument == "-r" {
+					runner.sawBoundedTree = command.MaxOutputBytes == maxGitHubDiscoveryMetadataBytes
+					return nil, processadapter.ErrStdoutLimitExceeded
+				}
+			}
+			return nil, nil
+		}
+	}
+	return nil, nil
+}
+
+type rootBeforeRecursiveLimitRunner struct {
+	revision       string
+	recursiveCalls int
+}
+
+func (runner *rootBeforeRecursiveLimitRunner) Run(_ context.Context, command Command) ([]byte, error) {
+	for _, argument := range command.Args {
+		switch argument {
+		case "rev-parse":
+			return []byte(runner.revision + "\n"), nil
+		case "ls-tree":
+			for _, treeArgument := range command.Args {
+				if treeArgument == "-r" {
+					runner.recursiveCalls++
+					return nil, processadapter.ErrStdoutLimitExceeded
+				}
+			}
+			return []byte("100644 blob a\t.codex-plugin/plugin.json\x00"), nil
 		}
 	}
 	return nil, nil

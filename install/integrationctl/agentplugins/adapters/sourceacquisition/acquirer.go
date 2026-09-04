@@ -27,7 +27,10 @@ var (
 	fullSHA           = regexp.MustCompile(`^[0-9a-f]{40}$`)
 )
 
-const maxGitHubDiscoveryMetadataBytes = 1 << 20
+const (
+	maxRootManifestMetadataBytes    = 4 << 10
+	maxGitHubDiscoveryMetadataBytes = 1 << 20
+)
 
 type Command struct {
 	Dir            string
@@ -139,6 +142,18 @@ func (acquirer Acquirer) DiscoverGitHubPackages(ctx context.Context, repository,
 	resolved, err := run("-C", repoRoot, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
 	if err != nil || strings.TrimSpace(string(resolved)) != revision {
 		return nil, gitAcquisitionFailure(repository, revision, "verify immutable discovery revision")
+	}
+	rootTree, err := acquirer.runner().Run(ctx, Command{Dir: tempRoot,
+		Args: []string{"-C", repoRoot, "ls-tree", "-z", revision, "--", "plugin.json", ".codex-plugin/plugin.json"}, MaxOutputBytes: maxRootManifestMetadataBytes})
+	if err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "inspect repository root for Agent Plugins package")
+	}
+	rootPaths, err := packagePathsFromTree(rootTree)
+	if err != nil {
+		return nil, gitAcquisitionFailure(repository, revision, "parse repository root package candidate")
+	}
+	if len(rootPaths) == 1 && rootPaths[0] == "" {
+		return rootPaths, nil
 	}
 	tree, err := acquirer.runner().Run(ctx, Command{Dir: tempRoot,
 		Args: []string{"-C", repoRoot, "ls-tree", "-r", "-z", revision}, MaxOutputBytes: maxGitHubDiscoveryMetadataBytes})
