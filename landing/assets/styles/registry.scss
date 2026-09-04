@@ -893,13 +893,9 @@ img {
   padding-block: 90px;
 }
 .catalog-controls {
-  padding: 12px;
   display: grid;
   grid-template-columns: minmax(260px, 1.7fr) repeat(3, minmax(140px, 0.7fr));
-  gap: 9px;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-  background: var(--surface);
+  gap: 12px 20px;
 }
 .catalog-controls input {
   width: 100%;
@@ -953,6 +949,32 @@ img {
 }
 .catalog-advanced-filters {
   display: contents;
+}
+/* Flat toolbar only; dropdown panels and installation controls keep their surfaces. */
+.catalog-controls .search-field input,
+.catalog-controls .app-select__trigger,
+.catalog-controls .app-combobox__anchor,
+.catalog-controls .catalog-filter-toggle {
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.catalog-controls .search-field input:hover,
+.catalog-controls .app-select__trigger:hover,
+.catalog-controls .app-combobox__anchor:hover {
+  border-bottom-color: var(--primary-bright);
+  background: transparent;
+}
+.catalog-controls .app-select__trigger[data-state='open'],
+.catalog-controls .app-combobox__anchor:focus-within {
+  border-bottom-color: var(--primary-bright);
+  box-shadow: inset 0 -1px var(--primary-bright);
+}
+.catalog-controls .app-combobox__input {
+  border: 0;
+  background: transparent;
 }
 .catalog-filter-toggle {
   display: none;
@@ -2219,46 +2241,6 @@ img {
   font-size: 0.68rem;
 }
 
-.registry-benefits {
-  padding-block: 90px;
-}
-.registry-benefits__grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-.registry-benefits__grid article {
-  min-height: 230px;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background:
-    radial-gradient(
-      circle at top right,
-      color-mix(in srgb, var(--cyan) 10%, transparent),
-      transparent 44%
-    ),
-    var(--surface);
-}
-.registry-benefits__grid article > span {
-  color: var(--cyan);
-  font:
-    750 0.7rem 'JetBrains Mono',
-    monospace;
-  letter-spacing: 0.1em;
-}
-.registry-benefits__grid h3 {
-  margin: 42px 0 12px;
-}
-.registry-benefits__grid p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-.registry-benefits__grid code {
-  color: var(--cyan);
-}
-
 .community-plugin-state {
   min-height: 55vh;
   padding-block: 100px;
@@ -2273,8 +2255,7 @@ img {
 
 @supports (animation-timeline: view()) {
   .catalog > .section-heading,
-  .catalog-controls,
-  .registry-benefits__grid article {
+  .catalog-controls {
     animation: section-rise linear both;
     animation-timeline: view();
     animation-range: entry 0 entry 34%;
@@ -2417,9 +2398,6 @@ img {
     grid-template-columns: 1fr;
     gap: 35px;
   }
-  .registry-benefits__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .plugin-page__grid {
     grid-template-columns: 1fr;
   }
@@ -2525,7 +2503,6 @@ img {
   .how,
   .catalog-wrap,
   .validation-section,
-  .registry-benefits,
   .registry-faq {
     padding-block: 65px;
   }
@@ -2556,15 +2533,6 @@ img {
   .workflow-step:nth-child(2),
   .workflow-step:nth-child(3) {
     translate: none;
-  }
-  .registry-benefits__grid {
-    grid-template-columns: 1fr;
-  }
-  .registry-benefits__grid article {
-    min-height: auto;
-  }
-  .registry-benefits__grid h3 {
-    margin-top: 24px;
   }
   .plugin-grid {
     grid-template-columns: 1fr;

@@ -1,7 +1,7 @@
 .hero-agent-field {
   position: absolute;
   inset: 0;
-  perspective: 900px;
+  perspective: 750px;
   pointer-events: none;
   opacity: 0.55;
 }
@@ -13,7 +13,7 @@
   aspect-ratio: 1;
   translate: -50% -50%;
   transform-style: preserve-3d;
-  transform: rotateX(18deg) rotateY(-12deg) rotateZ(-8deg);
+  transform: rotateX(36deg) rotateY(-28deg) rotateZ(-12deg);
   animation:
     agent-plane-tilt 18s ease-in-out infinite alternate,
     agent-orbit-breathe 12s ease-in-out infinite;
@@ -75,7 +75,7 @@
   to { transform: rotate(360deg); }
 }
 @keyframes agent-plane-tilt {
-  to { transform: rotateX(-12deg) rotateY(16deg) rotateZ(8deg); }
+  to { transform: rotateX(-32deg) rotateY(30deg) rotateZ(12deg); }
 }
 @keyframes agent-orbit-breathe {
   0%, 100% { scale: 0.96; }

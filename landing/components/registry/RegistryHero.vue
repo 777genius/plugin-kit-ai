@@ -182,7 +182,7 @@ function updateTargets(values: string[]) {
                 <span class="hero-quick-start__number hero-quick-start__number--run">2</span>
                 <span class="hero-quick-start__label"
                   ><strong>Copy and run</strong
-                  ><small>No target flag means auto-detect</small></span
+                  ><small>In your terminal</small></span
                 >
                 <CommandSnippet v-if="command" :command="command" kind="add" inline />
                 <p v-else class="install-panel__notice" role="status">

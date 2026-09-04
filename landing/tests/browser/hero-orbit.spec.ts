@@ -58,6 +58,21 @@ test('CSS background depth animates on the right and pauses offscreen or hidden'
   const sceneAnimations = await field.evaluate((node) => node.getAnimations({ subtree: true })
     .map((animation) => (animation as CSSAnimation).animationName));
   expect(sceneAnimations).toContain('agent-orbit-breathe');
+  const tiltMatrices: number[][] = [];
+  for (const progress of [0, 1]) {
+    tiltMatrices.push(await field.evaluate((node, fraction) => {
+      const plane = node.querySelector('.hero-agent-field__plane')!;
+      const tilt = plane.getAnimations().find((animation) =>
+        (animation as CSSAnimation).animationName === 'agent-plane-tilt')!;
+      tilt.pause();
+      tilt.currentTime = Number(tilt.effect!.getTiming().duration) * fraction;
+      const matrix = new DOMMatrix(getComputedStyle(plane).transform);
+      return [matrix.m13, matrix.m23];
+    }, progress));
+  }
+  // Real out-of-plane rotation changes depth on both axes, not just a flat spin.
+  expect(Math.abs(tiltMatrices[0]![0]! - tiltMatrices[1]![0]!)).toBeGreaterThan(0.5);
+  expect(Math.abs(tiltMatrices[0]![1]! - tiltMatrices[1]![1]!)).toBeGreaterThan(0.5);
   await page.getByRole('contentinfo').scrollIntoViewIfNeeded();
   await expect(field).not.toHaveClass(/hero-agent-field--active/);
   expect(await track.evaluate((node) => getComputedStyle(node).animationPlayState)).toBe('paused');
