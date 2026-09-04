@@ -2880,13 +2880,18 @@ func (alwaysErrorWriter) Write([]byte) (int, error) {
 }
 
 type countingSourceAcquirer struct {
-	delegate SourceAcquirer
-	calls    int
+	delegate       SourceAcquirer
+	calls          int
+	discoveryCalls int
 }
 
 func (a *countingSourceAcquirer) AcquireLocal(ctx context.Context, path string) (domain.PackageSnapshot, error) {
 	a.calls++
 	return a.delegate.AcquireLocal(ctx, path)
+}
+func (a *countingSourceAcquirer) DiscoverGitHubPackages(ctx context.Context, repo, revision string) ([]string, error) {
+	a.discoveryCalls++
+	return a.delegate.DiscoverGitHubPackages(ctx, repo, revision)
 }
 func (a *countingSourceAcquirer) AcquireGitHub(ctx context.Context, repo, revision, path string) (domain.PackageSnapshot, error) {
 	a.calls++
