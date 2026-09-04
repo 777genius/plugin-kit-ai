@@ -8,7 +8,7 @@
 .hero-agent-field__plane {
   position: absolute;
   top: 50%;
-  left: 62%;
+  left: calc(62% + 100px);
   width: min(720px, 150%);
   aspect-ratio: 1;
   translate: -50% -50%;

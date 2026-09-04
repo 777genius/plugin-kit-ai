@@ -105,6 +105,8 @@ test('larger breathing background never changes layout or blocks the foreground'
     const planeWidth = await field.locator('.hero-agent-field__plane')
       .evaluate((node) => Number.parseFloat(getComputedStyle(node).width));
     const fieldWidth = (await field.boundingBox())!.width;
+    expect(await field.locator('.hero-agent-field__plane')
+      .evaluate((node) => Number.parseFloat(getComputedStyle(node).left))).toBeCloseTo(fieldWidth * 0.62 + 100, 1);
     expect(planeWidth).toBeCloseTo(Math.min(width <= 720 ? 492 : 720, fieldWidth * 1.5), 1);
     expect(await field.locator('.hero-agent-field__node').first()
       .evaluate((node) => Number.parseFloat(getComputedStyle(node).width))).toBe(width <= 720 ? 30 : 38);
