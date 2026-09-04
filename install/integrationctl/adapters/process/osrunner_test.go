@@ -111,11 +111,28 @@ func TestOSRunnerStdoutLimitStopsProducerBeforeRemainingOutput(t *testing.T) {
 	_, err := (OS{}).Run(ctx, ports.Command{
 		Argv: []string{os.Args[0], "-test.run=TestOSRunnerStdoutLimitStopsProducerBeforeRemainingOutput"}, Env: environment, StdoutLimitBytes: 4096,
 	})
-	if !errors.Is(err, ErrStdoutLimitExceeded) || !IsOnlyStdoutLimitExceeded(err) {
+	if !errors.Is(err, ErrStdoutLimitExceeded) {
 		t.Fatalf("limit error = %v", err)
 	}
 	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
 		t.Fatalf("producer was not stopped at output bound: %v", statErr)
+	}
+}
+
+func TestOSRunnerStdoutLimitPreservesNonzeroExit(t *testing.T) {
+	if os.Getenv("AGENTPLUGINS_PROCESS_STDOUT_LIMIT_EXIT_HELPER") == "1" {
+		_, _ = os.Stdout.Write([]byte(strings.Repeat("x", 4097)))
+		os.Exit(23)
+	}
+	environment := append(os.Environ(), "AGENTPLUGINS_PROCESS_STDOUT_LIMIT_EXIT_HELPER=1")
+	result, err := (OS{}).Run(context.Background(), ports.Command{
+		Argv: []string{os.Args[0], "-test.run=TestOSRunnerStdoutLimitPreservesNonzeroExit"}, Env: environment, StdoutLimitBytes: 16,
+	})
+	if err == nil || IsOnlyStdoutLimitExceeded(err) || !errors.Is(err, ErrStdoutLimitExceeded) {
+		t.Fatalf("combined exit/limit error = %v", err)
+	}
+	if result.ExitCode != 23 || !strings.Contains(err.Error(), "code 23") {
+		t.Fatalf("combined exit/limit result = %+v, %v", result, err)
 	}
 }
 
@@ -459,6 +476,20 @@ func TestStdoutLimitClassificationRejectsJoinedStrongerFailure(t *testing.T) {
 	}
 	if IsOnlyStdoutLimitExceeded(errors.Join(ErrStdoutLimitExceeded, errors.New("containment failed"))) {
 		t.Fatal("joined stronger failure was classified as only an stdout limit")
+	}
+}
+
+func TestExplicitStdoutErrorPreservesStrongerCausality(t *testing.T) {
+	stronger := errors.New("containment failed")
+	joined := errors.Join(ErrStdoutLimitExceeded, stronger)
+	got := explicitStdoutError(ports.CommandResult{}, joined, ErrStdoutLimitExceeded)
+	if !errors.Is(got, stronger) || IsOnlyStdoutLimitExceeded(got) {
+		t.Fatalf("joined stronger failure = %v", got)
+	}
+
+	got = explicitStdoutError(ports.CommandResult{ExitCode: 7}, nil, ErrStdoutLimitExceeded)
+	if IsOnlyStdoutLimitExceeded(got) || !errors.Is(got, ErrStdoutLimitExceeded) || !strings.Contains(got.Error(), "code 7") {
+		t.Fatalf("nonzero exit failure = %v", got)
 	}
 }
 

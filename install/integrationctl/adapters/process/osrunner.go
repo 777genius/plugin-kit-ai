@@ -680,12 +680,22 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 		return capturedResult, withDuplexDiagnostic(errors.Join(fmt.Errorf("process left live descendants that required forced cleanup"), capturedErr, stdoutErr), stderr.Bytes())
 	}
 	if stdoutErr != nil {
-		if capturedErr == nil || errors.Is(capturedErr, ErrStdoutLimitExceeded) {
-			return capturedResult, ErrStdoutLimitExceeded
-		}
-		return capturedResult, errors.Join(capturedErr, stdoutErr)
+		return capturedResult, explicitStdoutError(capturedResult, capturedErr, stdoutErr)
 	}
 	return capturedResult, capturedErr
+}
+
+func explicitStdoutError(result ports.CommandResult, commandErr, stdoutErr error) error {
+	if stdoutErr == nil {
+		return commandErr
+	}
+	if result.ExitCode != 0 {
+		return errors.Join(fmt.Errorf("command exited with code %d while stdout exceeded its configured limit", result.ExitCode), commandErr, stdoutErr)
+	}
+	if commandErr == nil || IsOnlyStdoutLimitExceeded(commandErr) {
+		return ErrStdoutLimitExceeded
+	}
+	return errors.Join(commandErr, stdoutErr)
 }
 
 func finishExplicitCommand(terminationErr, waitErr error, stdout, stderr []byte) (ports.CommandResult, error) {
