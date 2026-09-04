@@ -106,6 +106,18 @@ export default defineNuxtConfig({
   vite: {
     plugins: [vuetify({ autoImport: true })],
   },
+  hooks: {
+    'build:manifest': (manifest) => {
+      // This decoration must stay opt-in: Nuxt otherwise prefetches dynamic
+      // imports even on mobile and for visitors who prefer reduced motion.
+      for (const chunk of Object.values(manifest)) {
+        if (chunk.name === 'heroScene') {
+          chunk.prefetch = false;
+          chunk.preload = false;
+        }
+      }
+    },
+  },
   nitro: {
     compressPublicAssets: true,
     prerender: {

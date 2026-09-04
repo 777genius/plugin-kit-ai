@@ -131,7 +131,6 @@ function updateTargets(values: string[]) {
   <section class="hero-shell">
     <div class="hero container">
       <div class="hero__copy">
-        <HeroAgentField />
         <h1>One plugin<br ><em>All your agents</em></h1>
         <p class="hero__lead">
           Install, update, repair, and remove Agent Plugins 1.0 across supported AI agents with one
@@ -154,6 +153,7 @@ function updateTargets(values: string[]) {
       </div>
 
       <div class="hero__demo">
+        <HeroAgentField />
         <div class="hero__window">
           <div class="hero__window-body">
             <div class="hero-quick-start__header">

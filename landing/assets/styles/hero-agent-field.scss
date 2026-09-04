@@ -1,0 +1,111 @@
+.hero-agent-field {
+  position: relative;
+  width: 100%;
+  height: 290px;
+  isolation: isolate;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 48%, rgba(114, 104, 242, 0.1), transparent 58%);
+}
+.hero-agent-field__canvas,
+.hero-agent-field__fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-agent-field__canvas {
+  opacity: 0;
+}
+.hero-agent-field[data-state='ready'] .hero-agent-field__canvas {
+  opacity: 1;
+}
+.hero-agent-field[data-state='ready'] .hero-agent-field__fallback {
+  visibility: hidden;
+}
+.hero-agent-field__fallback {
+  max-width: 560px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.hero-agent-field__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 49%;
+  height: 45%;
+  border: 1px solid rgba(132, 122, 240, 0.58);
+  border-radius: 50%;
+  box-shadow:
+    0 0 14px rgba(105, 98, 236, 0.09),
+    inset 0 0 14px rgba(105, 98, 236, 0.05);
+  transform: translate(-50%, -50%) rotate(-28deg);
+}
+.hero-agent-field__ring--two {
+  width: 45%;
+  height: 42%;
+  transform: translate(-50%, -50%) rotate(47deg);
+  border-color: rgba(76, 193, 221, 0.6);
+}
+.hero-agent-field__ring--three {
+  width: 86%;
+  height: 68%;
+  border-color: rgba(140, 144, 192, 0.25);
+  transform: translate(-50%, -50%);
+  box-shadow: none;
+}
+.hero-agent-field__hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%) rotate(-7deg);
+  border-radius: 22px;
+  border: 1px solid rgba(174, 183, 255, 0.6);
+  background: linear-gradient(135deg, #9385ed, #353b7b);
+  box-shadow: 0 10px 35px rgba(105, 87, 212, 0.3);
+  img {
+    border-radius: 17px;
+  }
+}
+.hero-agent-field__node {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #e8ecfa);
+  border: 1px solid rgba(151, 159, 204, 0.3);
+  box-shadow: 0 3px 14px rgba(48, 43, 106, 0.12);
+  img {
+    width: 25px;
+    height: 25px;
+    object-fit: contain;
+  }
+}
+@media (max-width: 720px) {
+  .hero-agent-field {
+    height: 200px;
+  }
+  .hero-agent-field__node {
+    width: 32px;
+    height: 32px;
+    img {
+      width: 22px;
+      height: 22px;
+    }
+  }
+  .hero-agent-field__hub {
+    width: 60px;
+    height: 60px;
+    img {
+      width: 52px;
+      height: 52px;
+    }
+  }
+}
