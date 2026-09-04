@@ -296,7 +296,7 @@
   },
   "footer": {
     "copyright": "© {year}",
-    "tagline": "Build once. Ship to many AI agents.",
+    "tagline": "Install once. Manage plugins across your AI agents.",
     "github": "GitHub",
     "docs": "Docs"
   },

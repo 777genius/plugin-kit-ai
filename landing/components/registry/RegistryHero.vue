@@ -9,6 +9,9 @@ const { current, expired, published } = useDirectoryStatus();
 const { asset } = useSite();
 const cliRepositoryUrl = computed(() => `https://github.com/${config.public.githubRepo}`);
 const preferredDemoNames = ['chrome-devtools', 'context7', 'cloudflare-docs'];
+const pluginCount = computed(() =>
+  new Intl.NumberFormat('en').format(props.registry.plugins.length),
+);
 
 const demoPlugin = computed(() => {
   const ranked = [
@@ -83,17 +86,17 @@ function updateTargets(values: string[]) {
 
 <template>
   <section class="hero-shell">
+    <HeroAgentField />
     <div class="hero container">
       <div class="hero__copy">
-        <p class="eyebrow">Agent Plugins 1.0 · Multi-agent CLI</p>
-        <h1>One plugin.<br ><em>All your agents</em></h1>
+        <h1>One plugin<br ><em>All your agents</em></h1>
         <p class="hero__lead">
           Install, update, repair, and remove Agent Plugins across supported AI agents with one
           command. Let the CLI detect installed agents, or choose exactly where the plugin goes.
         </p>
         <div class="hero__actions">
           <a class="button button--primary" href="#plugins"
-            >Explore plugins <span aria-hidden="true">→</span></a
+            >Explore {{ pluginCount }} plugins <span aria-hidden="true">→</span></a
           >
           <a
             class="button button--secondary"
@@ -103,9 +106,6 @@ function updateTargets(values: string[]) {
             >Open GitHub</a
           >
         </div>
-        <p class="hero__fine-print">
-          Open source · Apache 2.0 · Review the plan before installation
-        </p>
       </div>
 
       <div class="hero__demo">

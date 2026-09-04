@@ -194,5 +194,5 @@ export interface ClientTarget {
   name: string;
   icon: string;
   note: string;
-  status: 'CLI supported' | 'CLI prepares' | 'App setup';
+  status: 'Supported' | 'Prepared by CLI' | 'Setup in app';
 }
