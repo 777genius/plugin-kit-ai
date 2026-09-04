@@ -5,6 +5,7 @@ package sourceacquisition
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -26,10 +27,13 @@ var (
 	fullSHA           = regexp.MustCompile(`^[0-9a-f]{40}$`)
 )
 
+const maxGitHubDiscoveryMetadataBytes = 1 << 20
+
 type Command struct {
-	Dir   string
-	Args  []string
-	Stdin []byte
+	Dir            string
+	Args           []string
+	Stdin          []byte
+	MaxOutputBytes int
 }
 
 type Runner interface {
@@ -44,7 +48,7 @@ func (OSRunner) Run(ctx context.Context, command Command) ([]byte, error) {
 	}
 	result, err := (processadapter.OS{}).RunWithTreeExitGrace(ctx, legacyports.Command{
 		Argv: append([]string{"git"}, command.Args...), Dir: command.Dir,
-		Env: isolatedGitEnvironment(os.Environ(), command.Dir),
+		Env: isolatedGitEnvironment(os.Environ(), command.Dir), StdoutLimitBytes: command.MaxOutputBytes,
 	}, 5*time.Second)
 	output := append(append([]byte(nil), result.Stdout...), result.Stderr...)
 	if err != nil {
@@ -95,9 +99,9 @@ type Acquirer struct {
 
 // DiscoverGitHubPackages returns repository-relative package roots at an
 // immutable revision without checking out or executing repository content.
-// An empty string is returned only when plugin.json exists at repository root;
-// callers must then validate that root and must not silently fall back to a
-// nested package when the root manifest is malformed.
+// An empty string is returned when a portable or native package manifest exists
+// at repository root; callers must then validate that root and must not silently
+// fall back to a nested package when the root manifest is malformed.
 func (acquirer Acquirer) DiscoverGitHubPackages(ctx context.Context, repository, revision string) ([]string, error) {
 	if !repositoryPattern.MatchString(repository) {
 		return nil, fmt.Errorf("GitHub repository must be owner/repo")
@@ -136,8 +140,12 @@ func (acquirer Acquirer) DiscoverGitHubPackages(ctx context.Context, repository,
 	if err != nil || strings.TrimSpace(string(resolved)) != revision {
 		return nil, gitAcquisitionFailure(repository, revision, "verify immutable discovery revision")
 	}
-	tree, err := run("-C", repoRoot, "ls-tree", "-r", "-z", revision)
+	tree, err := acquirer.runner().Run(ctx, Command{Dir: tempRoot,
+		Args: []string{"-C", repoRoot, "ls-tree", "-r", "-z", revision}, MaxOutputBytes: maxGitHubDiscoveryMetadataBytes})
 	if err != nil {
+		if errors.Is(err, processadapter.ErrStdoutLimitExceeded) {
+			return nil, fmt.Errorf("repository package metadata exceeds the safe auto-discovery limit; choose a package explicitly with //path")
+		}
 		return nil, gitAcquisitionFailure(repository, revision, "inspect repository for Agent Plugins packages")
 	}
 	paths, err := packagePathsFromTree(tree)
@@ -340,7 +348,9 @@ func executablePathsFromTree(tree []byte, subpath string) ([]string, error) {
 }
 
 func packagePathsFromTree(tree []byte) ([]string, error) {
-	regularFiles := map[string]struct{}{}
+	manifestRoots := map[string]struct{}{}
+	componentRoots := map[string]struct{}{}
+	rootPortable, rootNative := false, false
 	for _, record := range bytes.Split(tree, []byte{0}) {
 		if len(record) == 0 {
 			continue
@@ -354,33 +364,43 @@ func packagePathsFromTree(tree []byte) ([]string, error) {
 		if objectType != "blob" || (mode != "100644" && mode != "100755") {
 			continue
 		}
-		regularFiles[string(filename)] = struct{}{}
+		name := string(filename)
+		if name == "plugin.json" {
+			rootPortable = true
+		}
+		if name == ".codex-plugin/plugin.json" {
+			rootNative = true
+		}
+		if path.Base(name) == "plugin.json" {
+			manifestRoots[path.Dir(name)] = struct{}{}
+		}
+		if path.Base(name) == "mcp.json" {
+			componentRoots[path.Dir(name)] = struct{}{}
+		}
+		for offset := 0; offset < len(name); {
+			index := strings.Index(name[offset:], "/skills/")
+			if index < 0 {
+				break
+			}
+			root := name[:offset+index]
+			if root != "" {
+				componentRoots[root] = struct{}{}
+			}
+			offset += index + len("/skills/")
+		}
 	}
-	if _, ok := regularFiles["plugin.json"]; ok {
+	if rootPortable || rootNative {
 		return []string{""}, nil
 	}
 	candidates := make([]string, 0)
-	for filename := range regularFiles {
-		if path.Base(filename) != "plugin.json" {
-			continue
-		}
-		root := path.Dir(filename)
+	for root := range manifestRoots {
 		if root == "." {
 			continue
 		}
 		if _, err := normalizeSubpath(root); err != nil {
 			continue
 		}
-		_, hasMCP := regularFiles[path.Join(root, "mcp.json")]
-		hasSkills := false
-		skillsPrefix := path.Join(root, "skills") + "/"
-		for candidate := range regularFiles {
-			if strings.HasPrefix(candidate, skillsPrefix) {
-				hasSkills = true
-				break
-			}
-		}
-		if hasMCP || hasSkills {
+		if _, packageShaped := componentRoots[root]; packageShaped {
 			candidates = append(candidates, root)
 		}
 	}

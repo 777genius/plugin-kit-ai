@@ -1364,6 +1364,14 @@ func TestExactGitHubSourceWithoutPortableCandidateKeepsRootNativePackageSupport(
 	if err := os.WriteFile(filepath.Join(manifestRoot, "plugin.json"), []byte(`{"name":"native-demo","version":"1.0.0"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	nestedRoot := filepath.Join(repositoryRoot, "packages", "nested")
+	if err := os.MkdirAll(nestedRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nestedRoot, "plugin.json"), []byte(`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"nested"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIMCP(t, nestedRoot)
 	revision := commitCLIRepository(t, repositoryRoot)
 	fixture := newCLIFixture(t, nil)
 	fixture.app.SourceAcquirer = sourceacquisition.Acquirer{TempRoot: fixture.root, Runner: directGitTestRunner{}, URLForRepo: func(string) string { return repositoryRoot }}
@@ -1375,6 +1383,50 @@ func TestExactGitHubSourceWithoutPortableCandidateKeepsRootNativePackageSupport(
 	defer loaded.cleanup()
 	if loaded.envelope.FormatID != domain.FormatIDOpenAIPlugin || loaded.envelope.Source.PackageSubpath != "" {
 		t.Fatalf("root native fallback = format %q source %+v", loaded.envelope.FormatID, loaded.envelope.Source)
+	}
+}
+
+func TestVerifiedEmptyPathGitHubSourceNeverEntersAutodiscovery(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repositoryRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repositoryRoot, "plugin.json"), []byte(`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"verified-root"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIMCP(t, repositoryRoot)
+	nestedRoot := filepath.Join(repositoryRoot, "packages", "nested")
+	if err := os.MkdirAll(nestedRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nestedRoot, "plugin.json"), []byte(`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"nested"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIMCP(t, nestedRoot)
+	revision := commitCLIRepository(t, repositoryRoot)
+	fixture := newCLIFixture(t, nil)
+	delegate := sourceacquisition.Acquirer{TempRoot: fixture.root, Runner: directGitTestRunner{}, URLForRepo: func(string) string { return repositoryRoot }}
+	rootSnapshot, err := delegate.AcquireGitHub(context.Background(), "owner/repo", revision, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedDigest := rootSnapshot.TreeDigest
+	if err := packagedigest.Remove(rootSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	counter := &countingSourceAcquirer{delegate: delegate}
+	fixture.app.SourceAcquirer = counter
+	requested := "owner/repo@" + revision
+	loaded, err := fixture.app.acquireGitHub(context.Background(), requested, "owner/repo", revision, "", expectedDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.cleanup()
+	if counter.discoveryCalls != 0 || counter.calls != 1 {
+		t.Fatalf("verified empty-path calls = discovery %d, acquisitions %d", counter.discoveryCalls, counter.calls)
+	}
+	if loaded.envelope.Manifest.Name != "verified-root" || loaded.envelope.Source.PackageSubpath != "" {
+		t.Fatalf("verified root package = %+v", loaded.envelope)
 	}
 }
 

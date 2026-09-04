@@ -16,6 +16,10 @@ import (
 
 type OS struct{}
 
+// ErrStdoutLimitExceeded reports that a command completed after producing more
+// stdout than its caller allowed the runner to retain.
+var ErrStdoutLimitExceeded = errors.New("command stdout exceeded configured limit")
+
 type terminationResult struct {
 	leaderStopped              bool
 	leaderTerminationInitiated bool
@@ -573,7 +577,7 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 	// A shorter independent delay can report exec.ErrWaitDelay for a rapid,
 	// otherwise clean command when its copy goroutines are briefly descheduled.
 	c.WaitDelay = processReapTimeout
-	stdout := newSynchronizedOutputBuffer()
+	stdout := newSynchronizedOutputBuffer(command.StdoutLimitBytes)
 	stderr := newBoundedDiagnosticBuffer(32 * 1024)
 	c.Stdout = stdout
 	c.Stderr = stderr
@@ -633,6 +637,7 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 	// return; no second Wait or Process.Release may abandon a future zombie.
 	waitErr := closeContainmentAndWait(closeContainment, c.Wait, processReapTimeout)
 	capturedResult, capturedErr := finishExplicitCommand(termination.err, waitErr, stdout.Bytes(), stderr.Bytes())
+	capturedErr = errors.Join(capturedErr, stdout.Err())
 	if supervisionErr != nil {
 		return capturedResult, withDuplexDiagnostic(errors.Join(supervisionErr, capturedErr), stderr.Bytes())
 	}
@@ -701,24 +706,51 @@ func superviseExplicit(ctx context.Context, poll <-chan time.Time, exited func()
 // goroutine to outlive the bounded caller without racing a returned result.
 // Bytes always returns an immutable snapshot rather than bytes.Buffer's alias.
 type synchronizedOutputBuffer struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
+	mu       sync.Mutex
+	buffer   bytes.Buffer
+	limit    int
+	exceeded bool
 }
 
-func newSynchronizedOutputBuffer() *synchronizedOutputBuffer {
-	return &synchronizedOutputBuffer{}
+func newSynchronizedOutputBuffer(limit int) *synchronizedOutputBuffer {
+	return &synchronizedOutputBuffer{limit: limit}
 }
 
 func (buffer *synchronizedOutputBuffer) Write(value []byte) (int, error) {
 	buffer.mu.Lock()
 	defer buffer.mu.Unlock()
-	return buffer.buffer.Write(value)
+	if buffer.limit <= 0 {
+		return buffer.buffer.Write(value)
+	}
+	remaining := buffer.limit - buffer.buffer.Len()
+	if remaining > 0 {
+		prefix := value
+		if len(prefix) > remaining {
+			prefix = prefix[:remaining]
+		}
+		_, _ = buffer.buffer.Write(prefix)
+	}
+	if len(value) > remaining {
+		buffer.exceeded = true
+	}
+	// Report the complete write so the supervised child can exit naturally;
+	// bytes beyond the configured bound are deliberately discarded.
+	return len(value), nil
 }
 
 func (buffer *synchronizedOutputBuffer) Bytes() []byte {
 	buffer.mu.Lock()
 	defer buffer.mu.Unlock()
 	return append([]byte(nil), buffer.buffer.Bytes()...)
+}
+
+func (buffer *synchronizedOutputBuffer) Err() error {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	if buffer.exceeded {
+		return ErrStdoutLimitExceeded
+	}
+	return nil
 }
 
 type boundedDiagnosticBuffer struct {

@@ -74,6 +74,23 @@ func TestOSRunnerCleanExitWithoutOtherGroupMembersRemainsSuccess(t *testing.T) {
 	}
 }
 
+func TestOSRunnerBoundsStdoutAndReturnsLimitError(t *testing.T) {
+	if os.Getenv("AGENTPLUGINS_PROCESS_STDOUT_LIMIT_HELPER") == "1" {
+		fmt.Fprint(os.Stdout, "output beyond the configured bound")
+		os.Exit(0)
+	}
+	environment := append(os.Environ(), "AGENTPLUGINS_PROCESS_STDOUT_LIMIT_HELPER=1")
+	result, err := (OS{}).Run(context.Background(), ports.Command{
+		Argv: []string{os.Args[0], "-test.run=TestOSRunnerBoundsStdoutAndReturnsLimitError"}, Env: environment, StdoutLimitBytes: 6,
+	})
+	if !errors.Is(err, ErrStdoutLimitExceeded) {
+		t.Fatalf("limit error = %v", err)
+	}
+	if got := string(result.Stdout); got != "output" {
+		t.Fatalf("bounded stdout = %q", got)
+	}
+}
+
 func TestEdgeTriggeredExitObservationRemainsLatchedThroughTermination(t *testing.T) {
 	var observation latchedExitObservation
 	polls := 0
@@ -353,7 +370,7 @@ func TestBoundedDiagnosticBufferSupportsConcurrentWaitTimeoutDiagnostics(t *test
 }
 
 func TestSynchronizedOutputSnapshotIsImmutableWhileSoleReaperFinishesLateWrite(t *testing.T) {
-	buffer := newSynchronizedOutputBuffer()
+	buffer := newSynchronizedOutputBuffer(0)
 	if _, err := buffer.Write([]byte("early")); err != nil {
 		t.Fatal(err)
 	}
@@ -376,6 +393,19 @@ func TestSynchronizedOutputSnapshotIsImmutableWhileSoleReaperFinishesLateWrite(t
 	}
 	if current := string(buffer.Bytes()); current != "early-late" {
 		t.Fatalf("current output = %q, want completed late write", current)
+	}
+}
+
+func TestSynchronizedOutputBufferBoundsCapturedStdout(t *testing.T) {
+	buffer := newSynchronizedOutputBuffer(5)
+	if written, err := buffer.Write([]byte("123456789")); err != nil || written != 9 {
+		t.Fatalf("write = %d, %v", written, err)
+	}
+	if got := string(buffer.Bytes()); got != "12345" {
+		t.Fatalf("captured output = %q", got)
+	}
+	if !errors.Is(buffer.Err(), ErrStdoutLimitExceeded) {
+		t.Fatalf("limit error = %v", buffer.Err())
 	}
 }
 

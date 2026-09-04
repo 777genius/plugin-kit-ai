@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	processadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/process"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/packagedigest"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
@@ -66,6 +67,26 @@ func TestDiscoverGitHubPackagesPrefersRepositoryRootManifest(t *testing.T) {
 	}
 }
 
+func TestDiscoverGitHubPackagesPrefersRepositoryRootNativeManifest(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repository := newRepository(t)
+	writeRepo(t, repository, ".codex-plugin/plugin.json", `{"name":"native"}`, 0o644)
+	writeRepo(t, repository, "packages/nested/plugin.json", `{}`, 0o644)
+	writeRepo(t, repository, "packages/nested/mcp.json", `{}`, 0o644)
+	revision := commit(t, repository)
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: localGitTestRunner{}, URLForRepo: func(string) string { return repository }}
+
+	paths, err := acquirer.DiscoverGitHubPackages(context.Background(), "example/plugin", revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "" {
+		t.Fatalf("root-native package paths = %q", paths)
+	}
+}
+
 func TestDiscoverGitHubPackagesReturnsOnlyPackageShapedNestedDirectories(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")
@@ -93,6 +114,35 @@ func TestDiscoverGitHubPackagesReturnsOnlyPackageShapedNestedDirectories(t *test
 func TestPackagePathsFromTreeRejectsMalformedEntries(t *testing.T) {
 	if _, err := packagePathsFromTree([]byte("100644 blob hash-without-path\x00")); err == nil {
 		t.Fatal("malformed Git tree entry was accepted")
+	}
+}
+
+func TestPackagePathsFromTreeIgnoresSymlinkAndGitlinkCandidates(t *testing.T) {
+	tree := []byte("120000 blob a\tpackages/symlink/plugin.json\x00" +
+		"100644 blob b\tpackages/symlink/mcp.json\x00" +
+		"100644 blob c\tpackages/gitlink/plugin.json\x00" +
+		"160000 commit d\tpackages/gitlink/mcp.json\x00" +
+		"100644 blob e\tpackages/valid/plugin.json\x00" +
+		"100644 blob f\tpackages/valid/skills/demo/SKILL.md\x00")
+	paths, err := packagePathsFromTree(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "packages/valid" {
+		t.Fatalf("regular-file candidates = %q", paths)
+	}
+}
+
+func TestDiscoverGitHubPackagesBoundsGitTreeMetadata(t *testing.T) {
+	revision := strings.Repeat("a", 40)
+	runner := &discoveryLimitRunner{revision: revision}
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: runner}
+	_, err := acquirer.DiscoverGitHubPackages(context.Background(), "example/plugin", revision)
+	if err == nil || !strings.Contains(err.Error(), "choose a package explicitly with //path") {
+		t.Fatalf("metadata limit error = %v", err)
+	}
+	if !runner.sawBoundedTree {
+		t.Fatal("Git tree inspection was not output-bounded")
 	}
 }
 
@@ -250,6 +300,24 @@ type panicRunner struct{}
 
 func (panicRunner) Run(context.Context, Command) ([]byte, error) {
 	panic("git must not run for invalid source")
+}
+
+type discoveryLimitRunner struct {
+	revision       string
+	sawBoundedTree bool
+}
+
+func (runner *discoveryLimitRunner) Run(_ context.Context, command Command) ([]byte, error) {
+	for _, argument := range command.Args {
+		switch argument {
+		case "rev-parse":
+			return []byte(runner.revision + "\n"), nil
+		case "ls-tree":
+			runner.sawBoundedTree = command.MaxOutputBytes == maxGitHubDiscoveryMetadataBytes
+			return nil, processadapter.ErrStdoutLimitExceeded
+		}
+	}
+	return nil, nil
 }
 
 // localGitTestRunner keeps repository-fixture tests independent of host kernel
