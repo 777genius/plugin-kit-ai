@@ -147,6 +147,9 @@ test('logo thickness follows the viewing angle without extra animation loops', a
   const field = page.locator('.hero-agent-field');
   await expect(field).toHaveClass(/hero-agent-field--active/);
   await expect(field.locator('.hero-agent-field__rim')).toHaveCount(uniqueLogos.length * 4);
+  expect(await field.locator('.hero-agent-field__rotor').first().locator('.hero-agent-field__rim')
+    .evaluateAll((rims) => rims.map((rim) => new DOMMatrix(getComputedStyle(rim).transform).m43)))
+    .toEqual([-1.5, -3, -4.5, -6]);
   // Only the existing plane, track and counter-rotations animate, never individual slices.
   expect(await field.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(uniqueLogos.length + 3);
   const offsets: { x: number; y: number }[][] = [];
