@@ -70,7 +70,7 @@ verified once, then prepared for every agent you selected.
 3. Follow any activation or sign-in instruction printed by the CLI.
 4. Start a new agent session and use the plugin.
 
-[Browse 2,500+ plugins](https://777genius.github.io/universal-agent-plugins-registry/)
+[Browse 2,500+ plugins](https://777genius.github.io/universal-agent-plugins/plugins/)
 
 ## What the CLI does
 
@@ -130,7 +130,7 @@ publisher-qualified exact-SHA selector and are validated again before mutation.
 The registry is optional for direct installs, but it makes reviewed short names,
 provenance, compatibility notes, and safe discovery convenient:
 
-[Browse the registry](https://777genius.github.io/universal-agent-plugins-registry/) ·
+[Browse the registry](https://777genius.github.io/universal-agent-plugins/plugins/) ·
 [Submit a package](https://github.com/777genius/universal-agent-plugins-registry/blob/main/CONTRIBUTING.md)
 
 ## Lifecycle safety
