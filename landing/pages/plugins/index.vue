@@ -9,7 +9,7 @@ const reviewedPlugins = registry.plugins.filter(
   (plugin) => plugin.trust_state !== 'conformant_unreviewed',
 );
 
-usePageSeo('Agent Plugins Directory | Universal Agent Plugins', description, {
+usePageSeo('Agent Plugins 1.0 Directory | Search 2,500+ Plugins', description, {
   translate: false,
   pageType: 'CollectionPage',
   pageProperties: { mainEntity: { '@id': listId } },
@@ -36,7 +36,7 @@ usePageSeo('Agent Plugins Directory | Universal Agent Plugins', description, {
     <div class="container">
       <div class="page-intro">
         <p class="eyebrow">Plugin directory</p>
-        <h1>Find a plugin.<br ><em>Use it everywhere.</em></h1>
+        <h1>Find Agent Plugins 1.0.<br ><em>Use them everywhere.</em></h1>
         <p>
           Search reviewed packages and community plugins discovered from public GitHub repositories.
         </p>

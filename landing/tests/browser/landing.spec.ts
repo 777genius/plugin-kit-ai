@@ -48,7 +48,7 @@ test('homepage publishes canonical social metadata and complete product schema',
 }) => {
   const response = await page.goto('./');
   expect(response?.status()).toBe(200);
-  await expect(page).toHaveTitle('Universal Agent Plugins - Install Plugins Across AI Agents');
+  await expect(page).toHaveTitle('Universal Agent Plugins CLI | Install Agent Plugins 1.0');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',
     'https://777genius.github.io/universal-agent-plugins/',
@@ -75,13 +75,38 @@ test('homepage publishes canonical social metadata and complete product schema',
   );
   const software = graph.find((item) => item['@type'] === 'SoftwareApplication');
   expect(software?.offers).toEqual({ '@type': 'Offer', price: '0', priceCurrency: 'USD' });
+  expect(software?.installUrl).toBe('https://www.npmjs.com/package/universal-agent-plugins');
+  expect(software?.publisher).toEqual({
+    '@id': 'https://777genius.github.io/universal-agent-plugins/#organization',
+  });
   const faq = graph.find((item) => item['@type'] === 'FAQPage') as
     { mainEntity?: unknown[] } | undefined;
-  expect(faq?.mainEntity).toHaveLength(5);
+  expect(faq?.mainEntity).toHaveLength(6);
 
   const html = await response!.text();
   expect(html).toContain('rel="canonical"');
   expect(html).toContain('application/ld+json');
+});
+
+test('supported client links open crawlable client-specific landing pages', async ({ page }) => {
+  await page.goto('./');
+  await page.locator('.client-strip a[href$="/agents/codex"]').click();
+  await expect(page).toHaveURL(/\/agents\/codex\/?$/);
+  await expect(page).toHaveTitle('Agent Plugins for Codex | Universal Agent Plugins');
+  await expect(
+    page.getByRole('heading', { name: 'Install Agent Plugins for Codex', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://777genius.github.io/universal-agent-plugins/agents/codex/',
+  );
+  await expect(page.locator('.command-snippet')).toContainText(
+    'npx universal-agent-plugins add <plugin> --target codex',
+  );
+  const graph = await parseJsonLd(page);
+  expect(graph.map((item) => item['@type'])).toEqual(
+    expect.arrayContaining(['CollectionPage', 'ItemList', 'BreadcrumbList']),
+  );
 });
 
 test.describe('mobile navigation and catalog', () => {
@@ -209,6 +234,7 @@ test('sitemap lists only live canonical pages and unstable routes stay out of th
   expect(sitemap).not.toContain('<lastmod>');
   expect(sitemap).not.toContain('/plugins/community/');
   expect(sitemap).not.toContain('/create-plugin/');
+  expect(locations.filter((location) => location.includes('/agents/'))).toHaveLength(11);
 
   const prefix = '/universal-agent-plugins/';
   const statuses = await Promise.all(

@@ -38,6 +38,7 @@ type ProductSoftwareSchemaOptions = {
 
 export function productSoftwareSchema(options: ProductSoftwareSchemaOptions) {
   const siteUrl = options.siteUrl.replace(/\/+$/, '');
+  const npmUrl = 'https://www.npmjs.com/package/universal-agent-plugins';
   return {
     '@type': 'SoftwareApplication',
     '@id': `${siteUrl}/#software`,
@@ -55,8 +56,13 @@ export function productSoftwareSchema(options: ProductSoftwareSchemaOptions) {
       priceCurrency: 'USD',
     },
     downloadUrl: options.releasesUrl,
+    installUrl: npmUrl,
     softwareHelp: options.docsUrl,
+    softwareRequirements: 'Native CLI for macOS, Linux, and Windows; or Node.js 22+ for npx',
     codeRepository: options.githubUrl,
+    screenshot: `${siteUrl}/og-image.png`,
+    sameAs: [options.githubUrl, npmUrl],
+    publisher: { '@id': `${siteUrl}/#organization` },
     license: 'https://www.apache.org/licenses/LICENSE-2.0',
     featureList: 'Install, inspect, update, repair, switch source, and remove Agent Plugins 1.0',
   };

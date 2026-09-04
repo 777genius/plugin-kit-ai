@@ -91,7 +91,7 @@ function updateTargets(values: string[]) {
       <div class="hero__copy">
         <h1>One plugin<br ><em>All your agents</em></h1>
         <p class="hero__lead">
-          Install, update, repair, and remove Agent Plugins across supported AI agents with one
+          Install, update, repair, and remove Agent Plugins 1.0 across supported AI agents with one
           command. Let the CLI detect installed agents, or choose exactly where the plugin goes.
         </p>
         <div class="hero__actions">

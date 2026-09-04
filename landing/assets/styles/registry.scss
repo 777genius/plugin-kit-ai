@@ -786,6 +786,9 @@ img {
 }
 .client-strip li {
   min-width: 0;
+}
+
+.client-strip li > a {
   min-height: 72px;
   padding: 8px 4px;
   display: flex;
@@ -796,6 +799,16 @@ img {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 650;
+  text-decoration: none;
+  border-radius: 12px;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.client-strip li > a:hover {
+  transform: translateY(-2px);
+  background: rgba(0, 240, 255, 0.05);
 }
 .client-strip__icon {
   width: 35px;
@@ -2632,7 +2645,7 @@ img {
     width: 470px;
     opacity: 0.2;
   }
-  .client-strip li {
+  .client-strip li > a {
     min-height: 66px;
   }
   .how,
