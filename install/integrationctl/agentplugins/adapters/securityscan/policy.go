@@ -10,10 +10,11 @@ import (
 )
 
 // blockingRuleCodes is intentionally narrow and versioned. It contains
-// high-confidence behavior that can persist, execute remote content, damage the
-// host, or exfiltrate sensitive data. Other findings remain visible warnings.
+// high-confidence executable behavior that can persist, damage the host, or
+// exfiltrate sensitive data. Context-sensitive prose findings remain visible
+// warnings so that install confirmation is reserved for direct evidence.
 var blockingRuleCodes = map[string]struct{}{
-	"SEC102": {}, "SEC103": {}, "SEC330": {}, "SEC344": {},
+	"SEC103": {}, "SEC330": {}, "SEC344": {},
 	"SEC637": {}, "SEC640": {}, "SEC645": {}, "SEC648": {},
 	"SEC652": {}, "SEC653": {}, "SEC654": {}, "SEC658": {}, "SEC659": {}, "SEC660": {},
 	"SEC665": {}, "SEC666": {}, "SEC671": {}, "SEC672": {},
