@@ -41,6 +41,7 @@ type App struct {
 	SourceAcquirer      SourceAcquirer
 	PackageLoader       ports.PackageLoader
 	NativePackageLoader ports.PackageLoader
+	SecurityEvaluator   ports.PackageSecurityEvaluator
 	Lifecycle           usecase.Service
 	StateMigrator       *statemigration.Migrator
 	LegacyLifecycle     ports.LegacyLifecycle
@@ -59,6 +60,7 @@ type options struct {
 	noColor             bool
 	externalUninstalled bool
 	purgeData           bool
+	acceptSecurityRisk  bool
 }
 
 func (app App) input() io.Reader {
