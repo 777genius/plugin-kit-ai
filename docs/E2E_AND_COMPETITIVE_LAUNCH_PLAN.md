@@ -8,16 +8,17 @@ this page keeps the user-visible evidence and honest limits in one place.
 
 | Area | Evidence | Result |
 | --- | --- | --- |
-| CLI security source | `fbc9206bcf663c8b6d3e372736335dab58b46a4b` | Direct and signed-index security checks, including canonical policy identity, merged |
-| Security scanner | [`lintai v0.1.2`](https://github.com/777genius/lintai/releases/tag/v0.1.2), run `33935702746` | Agent Plugins 1.0 scan contract released for all supported platforms |
-| Native release | [`agentplugins-v0.1.48`](https://github.com/777genius/universal-agent-plugins/releases/tag/agentplugins-v0.1.48), run `33953877137` | Six platform builds and native runtime proofs passed |
-| npm release | [npm workflow `33954318627`](https://github.com/777genius/universal-agent-plugins/actions/runs/33954318627), attempt 2 | Trusted Publisher, provenance, signatures, and public verification passed |
-| Public package | `universal-agent-plugins@0.1.48` | `latest` points to `0.1.48` |
+| CLI security source | `0f8c4ecffe007b03d9fbc7f9bbbb20abd58a9b8a` | Exact signed-index reuse, local fallback scanning, policy v2, and low-noise terminal output merged |
+| Security scanner | [`lintai v0.1.3`](https://github.com/777genius/lintai/releases/tag/v0.1.3), run [`33974725553`](https://github.com/777genius/lintai/actions/runs/33974725553) | Agent Plugins 1.0 scan contract released for every CLI-supported platform; noisy path and remote-instruction matches narrowed |
+| Native release | [`agentplugins-v0.1.49`](https://github.com/777genius/universal-agent-plugins/releases/tag/agentplugins-v0.1.49), run [`33976776741`](https://github.com/777genius/universal-agent-plugins/actions/runs/33976776741) | Six platform builds and native runtime proofs passed |
+| npm release | [npm workflow `33977305945`](https://github.com/777genius/universal-agent-plugins/actions/runs/33977305945), attempt 2 | Trusted Publisher, provenance, signatures, and public verification passed |
+| Public package | `universal-agent-plugins@0.1.49` | `latest` points to `0.1.49` |
 | Lifecycle | Fresh GitHub-hosted sandbox in release CI | `add`, `info`, `update`, and `remove` passed for Codex, Cursor, and Kiro; OpenCode repair passed |
-| Public signed-index canary | `npx --yes universal-agent-plugins@0.1.48 add 'discovery:upstash/context7//plugins/agent-plugins/context7' --target codex --dry-run` | Exact signed assessment accepted; no local scanner was downloaded and no client files were changed |
-| Discovery | [sequence 37](https://777genius.github.io/universal-agent-plugins-registry/discovery/latest.json), run [`33950307791`](https://github.com/777genius/universal-agent-plugins-registry/actions/runs/33950307791), 3,024 records | Exact production verification passed; snapshot digest `sha256:d0dbc863741f57bbcfba51f1b00c3aabdc1dc75c0e2843433002cbcac9a7b5e1` |
-| Security Index | [sequence 2](https://777genius.github.io/universal-agent-plugins-registry/security/latest.json), run [`33954246330`](https://github.com/777genius/universal-agent-plugins-registry/actions/runs/33954246330), 2,754 subjects | 2,749 exact package revisions assessed with LintAI and signed independently; 5 acquisition or scan checks unavailable; snapshot digest `sha256:955a4089fd9c9e19fbdaf34662bfa13121d0f1dc8538e9eef0dae6c256b3cb92` |
-| Product site | main `aa6f627c6890963c3bafdcc15b1d5342281c097a`, [PR #144](https://github.com/777genius/universal-agent-plugins/pull/144), [Pages run `33955933096`](https://github.com/777genius/universal-agent-plugins/actions/runs/33955933096) | Signed Security sequence 2 mirrored byte-exactly; search, package pages, and exact-match labels passed Chromium E2E; 90 same-origin production assets returned without 4xx |
+| Public warning canary | `npx --yes universal-agent-plugins@0.1.49 add /path/to/disposable-fixture --target codex --dry-run` | Four non-blocking findings returned exit 0 without a confirmation prompt; the default showed three notes plus one hidden count, while `--security-details` showed all four; no client files were changed |
+| Public signed-index canary | `npx --yes universal-agent-plugins@0.1.49 add 'discovery:upstash/context7//plugins/agent-plugins/context7' --target codex --dry-run` | Exact public Context7 revision passed in a fresh disposable home after sequence 4 reached the product mirror; no LintAI binary was downloaded and no client files were changed |
+| Discovery | [sequence 38](https://777genius.github.io/universal-agent-plugins-registry/discovery/latest.json), run [`33966346960`](https://github.com/777genius/universal-agent-plugins-registry/actions/runs/33966346960), 3,024 records | Exact production verification passed; snapshot digest `sha256:9d29e278406b2f10cfbf632ab538bbc675aaeb7f38d0b3bd31dc64409fea96c7` |
+| Security Index | [sequence 4](https://777genius.github.io/universal-agent-plugins-registry/security/latest.json), run [`33975646164`](https://github.com/777genius/universal-agent-plugins-registry/actions/runs/33975646164), 2,752 subjects | 2,747 exact package revisions assessed with LintAI 0.1.3 and policy v2; 5 acquisition or scan checks unavailable; 2,366 have no blocking finding, 381 have warnings, and none are classified as blocking; snapshot digest `sha256:b41e8cd7ae9aaf5f630fcb5bda9bec7f7cb815abc0b758a6f0f40fc9b8c8161b` |
+| Product site | main `0f8c4ecffe007b03d9fbc7f9bbbb20abd58a9b8a`, [Pages run `33981055844`](https://github.com/777genius/universal-agent-plugins/actions/runs/33981055844) | Signed Security sequence 4 mirrored byte-exactly; the user-facing security labels and `One standard` / `Native delivery` heading are live |
 
 The npm package is published by GitHub Actions with npm Trusted Publisher
 provenance. No long-lived npm token is required by the release workflow.
@@ -31,9 +32,14 @@ The CLI evaluates an acquired package before changing any managed client files:
 2. Otherwise it runs the pinned LintAI release in the isolated staging tree.
 3. The result is cached by that same exact identity. A package, scanner, or
    policy change invalidates the cache.
-4. Warnings are displayed without an extra prompt. Blocking findings stop
-   non-interactive installation unless `--accept-security-risk` is explicit;
-   an interactive terminal asks for confirmation and defaults to no.
+4. Non-blocking findings never add a confirmation prompt. The default output
+   shows at most three install-relevant notes and summarizes hidden details;
+   `--security-details` is available for a full audit view. Repository-only
+   maintenance notes such as GitHub Actions pinning stay out of the normal
+   installation path.
+5. Blocking findings stop non-interactive installation unless
+   `--accept-security-risk` is explicit; an interactive terminal asks for
+   confirmation and defaults to no.
 
 The signed Security Index is a separate, optional feed. An unavailable,
 expired, stale, malformed, or mismatched feed cannot bypass the local scan. A
@@ -54,11 +60,11 @@ user choose one or several. Target-specific automation can use
 
 The exact CI evidence is available from the repositories:
 
-- [native release run 33953877137](https://github.com/777genius/universal-agent-plugins/actions/runs/33953877137)
-- [npm publish run 33954318627](https://github.com/777genius/universal-agent-plugins/actions/runs/33954318627)
-- [LintAI release run 33935702746](https://github.com/777genius/lintai/actions/runs/33935702746)
-- [Discovery sequence 37](https://777genius.github.io/universal-agent-plugins-registry/discovery/latest.json)
-- [Security sequence 2](https://777genius.github.io/universal-agent-plugins-registry/security/latest.json)
+- [native release run 33976776741](https://github.com/777genius/universal-agent-plugins/actions/runs/33976776741)
+- [npm publish run 33977305945](https://github.com/777genius/universal-agent-plugins/actions/runs/33977305945)
+- [LintAI release run 33974725553](https://github.com/777genius/lintai/actions/runs/33974725553)
+- [Discovery sequence 38](https://777genius.github.io/universal-agent-plugins-registry/discovery/latest.json)
+- [Security sequence 4](https://777genius.github.io/universal-agent-plugins-registry/security/latest.json)
 - [public Directory](https://777genius.github.io/universal-agent-plugins-registry/)
 - [public product site with the verified feed mirror](https://777genius.github.io/universal-agent-plugins/)
 
