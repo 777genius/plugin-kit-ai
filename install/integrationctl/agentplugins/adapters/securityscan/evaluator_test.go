@@ -160,6 +160,34 @@ func TestEvaluatorRejectsStaleTrustedEvidenceAndRescans(t *testing.T) {
 	}
 }
 
+func TestEvaluatorAcceptsOnlyExactTrustedEvidenceWithoutScanning(t *testing.T) {
+	requirement := DefaultRequirement()
+	trusted := domain.SecurityAssessment{
+		SchemaVersion: domain.SecurityReportSchemaVersion,
+		Subject:       domain.SecuritySubject{TreeDigest: testTreeDigest, ManifestDigest: testManifestDigest},
+		Scanner:       requirement.Scanner,
+		Policy:        requirement.Policy,
+		Outcome:       domain.SecurityWarnings,
+		Counts:        domain.SecurityCounts{Warnings: 1, Total: 1},
+		ScannedFiles:  2,
+		ReportDigest:  testTreeDigest,
+		Findings: []domain.SecurityFinding{{
+			Code: "SEC301", Disposition: "warning", Severity: "warn", Confidence: "high",
+			Category: "security", Path: "mcp.json", Message: "review endpoint",
+		}},
+	}
+	scanner := &scannerStub{body: reportJSON(t, nil)}
+	result, err := (Evaluator{Scanner: scanner, Requirement: requirement}).Evaluate(context.Background(), domain.SecurityEvaluationInput{
+		SnapshotRoot: t.TempDir(), TreeDigest: testTreeDigest, ManifestDigest: testManifestDigest, Trusted: &trusted,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scanner.calls != 0 || result.Evidence != domain.SecurityEvidenceSignedIndex || result.ReportDigest != trusted.ReportDigest {
+		t.Fatalf("exact trusted evidence was not reused: calls=%d result=%+v", scanner.calls, result)
+	}
+}
+
 func reportJSON(t *testing.T, findings []map[string]any) []byte {
 	t.Helper()
 	if findings == nil {

@@ -565,8 +565,17 @@ func (app App) loadSnapshot(ctx context.Context, snapshot domain.PackageSnapshot
 	}
 	var assessment *domain.SecurityAssessment
 	if app.SecurityEvaluator != nil && envelope.FormatID == domain.FormatIDAgentPluginsV1 {
+		var trusted *domain.SecurityAssessment
+		if app.SecurityIndex != nil {
+			// The signed index is an optimization, not an availability dependency.
+			// Any fetch, signature, expiry, version, or subject mismatch falls back
+			// to the pinned local scanner before mutation.
+			trusted, _ = app.SecurityIndex.Lookup(ctx, domain.SecuritySubject{
+				TreeDigest: envelope.TreeDigest, ManifestDigest: envelope.ManifestDigest,
+			})
+		}
 		result, securityErr := app.SecurityEvaluator.Evaluate(ctx, domain.SecurityEvaluationInput{
-			SnapshotRoot: snapshot.Root, TreeDigest: envelope.TreeDigest, ManifestDigest: envelope.ManifestDigest,
+			SnapshotRoot: snapshot.Root, TreeDigest: envelope.TreeDigest, ManifestDigest: envelope.ManifestDigest, Trusted: trusted,
 		})
 		if securityErr != nil {
 			return fail(fmt.Errorf("security assessment failed before installation: %w", securityErr))
