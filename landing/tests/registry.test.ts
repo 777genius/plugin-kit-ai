@@ -73,15 +73,32 @@ describe('unified registry landing', () => {
     assert.match(pluginCommands(plugin, ['codex', 'cursor']).add, / --target codex,cursor$/);
   });
 
-  it('gives every reviewed plugin a local logo', () => {
+  it('uses only real local plugin or publisher logos without a generic fallback', () => {
     for (const plugin of registry.plugins) {
       const iconPath = mirroredIconPath(plugin);
-      assert.ok(iconPath, `${plugin.name} must have a local logo`);
+      if (!iconPath) continue;
       assert.doesNotThrow(
         () => readFileSync(resolve(root, 'public', iconPath)),
         `${plugin.name} logo must exist`,
       );
     }
+
+    assert.equal(
+      mirroredIconPath(registry.plugins.find((plugin) => plugin.name === 'agent-code-navigator')!),
+      undefined,
+    );
+    assert.equal(
+      mirroredIconPath(registry.plugins.find((plugin) => plugin.name === 'statsig')!),
+      undefined,
+    );
+    assert.equal(
+      mirroredIconPath(registry.plugins.find((plugin) => plugin.name === 'cloudflare-docs')!),
+      'plugin-icons/cloudflare.svg',
+    );
+    assert.equal(
+      mirroredIconPath(registry.plugins.find((plugin) => plugin.name === 'heroku')!),
+      'plugin-icons/heroku.svg',
+    );
   });
 
   it('keeps reviewed results ahead of automatic discovery', () => {

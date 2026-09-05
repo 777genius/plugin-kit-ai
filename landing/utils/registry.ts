@@ -1122,9 +1122,8 @@ export function mirroredIconPath(plugin: RegistryPlugin): string | undefined {
   if (filename === 'heroku.png') return 'plugin-icons/heroku.svg';
   if (filename?.endsWith('.svg')) return `plugin-icons/${filename}`;
 
-  // Reviewed packages always receive a local, controlled identity. Reuse the
-  // publisher mark for Cloudflare's product family and the UAP mark as the
-  // honest fallback until a package-specific asset is added to the Directory.
+  // Reuse Cloudflare's publisher mark for its product family. Other packages
+  // stay iconless unless the Directory owns a real package or publisher logo.
   if (plugin.name.startsWith('cloudflare-')) return 'plugin-icons/cloudflare.svg';
-  return 'icon.svg';
+  return undefined;
 }
