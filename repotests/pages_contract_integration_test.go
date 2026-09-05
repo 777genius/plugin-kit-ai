@@ -21,6 +21,7 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 	mustContain(t, workflow, "DOCS_BASE_PATH: /universal-agent-plugins/docs/")
 	mustContain(t, workflow, "go run ./cmd/agentplugins-registry-mirror")
 	mustContain(t, workflow, "MIRROR_METADATA.json")
+	mustContain(t, workflow, "uap-registry-mirror")
 	mustContain(t, workflow, "777genius/universal-agent-plugins-registry")
 	mustContain(t, workflow, "pnpm run build:pages")
 	mustContain(t, workflow, "path: .pages-dist")
@@ -74,6 +75,15 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 	mustContain(t, nuxtConfig, `'/plugins'`)
 	mustContain(t, nuxtConfig, "`/plugins/${plugin.name}`")
 	mustContain(t, nuxtConfig, `const sitemapRoutes =`)
+
+	mirrorBody, err := os.ReadFile(filepath.Join(root, "cmd", "agentplugins-registry-mirror", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mirror := string(mirrorBody)
+	mustContain(t, mirror, `"security/latest.json"`)
+	mustContain(t, mirror, `securityv1.Verify`)
+	mustContain(t, mirror, `Security sequence has conflicting authenticated bytes`)
 
 	pluginDetailPageBody, err := os.ReadFile(filepath.Join(root, "landing", "pages", "plugins", "[slug].vue"))
 	if err != nil {

@@ -1,5 +1,6 @@
-// Command agentplugins-registry-mirror verifies the signed public Directory and
-// Discovery feeds, then copies their byte-exact artifacts into a staging tree.
+// Command agentplugins-registry-mirror verifies the signed public Directory,
+// Discovery, and Security feeds, then copies their byte-exact artifacts into a
+// staging tree.
 // It is intentionally a build-time tool: it never signs, executes, or mutates
 // an installed client configuration.
 package main
@@ -7,6 +8,7 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -24,6 +26,7 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/discoveryv1"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/securityv1"
 )
 
 const (
@@ -56,6 +59,9 @@ type mirrorMetadata struct {
 	DiscoverySequence  uint64 `json:"discovery_sequence"`
 	DiscoveryDigest    string `json:"discovery_digest"`
 	DiscoveryCommit    string `json:"discovery_source_commit"`
+	SecuritySequence   uint64 `json:"security_sequence"`
+	SecurityDigest     string `json:"security_digest"`
+	SecurityCommit     string `json:"security_source_commit"`
 	GeneratedFiles     int    `json:"generated_files"`
 }
 
@@ -96,6 +102,10 @@ func run(registry, origin, output, previous string) error {
 	if err != nil {
 		return fmt.Errorf("discovery: %w", err)
 	}
+	security, err := fetchSecurity(client, base, registry)
+	if err != nil {
+		return fmt.Errorf("security: %w", err)
+	}
 	metadata := mirrorMetadata{
 		SchemaVersion:      1,
 		RegistryRepository: registry,
@@ -105,6 +115,9 @@ func run(registry, origin, output, previous string) error {
 		DiscoverySequence:  discovery.bundle.Snapshot.Sequence,
 		DiscoveryDigest:    discovery.bundle.Digest,
 		DiscoveryCommit:    discovery.bundle.Snapshot.SourceCommit,
+		SecuritySequence:   security.snapshot.Sequence,
+		SecurityDigest:     security.digest,
+		SecurityCommit:     security.snapshot.SourceCommit,
 		GeneratedFiles:     0,
 	}
 	if previous != "" {
@@ -120,7 +133,7 @@ func run(registry, origin, output, previous string) error {
 	if err := os.MkdirAll(stage, 0o755); err != nil {
 		return fmt.Errorf("create staging directory: %w", err)
 	}
-	files := stagedFiles(directory, discovery)
+	files := stagedFiles(directory, discovery, security)
 	for _, file := range files {
 		if err := writeStaged(stage, file.rel, file.body); err != nil {
 			return err
@@ -143,7 +156,7 @@ func run(registry, origin, output, previous string) error {
 	if err := os.Rename(stage, output); err != nil {
 		return fmt.Errorf("publish staging tree: %w", err)
 	}
-	fmt.Printf("verified Directory seq %d and Discovery seq %d; mirrored %d files to %s\n", metadata.DirectorySequence, metadata.DiscoverySequence, metadata.GeneratedFiles, output)
+	fmt.Printf("verified Directory seq %d, Discovery seq %d, and Security seq %d; mirrored %d files to %s\n", metadata.DirectorySequence, metadata.DiscoverySequence, metadata.SecuritySequence, metadata.GeneratedFiles, output)
 	return nil
 }
 
@@ -152,7 +165,7 @@ type mirrorFile struct {
 	body []byte
 }
 
-func stagedFiles(directory directoryResult, discovery discoveryResult) []mirrorFile {
+func stagedFiles(directory directoryResult, discovery discoveryResult, security securityResult) []mirrorFile {
 	return []mirrorFile{
 		{rel: "registry/schemas/1/latest.json", body: directory.pointerBytes},
 		{rel: "registry/schemas/1/snapshots/" + directory.stem + ".json", body: directory.snapshotBytes},
@@ -163,6 +176,9 @@ func stagedFiles(directory directoryResult, discovery discoveryResult) []mirrorF
 		{rel: "discovery/snapshots/" + discovery.stem + ".envelope.json", body: discovery.envelopeBytes},
 		{rel: "discovery/search/" + discovery.stem + ".json", body: discovery.searchBytes},
 		{rel: "discovery/trusted-keys.json", body: discovery.trustBytes},
+		{rel: "security/latest.json", body: security.pointerBytes},
+		{rel: "security/snapshots/" + security.stem + ".json", body: security.snapshotBytes},
+		{rel: "security/snapshots/" + security.stem + ".envelope.json", body: security.envelopeBytes},
 	}
 }
 
@@ -268,6 +284,72 @@ func parseDiscoverySnapshot(body []byte) (discoveryv1.Snapshot, error) {
 	return snapshot, nil
 }
 
+type securityResult struct {
+	pointerBytes, snapshotBytes, envelopeBytes []byte
+	stem                                       string
+	digest                                     string
+	snapshot                                   securityv1.Snapshot
+}
+
+func fetchSecurity(client *http.Client, base *url.URL, registry string) (securityResult, error) {
+	pointerBytes, err := get(client, base.ResolveReference(&url.URL{Path: "security/latest.json"}).String(), securityv1.MaxLatestBytes)
+	if err != nil {
+		return securityResult{}, err
+	}
+	pointer, err := securityv1.ParsePointer(pointerBytes)
+	if err != nil {
+		return securityResult{}, err
+	}
+	getArtifact := func(relative string, limit int) ([]byte, error) {
+		return get(client, base.ResolveReference(&url.URL{Path: "security/" + relative}).String(), limit)
+	}
+	snapshotBytes, err := getArtifact(pointer.SnapshotPath, pointer.FetchContract.SnapshotMaxBytes)
+	if err != nil {
+		return securityResult{}, err
+	}
+	envelopeBytes, err := getArtifact(pointer.EnvelopePath, pointer.FetchContract.EnvelopeMaxBytes)
+	if err != nil {
+		return securityResult{}, err
+	}
+	snapshotIdentity, err := parseSecuritySnapshot(snapshotBytes)
+	if err != nil {
+		return securityResult{}, err
+	}
+	trust, err := fetchSecurityTrust(registry, snapshotIdentity.SourceCommit)
+	if err != nil {
+		return securityResult{}, err
+	}
+	snapshot, err := securityv1.Verify(pointerBytes, snapshotBytes, envelopeBytes, trust)
+	if err != nil {
+		return securityResult{}, err
+	}
+	if err := securityv1.ValidityError(snapshot, time.Now().UTC()); err != nil {
+		return securityResult{}, err
+	}
+	digest := sha256.Sum256(snapshotBytes)
+	return securityResult{
+		pointerBytes:  pointerBytes,
+		snapshotBytes: snapshotBytes,
+		envelopeBytes: envelopeBytes,
+		stem:          fmt.Sprintf("%020d", pointer.Sequence),
+		digest:        fmt.Sprintf("sha256:%x", digest[:]),
+		snapshot:      snapshot,
+	}, nil
+}
+
+func parseSecuritySnapshot(body []byte) (securityv1.Snapshot, error) {
+	// Verify performs the full strict schema check after the source commit has
+	// selected the immutable trust document.
+	var snapshot securityv1.Snapshot
+	if err := json.Unmarshal(body, &snapshot); err != nil {
+		return snapshot, err
+	}
+	if !shaPattern.MatchString(snapshot.SourceCommit) {
+		return snapshot, fmt.Errorf("malformed source_commit %q", snapshot.SourceCommit)
+	}
+	return snapshot, nil
+}
+
 func fetchTrustBytes(registry, revision, relative string) ([]byte, trustedKeysDocument, error) {
 	if !shaPattern.MatchString(revision) {
 		return nil, trustedKeysDocument{}, fmt.Errorf("invalid trust revision %q", revision)
@@ -351,6 +433,24 @@ func fetchDiscoveryTrust(registry, revision string) ([]byte, discoveryv1.TrustSt
 		return nil, discoveryv1.TrustStore{}, errors.New("Discovery trust document is not anchored to the release bootstrap key")
 	}
 	return body, discoveryv1.TrustStore{Keys: keys}, nil
+}
+
+func fetchSecurityTrust(registry, revision string) (securityv1.TrustStore, error) {
+	_, document, err := fetchTrustBytes(registry, revision, "registry/discovery/trusted-keys.json")
+	if err != nil {
+		return securityv1.TrustStore{}, err
+	}
+	for _, item := range document.Keys {
+		if item.ID != discoveryKeyID || item.PublicKey != discoveryPublicKey || (item.State != "" && item.State != "current") {
+			continue
+		}
+		raw, err := base64.StdEncoding.Strict().DecodeString(item.PublicKey)
+		if err != nil || len(raw) != ed25519.PublicKeySize {
+			return securityv1.TrustStore{}, fmt.Errorf("invalid public key for %q", item.ID)
+		}
+		return securityv1.TrustStore{KeyID: item.ID, PublicKey: ed25519.PublicKey(raw)}, nil
+	}
+	return securityv1.TrustStore{}, errors.New("Security trust document is not anchored to the current release bootstrap key")
 }
 
 func strictDecode(body []byte, destination any) error {
@@ -538,14 +638,17 @@ func enforceMonotonic(previousPath string, candidate mirrorMetadata) error {
 	if previous.RegistryRepository != "" && previous.RegistryRepository != candidate.RegistryRepository {
 		return fmt.Errorf("candidate registry %q differs from previous marker %q", candidate.RegistryRepository, previous.RegistryRepository)
 	}
-	if candidate.DirectorySequence < previous.DirectorySequence || candidate.DiscoverySequence < previous.DiscoverySequence {
-		return fmt.Errorf("candidate feed regresses previous marker (directory %d/%d, discovery %d/%d)", candidate.DirectorySequence, previous.DirectorySequence, candidate.DiscoverySequence, previous.DiscoverySequence)
+	if candidate.DirectorySequence < previous.DirectorySequence || candidate.DiscoverySequence < previous.DiscoverySequence || candidate.SecuritySequence < previous.SecuritySequence {
+		return fmt.Errorf("candidate feed regresses previous marker (directory %d/%d, discovery %d/%d, security %d/%d)", candidate.DirectorySequence, previous.DirectorySequence, candidate.DiscoverySequence, previous.DiscoverySequence, candidate.SecuritySequence, previous.SecuritySequence)
 	}
 	if candidate.DirectorySequence == previous.DirectorySequence && candidate.DirectoryDigest != previous.DirectoryDigest {
 		return errors.New("Directory sequence has conflicting authenticated bytes")
 	}
 	if candidate.DiscoverySequence == previous.DiscoverySequence && candidate.DiscoveryDigest != previous.DiscoveryDigest {
 		return errors.New("Discovery sequence has conflicting authenticated bytes")
+	}
+	if previous.SecuritySequence > 0 && candidate.SecuritySequence == previous.SecuritySequence && candidate.SecurityDigest != previous.SecurityDigest {
+		return errors.New("Security sequence has conflicting authenticated bytes")
 	}
 	return nil
 }
