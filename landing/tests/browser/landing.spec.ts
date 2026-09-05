@@ -50,6 +50,12 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   await expect(page.locator('.client-strip li')).toHaveCount(11);
   await expect(page.getByRole('contentinfo')).toHaveCount(1);
   await expect(page.locator('.plugin-card').first()).toBeVisible();
+  const securityBadge = page.locator('.plugin-card__security').first();
+  await expect(securityBadge).toBeVisible({ timeout: 15_000 });
+  await expect(securityBadge).toContainText(
+    /Automated checks: (?:no blocking findings|warnings found|blocking findings)/,
+  );
+  await expect(page.getByText(/guarantee of safety/i)).toHaveCount(0);
   await expect(page.locator('.catalog-count')).toContainText(/[2-9]\d{3} plugins/, {
     timeout: 15_000,
   });

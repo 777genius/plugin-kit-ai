@@ -7,19 +7,29 @@ import type {
   DiscoverySnapshot,
 } from '../types/discovery';
 import type { ClientID, ComponentID, RegistryPlugin } from '../types/registry';
+import {
+  assertExactKeys,
+  bytesEqual,
+  canonicalJSON,
+  decodeBase64,
+  encodeBase64,
+  fetchSignedArtifact,
+  parseCanonicalJSON,
+  parseUTCTimestamp,
+  sha256Digest,
+  signedMessage,
+  type ArtifactResponse,
+} from './signedFeed.ts';
 
-const signatureDomain = 'UAP-DISCOVERY-INDEX-ED25519-V1\0';
+const signatureDomain = 'UAP-DISCOVERY-INDEX-ED25519-V1';
 const digestPattern = /^sha256:[0-9a-f]{64}$/;
 const revisionPattern = /^[0-9a-f]{40}$/;
-const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const repositoryPattern = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9._-]*$/;
 const packagePathPattern = /^(?:|[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)$/;
 // Unreviewed Discovery metadata cannot assert the registered app binding that
 // ChatGPT requires. Reviewed Directory products add ChatGPT independently.
 const clientOrder: ClientID[] = ['codex', 'cursor', 'copilot', 'vscode', 'kiro'];
 const transportOrder = ['sse', 'stdio', 'streamable-http'];
-const encoder = new TextEncoder();
-const decoder = new TextDecoder('utf-8', { fatal: true });
 
 type ArtifactName = keyof DiscoveryBundle['bytes'];
 
@@ -106,10 +116,11 @@ export async function loadDiscovery(options: DiscoveryLoadOptions): Promise<Disc
         () => undefined,
       )
     : undefined;
-  const pointerResponse = await fetchArtifact(
+  const pointerResponse = await fetchSignedArtifact(
     new URL('latest.json', options.origin),
     16 << 10,
     fetcher,
+    'Discovery',
     cachedRaw?.etags.pointer,
   ).catch((error: unknown) => ({ error }));
 
@@ -137,10 +148,11 @@ export async function loadDiscovery(options: DiscoveryLoadOptions): Promise<Disc
     ];
     const loaded = await Promise.all(
       artifactSpecs.map(async ([name, path, maximum]) => {
-        const response = await fetchArtifact(
+        const response = await fetchSignedArtifact(
           new URL(path, options.origin),
           maximum,
           fetcher,
+          'Discovery',
           undefined,
         );
         if (response.notModified) throw new Error(`Discovery ${name} returned an unexpected 304`);
@@ -180,9 +192,9 @@ export async function verifyDiscovery(
   now = new Date(),
 ): Promise<DiscoveryBundle> {
   const pointer = parsePointer(bytes.pointer);
-  const envelope = parseCanonical<DiscoveryEnvelope>(bytes.envelope, 'envelope');
-  const snapshot = parseCanonical<DiscoverySnapshot>(bytes.snapshot, 'snapshot');
-  const search = parseCanonical<DiscoverySearch>(bytes.search, 'search');
+  const envelope = parseCanonicalJSON<DiscoveryEnvelope>(bytes.envelope, 'Discovery', 'envelope');
+  const snapshot = parseCanonicalJSON<DiscoverySnapshot>(bytes.snapshot, 'Discovery', 'snapshot');
+  const search = parseCanonicalJSON<DiscoverySearch>(bytes.search, 'Discovery', 'search');
   assertEnvelope(envelope, trust);
   assertSnapshot(snapshot);
   assertSearch(search);
@@ -206,8 +218,8 @@ export async function verifyDiscovery(
     throw new Error('Discovery record count mismatch');
   }
   if (
-    (await sha256(bytes.snapshot)) !== envelope.snapshot_digest ||
-    (await sha256(bytes.search)) !== snapshot.search_projection.digest
+    (await sha256Digest(bytes.snapshot)) !== envelope.snapshot_digest ||
+    (await sha256Digest(bytes.search)) !== snapshot.search_projection.digest
   ) {
     throw new Error('Discovery digest mismatch');
   }
@@ -218,7 +230,7 @@ export async function verifyDiscovery(
   const key = await crypto.subtle.importKey('raw', publicKey, { name: 'Ed25519' }, false, [
     'verify',
   ]);
-  if (!(await crypto.subtle.verify('Ed25519', key, signature, signatureMessage(bytes.snapshot)))) {
+  if (!(await crypto.subtle.verify('Ed25519', key, signature, signedMessage(signatureDomain, bytes.snapshot)))) {
     throw new Error('Discovery signature is invalid');
   }
   for (let index = 0; index < snapshot.records.length; index += 1) {
@@ -228,11 +240,11 @@ export async function verifyDiscovery(
       last_seen: _lastSeen,
       ...compact
     } = snapshot.records[index]!;
-    if (canonicalValue(compact) !== canonicalValue(search.records[index]))
+    if (canonicalJSON(compact, 'Discovery') !== canonicalJSON(search.records[index], 'Discovery'))
       throw new Error('Discovery search record mismatch');
   }
-  const generated = parseTimestamp(snapshot.generated_at);
-  const expires = parseTimestamp(snapshot.expires_at);
+  const generated = parseUTCTimestamp(snapshot.generated_at, 'Discovery');
+  const expires = parseUTCTimestamp(snapshot.expires_at, 'Discovery');
   if (now.getTime() < generated.getTime())
     throw new Error('Discovery local clock is before generation time');
   if (now.getTime() >= expires.getTime()) throw new Error('Discovery snapshot is stale');
@@ -341,41 +353,9 @@ export function discoveryPlugin(
   };
 }
 
-interface ArtifactResponse {
-  bytes: Uint8Array;
-  etag?: string;
-  notModified: boolean;
-}
-
-async function fetchArtifact(
-  url: URL,
-  maximum: number,
-  fetcher: typeof fetch,
-  etag?: string,
-): Promise<ArtifactResponse> {
-  const headers = new Headers({ accept: 'application/json' });
-  if (etag) headers.set('if-none-match', etag);
-  const response = await fetcher(url, {
-    cache: 'no-cache',
-    credentials: 'omit',
-    headers,
-    redirect: 'error',
-  });
-  if (response.status === 304) return { bytes: new Uint8Array(), etag, notModified: true };
-  if (!response.ok || (response.url && new URL(response.url).origin !== url.origin))
-    throw new Error(`Discovery request failed with HTTP ${response.status}`);
-  const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > maximum)
-    throw new Error('Discovery response exceeds its size limit');
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (!bytes.length || bytes.length > maximum)
-    throw new Error('Discovery response exceeds its size limit');
-  return { bytes, etag: response.headers.get('etag') ?? undefined, notModified: false };
-}
-
 function parsePointer(bytes: Uint8Array): DiscoveryPointer {
-  const value = parseCanonical<DiscoveryPointer>(bytes, 'pointer');
-  assertKeys(
+  const value = parseCanonicalJSON<DiscoveryPointer>(bytes, 'Discovery', 'pointer');
+  assertExactKeys(
     value,
     [
       'pointer_schema_version',
@@ -386,9 +366,10 @@ function parsePointer(bytes: Uint8Array): DiscoveryPointer {
       'search_path',
       'fetch_contract',
     ],
+    'Discovery',
     'pointer',
   );
-  assertKeys(
+  assertExactKeys(
     value.fetch_contract,
     [
       'max_redirects',
@@ -398,6 +379,7 @@ function parsePointer(bytes: Uint8Array): DiscoveryPointer {
       'search_max_bytes',
       'retry_attempts',
     ],
+    'Discovery',
     'fetch contract',
   );
   requirePublicSequence(value.sequence, 'pointer');
@@ -427,7 +409,7 @@ function parsePointer(bytes: Uint8Array): DiscoveryPointer {
 }
 
 function assertEnvelope(value: DiscoveryEnvelope, trust: DiscoveryTrust) {
-  assertKeys(
+  assertExactKeys(
     value,
     [
       'envelope_schema_version',
@@ -439,6 +421,7 @@ function assertEnvelope(value: DiscoveryEnvelope, trust: DiscoveryTrust) {
       'snapshot_digest',
       'signature',
     ],
+    'Discovery',
     'envelope',
   );
   requirePublicSequence(value.sequence, 'envelope');
@@ -456,7 +439,7 @@ function assertEnvelope(value: DiscoveryEnvelope, trust: DiscoveryTrust) {
 }
 
 function assertSnapshot(value: DiscoverySnapshot) {
-  assertKeys(
+  assertExactKeys(
     value,
     [
       'discovery_schema_version',
@@ -471,9 +454,15 @@ function assertSnapshot(value: DiscoverySnapshot) {
       'search_projection',
       'records',
     ],
+    'Discovery',
     'snapshot',
   );
-  assertKeys(value.search_projection, ['path', 'digest', 'record_count'], 'search projection');
+  assertExactKeys(
+    value.search_projection,
+    ['path', 'digest', 'record_count'],
+    'Discovery',
+    'search projection',
+  );
   requirePublicSequence(value.sequence, 'snapshot');
   if (
     value.discovery_schema_version !== 1 ||
@@ -487,12 +476,17 @@ function assertSnapshot(value: DiscoverySnapshot) {
     value.records.length > 10_000
   )
     throw new Error('Discovery snapshot is invalid');
-  const generated = parseTimestamp(value.generated_at);
-  const expires = parseTimestamp(value.expires_at);
+  const generated = parseUTCTimestamp(value.generated_at, 'Discovery');
+  const expires = parseUTCTimestamp(value.expires_at, 'Discovery');
   if (expires <= generated || expires.getTime() - generated.getTime() > 7 * 86_400_000)
     throw new Error('Discovery lifetime is invalid');
   value.partitions.forEach((partition) => {
-    assertKeys(partition, ['query', 'size_min', 'size_max', 'total_count'], 'partition');
+    assertExactKeys(
+      partition,
+      ['query', 'size_min', 'size_max', 'total_count'],
+      'Discovery',
+      'partition',
+    );
     if (
       !partition.query ||
       !integer(partition.size_min) ||
@@ -510,12 +504,17 @@ function assertSnapshot(value: DiscoverySnapshot) {
 }
 
 function assertSearch(value: DiscoverySearch) {
-  assertKeys(value, ['search_schema_version', 'sequence', 'generated_at', 'records'], 'search');
+  assertExactKeys(
+    value,
+    ['search_schema_version', 'sequence', 'generated_at', 'records'],
+    'Discovery',
+    'search',
+  );
   requirePublicSequence(value.sequence, 'search');
   if (value.search_schema_version !== 1 || value.records.length > 10_000) {
     throw new Error('Discovery search projection is invalid');
   }
-  assertRecords(value.records, false, parseTimestamp(value.generated_at));
+  assertRecords(value.records, false, parseUTCTimestamp(value.generated_at, 'Discovery'));
 }
 
 function assertRecords(records: DiscoveryRecord[], full: boolean, generated: Date) {
@@ -547,12 +546,18 @@ function assertRecords(records: DiscoveryRecord[], full: boolean, generated: Dat
       'reviewed_distribution_id',
       'availability',
     ];
-    assertKeys(
+    assertExactKeys(
       record,
       full ? [...commonFields, 'author', 'first_seen', 'last_seen'] : commonFields,
+      'Discovery',
       'record',
     );
-    assertKeys(record.components, ['extensions', 'mcp', 'skills'], 'components');
+    assertExactKeys(
+      record.components,
+      ['extensions', 'mcp', 'skills'],
+      'Discovery',
+      'components',
+    );
     if (full && record.author) {
       const authorKeys = Object.keys(record.author);
       if (
@@ -594,10 +599,10 @@ function assertRecords(records: DiscoveryRecord[], full: boolean, generated: Dat
       !['not_required', 'required', 'unknown'].includes(record.authentication)
     )
       throw new Error(`Discovery record ${record.slug} is invalid`);
-    parseTimestamp(record.repository_updated_at);
+    parseUTCTimestamp(record.repository_updated_at, 'Discovery');
     if (full) {
-      const first = parseTimestamp(record.first_seen ?? '');
-      const last = parseTimestamp(record.last_seen ?? '');
+      const first = parseUTCTimestamp(record.first_seen ?? '', 'Discovery');
+      const last = parseUTCTimestamp(record.last_seen ?? '', 'Discovery');
       if (first > last || last > generated || (record.author && !record.author.name.trim()))
         throw new Error('Discovery seen interval is invalid');
     } else if (
@@ -611,73 +616,6 @@ function assertRecords(records: DiscoveryRecord[], full: boolean, generated: Dat
     slugs.add(record.slug);
     prior = order;
   });
-}
-
-function parseCanonical<T>(bytes: Uint8Array, label: string): T {
-  const text = decoder.decode(bytes);
-  const value = JSON.parse(text) as T;
-  if (canonicalValue(value) !== text) throw new Error(`Discovery ${label} is not canonical JSON`);
-  return value;
-}
-
-function canonicalValue(value: unknown): string {
-  validateCanonical(value);
-  const sort = (item: unknown): unknown =>
-    Array.isArray(item)
-      ? item.map(sort)
-      : item && typeof item === 'object'
-        ? Object.fromEntries(
-            Object.entries(item)
-              .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-              .map(([key, child]) => [key, sort(child)]),
-          )
-        : item;
-  return `${JSON.stringify(sort(value))}\n`;
-}
-
-function validateCanonical(value: unknown) {
-  if (value === null || typeof value === 'boolean') return;
-  if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value))
-      throw new Error('Discovery JSON contains a non-integer number');
-    return;
-  }
-  if (typeof value === 'string') {
-    if (value !== value.normalize('NFC')) throw new Error('Discovery JSON contains non-NFC text');
-    return;
-  }
-  if (Array.isArray(value)) return value.forEach(validateCanonical);
-  if (!value || typeof value !== 'object')
-    throw new Error('Discovery JSON contains an unsupported value');
-  const folded = new Set<string>();
-  Object.entries(value).forEach(([key, child]) => {
-    if (key !== key.normalize('NFC') || folded.has(key.toLocaleLowerCase()))
-      throw new Error('Discovery JSON contains colliding keys');
-    folded.add(key.toLocaleLowerCase());
-    validateCanonical(child);
-  });
-}
-
-async function sha256(bytes: Uint8Array) {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(bytes)));
-  return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-}
-
-function signatureMessage(snapshot: Uint8Array) {
-  const prefix = encoder.encode(signatureDomain);
-  const result = new Uint8Array(prefix.length + 8 + snapshot.length);
-  result.set(prefix);
-  new DataView(result.buffer).setBigUint64(prefix.length, BigInt(snapshot.length));
-  result.set(snapshot, prefix.length + 8);
-  return result;
-}
-
-function parseTimestamp(value: string) {
-  if (!timestampPattern.test(value))
-    throw new Error('Discovery timestamp must use second-precision UTC');
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime())) throw new Error('Discovery timestamp is invalid');
-  return parsed;
 }
 
 function orderedEnums(values: readonly string[], allowed: readonly string[]) {
@@ -698,29 +636,4 @@ function integer(value: number) {
 function requirePublicSequence(value: number, label: string) {
   if (!Number.isSafeInteger(value) || value < 1)
     throw new Error(`Discovery ${label} sequence is invalid`);
-}
-
-function assertKeys(value: object, expected: string[], label: string) {
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
-    throw new Error(`Discovery ${label} fields do not match schema 1`);
-  }
-}
-
-function bytesEqual(left: Uint8Array, right: Uint8Array) {
-  return left.length === right.length && left.every((byte, index) => byte === right[index]);
-}
-
-function encodeBase64(bytes: Uint8Array) {
-  let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-  }
-  return btoa(binary);
-}
-
-function decodeBase64(value: string) {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }

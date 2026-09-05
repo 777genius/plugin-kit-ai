@@ -83,6 +83,21 @@ const repositoryStars = computed(() =>
     maximumFractionDigits: 1,
   }).format(props.plugin.discovery?.stars ?? 0),
 );
+const securityLabel = computed(() => {
+  if (!props.plugin.security) return '';
+  if (props.plugin.security.outcome === 'blocking_findings') {
+    return 'Automated checks: blocking findings';
+  }
+  if (props.plugin.security.outcome === 'warnings') {
+    return 'Automated checks: warnings found';
+  }
+  return 'Automated checks: no blocking findings';
+});
+const securityTitle = computed(() =>
+  props.plugin.security
+    ? `LintAI ${props.plugin.security.scanner.version} checked this exact package revision for known patterns. This is not a guarantee of safety.`
+    : '',
+);
 const provenanceURL = computed(() => {
   const source = selectedDistribution.value?.source ?? props.plugin.source;
   if (!source?.revision) return '';
@@ -164,6 +179,21 @@ function updateAutoDetect(value: boolean) {
       title="Stars belong to the GitHub repository, not this individual package"
     >
       <span aria-hidden="true">★</span> {{ repositoryStars }} stars on repo · Agent Plugins 1.0
+    </p>
+    <p
+      v-if="plugin.security"
+      class="plugin-card__security"
+      :class="`plugin-card__security--${plugin.security.outcome}`"
+      :title="securityTitle"
+    >
+      <span aria-hidden="true">{{
+        plugin.security.outcome === 'blocking_findings'
+          ? '!'
+          : plugin.security.outcome === 'warnings'
+            ? '△'
+            : '✓'
+      }}</span>
+      {{ securityLabel }}
     </p>
     <p class="plugin-card__description">{{ plugin.description }}</p>
     <div class="plugin-card__bottom">

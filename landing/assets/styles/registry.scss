@@ -1738,6 +1738,31 @@ img {
   font-size: 0.66rem;
   font-weight: 700;
 }
+.plugin-card__security {
+  width: fit-content;
+  margin: 8px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cyan);
+  font-size: 0.62rem;
+  font-weight: 750;
+}
+.plugin-card__security span {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  font-size: 0.55rem;
+}
+.plugin-card__security--warnings {
+  color: #f5c451;
+}
+.plugin-card__security--blocking_findings {
+  color: var(--coral);
+}
 .plugin-card__ribbon {
   position: absolute;
   top: 14px;

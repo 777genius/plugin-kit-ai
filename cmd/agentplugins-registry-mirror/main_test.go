@@ -83,6 +83,47 @@ func TestEnforceMonotonicRejectsSameSequenceConflict(t *testing.T) {
 	}
 }
 
+func TestEnforceMonotonicProtectsSecurityFeed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "MIRROR_METADATA.json")
+	if err := os.WriteFile(path, []byte(`{
+  "schema_version": 1,
+  "registry_repository": "777genius/universal-agent-plugins-registry",
+  "directory_sequence": 10,
+  "directory_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "directory_source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "discovery_sequence": 8,
+  "discovery_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "discovery_source_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "security_sequence": 3,
+  "security_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "security_source_commit": "cccccccccccccccccccccccccccccccccccccccc",
+  "generated_files": 13
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	base := mirrorMetadata{
+		SchemaVersion:      1,
+		RegistryRepository: defaultRegistry,
+		DirectorySequence:  10,
+		DirectoryDigest:    "sha256:" + strings.Repeat("a", 64),
+		DiscoverySequence:  8,
+		DiscoveryDigest:    "sha256:" + strings.Repeat("b", 64),
+		SecuritySequence:   3,
+		SecurityDigest:     "sha256:" + strings.Repeat("c", 64),
+	}
+	rollback := base
+	rollback.SecuritySequence = 2
+	if err := enforceMonotonic(path, rollback); err == nil || !strings.Contains(err.Error(), "regresses") {
+		t.Fatalf("Security rollback was not rejected: %v", err)
+	}
+	conflict := base
+	conflict.SecurityDigest = "sha256:" + strings.Repeat("d", 64)
+	if err := enforceMonotonic(path, conflict); err == nil || !strings.Contains(err.Error(), "Security sequence") {
+		t.Fatalf("Security same-sequence conflict was not rejected: %v", err)
+	}
+}
+
 func TestWriteStagedRejectsTraversal(t *testing.T) {
 	for _, relative := range []string{"../escape", "/absolute", "a\\b", "a/../../escape"} {
 		if err := writeStaged(t.TempDir(), relative, []byte("x")); err == nil {
@@ -93,7 +134,11 @@ func TestWriteStagedRejectsTraversal(t *testing.T) {
 
 func TestStagedFilesFollowSignedPointerPaths(t *testing.T) {
 	const stem = "00000000000000000027"
-	files := stagedFiles(directoryResult{stem: stem}, discoveryResult{stem: stem})
+	files := stagedFiles(
+		directoryResult{stem: stem},
+		discoveryResult{stem: stem},
+		securityResult{stem: stem},
+	)
 	paths := make(map[string]bool, len(files))
 	for _, file := range files {
 		paths[file.rel] = true
@@ -106,6 +151,9 @@ func TestStagedFilesFollowSignedPointerPaths(t *testing.T) {
 		"discovery/snapshots/" + stem + ".json",
 		"discovery/snapshots/" + stem + ".envelope.json",
 		"discovery/search/" + stem + ".json",
+		"security/latest.json",
+		"security/snapshots/" + stem + ".json",
+		"security/snapshots/" + stem + ".envelope.json",
 	} {
 		if !paths[expected] {
 			t.Fatalf("signed pointer artifact path is missing: %s", expected)
@@ -116,6 +164,8 @@ func TestStagedFilesFollowSignedPointerPaths(t *testing.T) {
 		"registry/schemas/1/" + stem + ".envelope.json",
 		"discovery/" + stem + ".json",
 		"discovery/" + stem + ".envelope.json",
+		"security/" + stem + ".json",
+		"security/" + stem + ".envelope.json",
 	} {
 		if paths[unexpected] {
 			t.Fatalf("legacy root artifact path must not be emitted: %s", unexpected)

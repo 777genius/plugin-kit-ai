@@ -1,5 +1,6 @@
 import type { RegistryIndex } from '~/types/registry';
 import { BrowserDiscoveryCache, discoveryPlugin, loadDiscovery } from '~/utils/discovery';
+import { applySecurityAssessment, loadSecurity } from '~/utils/security';
 
 export function useRegistry(): RegistryIndex {
   const config = useRuntimeConfig();
@@ -16,6 +17,13 @@ export function useRegistry(): RegistryIndex {
       status.value = { state: 'loading', count: 0 };
       const baseURL = String(config.public.baseURL).replace(/\/?$/, '/');
       const origin = new URL(`${baseURL}discovery/`, location.origin);
+      const security = loadSecurity({
+        origin: new URL(`${baseURL}security/`, location.origin),
+        trust: {
+          keyID: String(config.public.discoveryKeyID),
+          publicKeyBase64: String(config.public.discoveryPublicKey),
+        },
+      }).catch(() => undefined);
       try {
         const bundle = await loadDiscovery({
           origin,
@@ -39,6 +47,13 @@ export function useRegistry(): RegistryIndex {
           sequence: bundle.snapshot.sequence,
           generatedAt: bundle.snapshot.generated_at,
         };
+        const securityBundle = await security;
+        if (securityBundle) {
+          await waitForCatalogInteractionToFinish();
+          registry.value.plugins = registry.value.plugins.map((plugin) =>
+            applySecurityAssessment(plugin, securityBundle.snapshot),
+          );
+        }
       } catch (error) {
         registry.value.plugins = registry.value.plugins.filter(
           (plugin) => plugin.trust_state !== 'conformant_unreviewed',
