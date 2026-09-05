@@ -11,7 +11,7 @@ const { current, expired, published } = useDirectoryStatus();
 const discovery = useDiscoveryStatus();
 const { asset } = useSite();
 const cliRepositoryUrl = computed(() => `https://github.com/${config.public.githubRepo}`);
-const preferredDemoNames = ['chrome-devtools', 'context7', 'cloudflare-docs'];
+const preferredDemoNames = ['context7', 'chrome-devtools', 'cloudflare-docs'];
 const displayedPluginCount = ref<number | null>(null);
 const pluginCount = computed(() =>
   displayedPluginCount.value === null
