@@ -23,6 +23,10 @@ type DiscoveryClient interface {
 	Load(context.Context, uint64) (discoveryv1.VerifiedBundle, error)
 }
 
+type SecurityIndex interface {
+	Lookup(context.Context, domain.SecuritySubject) (*domain.SecurityAssessment, error)
+}
+
 type SourceAcquirer interface {
 	AcquireLocal(context.Context, string) (domain.PackageSnapshot, error)
 	DiscoverGitHubPackages(context.Context, string, string) ([]string, error)
@@ -41,6 +45,7 @@ type App struct {
 	SourceAcquirer      SourceAcquirer
 	PackageLoader       ports.PackageLoader
 	NativePackageLoader ports.PackageLoader
+	SecurityIndex       SecurityIndex
 	SecurityEvaluator   ports.PackageSecurityEvaluator
 	Lifecycle           usecase.Service
 	StateMigrator       *statemigration.Migrator

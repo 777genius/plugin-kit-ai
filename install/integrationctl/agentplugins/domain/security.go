@@ -105,7 +105,7 @@ func (assessment SecurityAssessment) Validate(requirement SecurityRequirement, s
 	if !securityDigestPattern.MatchString(assessment.Subject.TreeDigest) || !securityDigestPattern.MatchString(assessment.Subject.ManifestDigest) || !securityDigestPattern.MatchString(assessment.Policy.Digest) || !securityDigestPattern.MatchString(assessment.ReportDigest) {
 		return errors.New("security assessment contains an invalid digest")
 	}
-	if assessment.Counts.Blocking < 0 || assessment.Counts.Warnings < 0 || assessment.Counts.Total < 0 || assessment.Counts.Total < assessment.Counts.Blocking+assessment.Counts.Warnings || assessment.ScannedFiles < 0 {
+	if assessment.Counts.Blocking < 0 || assessment.Counts.Warnings < 0 || assessment.Counts.Total < 0 || assessment.Counts.Total != assessment.Counts.Blocking+assessment.Counts.Warnings || assessment.ScannedFiles < 0 {
 		return errors.New("security assessment contains invalid counts")
 	}
 	expected := SecurityNoBlockingFindings
@@ -117,10 +117,19 @@ func (assessment SecurityAssessment) Validate(requirement SecurityRequirement, s
 	if assessment.Outcome != expected {
 		return errors.New("security assessment outcome does not match its counts")
 	}
+	projectedBlocking, projectedWarnings := 0, 0
 	for _, finding := range assessment.Findings {
 		if strings.TrimSpace(finding.Code) == "" || strings.TrimSpace(finding.Message) == "" || (finding.Disposition != "blocking" && finding.Disposition != "warning") {
 			return errors.New("security assessment contains an invalid finding")
 		}
+		if finding.Disposition == "blocking" {
+			projectedBlocking++
+		} else {
+			projectedWarnings++
+		}
+	}
+	if projectedBlocking > assessment.Counts.Blocking || projectedWarnings > assessment.Counts.Warnings {
+		return errors.New("security assessment finding projection exceeds its counts")
 	}
 	return nil
 }

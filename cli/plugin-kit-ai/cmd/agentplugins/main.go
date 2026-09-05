@@ -25,6 +25,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/loader"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/processlock"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/securityscan"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/securityv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/sourceacquisition"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/specregistry"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statemigration"
@@ -45,8 +46,12 @@ var (
 	defaultDiscoveryOrigin    = "https://777genius.github.io/universal-agent-plugins-registry/discovery/"
 	defaultDiscoveryKeyID     = "uap-discovery-2026-01"
 	defaultDiscoveryPublicKey = "IxWvGuscXR9crlCrGyBQZNqroYNVPbBA1B3pnjSffhc="
+	defaultSecurityOrigin     = "https://777genius.github.io/universal-agent-plugins-registry/security/"
+	defaultSecurityKeyID      = "uap-discovery-2026-01"
+	defaultSecurityPublicKey  = "IxWvGuscXR9crlCrGyBQZNqroYNVPbBA1B3pnjSffhc="
 	directoryClientFactory    = newDirectoryClient
 	discoveryClientFactory    = newDiscoveryClient
+	securityClientFactory     = newSecurityClient
 )
 
 func main() {
@@ -70,6 +75,10 @@ func run() error {
 		return err
 	}
 	discoveryClient, err := discoveryClientFactory(dataRoot)
+	if err != nil {
+		return err
+	}
+	securityClient, err := securityClientFactory(dataRoot)
 	if err != nil {
 		return err
 	}
@@ -111,6 +120,7 @@ func run() error {
 		SourceAcquirer:      lazySourceAcquirer{dataRoot: dataRoot, acquirer: sourceacquisition.Acquirer{TempRoot: dataRoot}},
 		PackageLoader:       packageLoader,
 		NativePackageLoader: loader.OpenAILoader{Loader: packageLoader},
+		SecurityIndex:       securityClient,
 		SecurityEvaluator: securityscan.Evaluator{
 			Scanner: securityscan.ReleaseScanner{Root: filepath.Join(dataRoot, "security", "lintai"), HTTPClient: lintaiReleaseHTTPClient()},
 			Cache:   securityscan.FileCache{Root: filepath.Join(dataRoot, "security", "assessments")}, Requirement: securityscan.DefaultRequirement(),
@@ -124,6 +134,21 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return agentpluginscli.NewRoot(app).ExecuteContext(ctx)
+}
+
+func newSecurityClient(_ string) (*securityv1.Client, error) {
+	publicKey, err := base64.StdEncoding.Strict().DecodeString(defaultSecurityPublicKey)
+	if err != nil || len(publicKey) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("decode Security Index public key")
+	}
+	origin, err := productionFeedOrigin(os.Getenv("AGENTPLUGINS_SECURITY_ORIGIN"), defaultSecurityOrigin, "AGENTPLUGINS_SECURITY_ORIGIN")
+	if err != nil {
+		return nil, err
+	}
+	return &securityv1.Client{
+		Origin: origin, HTTPClient: hardenedHTTPClient("Security Index"),
+		Trust: securityv1.TrustStore{KeyID: defaultSecurityKeyID, PublicKey: ed25519.PublicKey(publicKey)},
+	}, nil
 }
 
 func newDiscoveryClient(dataRoot string) (*discoveryv1.Client, error) {
