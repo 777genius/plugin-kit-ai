@@ -44,6 +44,9 @@ func policyDigest() string {
 	if err != nil {
 		panic(err)
 	}
+	// The signed Security Index uses the registry's canonical JSON profile,
+	// where a trailing LF is part of the bytes covered by every digest.
+	body = append(body, '\n')
 	digest := sha256.Sum256(body)
 	return "sha256:" + hex.EncodeToString(digest[:])
 }
