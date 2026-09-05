@@ -7,7 +7,7 @@
   >
     <div class="section-heading section-heading--center">
       <p class="eyebrow">Why it works</p>
-      <h2 id="why-title">One standard. Native delivery.</h2>
+      <h2 id="why-title">One standard<br />Native delivery</h2>
       <p>The package stays portable; the installer handles each client's format and lifecycle.</p>
     </div>
     <div class="registry-benefits__grid">
