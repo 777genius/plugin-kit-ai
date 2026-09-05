@@ -935,6 +935,36 @@ func TestInteractiveAddSkipsDetectedClientThatPackageCannotServe(t *testing.T) {
 	}
 }
 
+func TestInteractiveAddSkipsDetectedClientThatCannotPassActivationPreflight(t *testing.T) {
+	t.Parallel()
+	kiro := fixtureClient(t, domain.ClientKiro)
+	kiro.ExecutablePath = "/test/bin/kiro-cli"
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCursor), kiro,
+	})
+	fixture.app.Lifecycle.Activator = providers.Activator{Runner: &cliRunOnlyRunner{}}
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+
+	stdout, _, err := fixture.executeInput(true, "\n", "add", plugin, "--dry-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Skipped installed clients that this package cannot install together: kiro") {
+		t.Fatalf("activation-aware interactive output = %q", stdout)
+	}
+	if strings.Contains(stdout, "Detected supported clients (all selected by default)") {
+		t.Fatalf("single preflight-capable target unexpectedly prompted for multiple clients: %q", stdout)
+	}
+	state, loadErr := fixture.store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("interactive dry-run mutated state: %+v", state)
+	}
+}
+
 func TestInteractiveAddProbesOnlyTargetsSelectedAfterReadOnlyDetection(t *testing.T) {
 	clientCodex := fixtureClient(t, domain.ClientCodex)
 	clientCursor := fixtureClient(t, domain.ClientCursor)
