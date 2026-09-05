@@ -66,6 +66,7 @@ type options struct {
 	externalUninstalled bool
 	purgeData           bool
 	acceptSecurityRisk  bool
+	securityDetails     bool
 }
 
 func (app App) input() io.Reader {
