@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultReleaseOrigin = "https://github.com/777genius/lintai/releases/download/v0.1.2/"
+	defaultReleaseOrigin = "https://github.com/777genius/lintai/releases/download/v0.1.3/"
 	maxReleaseAsset      = 32 << 20
 )
 
@@ -32,13 +32,13 @@ type releaseAsset struct {
 }
 
 var releaseAssets = map[string]releaseAsset{
-	"darwin/arm64":     {"lintai-v0.1.2-aarch64-apple-darwin.tar.gz", "b02b40ad25ae6a2c9358400b1560ec4c358a82ff9f3d2ad6daf0bcbf0a426277", false},
-	"darwin/amd64":     {"lintai-v0.1.2-x86_64-apple-darwin.tar.gz", "dbc74549d6f4da4e4460d4a671f8da7933298d9a82831b058f37a210e7291eb9", false},
-	"linux/arm64":      {"lintai-v0.1.2-aarch64-unknown-linux-gnu.tar.gz", "31df7193cfe8298bec99af9b843f38379e93ab82fee6dd577debdc55a5c1e051", false},
-	"linux/amd64":      {"lintai-v0.1.2-x86_64-unknown-linux-gnu.tar.gz", "c06fcb33a13f1483f20f4cb30d2c701cd01c6b8ba43e3b7322ebab3c1ae11e72", false},
-	"linux/amd64-musl": {"lintai-v0.1.2-x86_64-unknown-linux-musl.tar.gz", "c4f6b45cb959855107d9b1425eed1e4409c5c7d9f3e15c1784f7e2c2569c9792", false},
-	"windows/amd64":    {"lintai-v0.1.2-x86_64-pc-windows-msvc.zip", "4cc96dfbefb0a213767ed591bd6f78ab83fd06e9b40af1fad4590e53457c96c4", true},
-	"windows/arm64":    {"lintai-v0.1.2-aarch64-pc-windows-msvc.zip", "ff85139ee2968a829daf0e4f8d701c7dbe3ec1078ca8bb81029057be75b86629", true},
+	"darwin/arm64":     {"lintai-v0.1.3-aarch64-apple-darwin.tar.gz", "be8b263e2323074080d928ea7c2129458299a6d03f7a9f178dfc1aa8e6bc17ff", false},
+	"darwin/amd64":     {"lintai-v0.1.3-x86_64-apple-darwin.tar.gz", "abc170612a847bf1a896ef85a4ee93977baa8275f303dac3ed27bf34050b7513", false},
+	"linux/arm64":      {"lintai-v0.1.3-aarch64-unknown-linux-gnu.tar.gz", "132a37610575bd251ecaf0be4c6090dad144dd1397c99aad989a3944c63c3d4a", false},
+	"linux/amd64":      {"lintai-v0.1.3-x86_64-unknown-linux-gnu.tar.gz", "2b3d176db752433b904a4b42375543ff398f4841d22e48f7d4f23ded925b72da", false},
+	"linux/amd64-musl": {"lintai-v0.1.3-x86_64-unknown-linux-musl.tar.gz", "3da60f749c61e2caca029a44a9ce422d570aef8c57f82ce51c411c8cec12f61b", false},
+	"windows/amd64":    {"lintai-v0.1.3-x86_64-pc-windows-msvc.zip", "2f61f6a83a160afa3feed9ea1722b82d0d938ebff865a4e20d39b5f55270c911", true},
+	"windows/arm64":    {"lintai-v0.1.3-aarch64-pc-windows-msvc.zip", "484c30e7ef55310e0aec595c06870dbb5454ae7d29404ca797e00acad6011453", true},
 }
 
 type ReleaseScanner struct {

@@ -11,9 +11,9 @@ import (
 const (
 	SecurityReportSchemaVersion = 1
 	SecurityScannerID           = "lintai"
-	SecurityScannerVersion      = "0.1.2"
+	SecurityScannerVersion      = "0.1.3"
 	SecurityPolicyID            = "agent-plugin-install"
-	SecurityPolicyVersion       = 1
+	SecurityPolicyVersion       = 2
 )
 
 var securityDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
