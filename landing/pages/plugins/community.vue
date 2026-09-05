@@ -101,6 +101,8 @@ usePageSeo(
               </dd>
             </div>
           </dl>
+
+          <SecurityAssessmentPanel v-if="plugin.security" :plugin="plugin" />
         </article>
 
         <InstallPanel v-model:targets="targets" v-model:auto-detect="autoDetect" :plugin="plugin" />

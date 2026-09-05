@@ -53,8 +53,9 @@ test('homepage installs with auto-detection and exposes the full directory', asy
   const securityBadge = page.locator('.plugin-card__security').first();
   await expect(securityBadge).toBeVisible({ timeout: 15_000 });
   await expect(securityBadge).toContainText(
-    /Automated checks: (?:no blocking findings|warnings found|blocking findings)/,
+    /Automated review: (?:no blocking findings|\d+ notes?|\d+ blocking findings?)/,
   );
+  await expect(securityBadge).toHaveAttribute('title', /Checked indexed revision [0-9a-f]{12}/);
   await expect(page.getByText(/guarantee of safety/i)).toHaveCount(0);
   await expect(page.locator('.catalog-count')).toContainText(/[2-9]\d{3} plugins/, {
     timeout: 15_000,
@@ -277,6 +278,25 @@ test('community plugin titles open an installable plugin page instead of GitHub'
     timeout: 15_000,
   });
   await expect(page.locator('.install-panel')).toBeVisible();
+});
+
+test('security badges explain the exact checked revision and open full findings', async ({
+  page,
+}) => {
+  await page.goto('./');
+  const badge = page.locator('.plugin-card__security--warnings').first();
+  await expect(badge).toBeVisible({ timeout: 15_000 });
+  await expect(badge).toHaveAttribute('title', /SEC\d+:/);
+  await expect(badge).toHaveAttribute('href', /plugins\/community.*#security-review/);
+
+  await badge.click();
+  await expect(page).toHaveURL(/plugins\/community.*#security-review/);
+  const review = page.locator('#security-review');
+  await expect(review).toBeVisible({ timeout: 15_000 });
+  await expect(review).toContainText(/checked the exact indexed revision/i);
+  await expect(review).toContainText('A newer upstream revision is different code');
+  await expect(review).toContainText(/SEC\d+/);
+  await expect(review).toContainText('do not prove that a plugin is safe');
 });
 
 test('metadata-only community records stay out of the install catalog', async ({ page }) => {

@@ -1747,6 +1747,19 @@ img {
   color: var(--cyan);
   font-size: 0.62rem;
   font-weight: 750;
+  text-decoration: none;
+  transition:
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+.plugin-card__security:hover,
+.plugin-card__security:focus-visible {
+  color: var(--primary-bright);
+}
+.plugin-card__security:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 3px;
+  border-radius: 5px;
 }
 .plugin-card__security span {
   width: 16px;
@@ -2129,6 +2142,139 @@ img {
   font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+.security-review {
+  margin-top: 32px;
+  padding: 22px;
+  scroll-margin-top: 110px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--cyan) 6%, transparent), transparent 48%),
+    var(--surface);
+}
+.security-review--warnings {
+  background: linear-gradient(135deg, rgba(245, 196, 81, 0.07), transparent 48%), var(--surface);
+}
+.security-review--blocking_findings {
+  border-color: color-mix(in srgb, var(--coral) 45%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--coral) 10%, transparent), transparent 48%),
+    var(--surface);
+}
+.security-review__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.security-review__eyebrow {
+  margin: 0 0 8px;
+  color: var(--primary-bright);
+  font:
+    750 0.62rem SFMono-Regular,
+    monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.security-review h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.security-review__status {
+  max-width: 230px;
+  padding: 6px 9px;
+  flex: 0 0 auto;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  color: var(--cyan);
+  font-size: 0.6rem;
+  font-weight: 750;
+  text-align: center;
+}
+.security-review--warnings .security-review__status {
+  color: #f5c451;
+}
+.security-review--blocking_findings .security-review__status {
+  color: var(--coral);
+}
+.security-review__scope,
+.security-review__freshness,
+.security-review__disclaimer,
+.security-review__truncated,
+.security-review__empty,
+.security-review__maintainer > p {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+.security-review__scope {
+  margin: 18px 0 0;
+}
+.security-review__scope code {
+  color: var(--cyan);
+  font-size: 0.7rem;
+}
+.security-review__freshness {
+  margin: 8px 0 0;
+}
+.security-review__group,
+.security-review__maintainer {
+  margin-top: 22px;
+}
+.security-review__group h3,
+.security-review__maintainer summary {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+.security-review__maintainer summary {
+  cursor: pointer;
+}
+.security-review__maintainer > p {
+  margin: 10px 0 0;
+}
+.security-review__findings {
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+.security-review__findings li {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-solid) 74%, transparent);
+}
+.security-review__finding-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--subtle);
+  font-size: 0.64rem;
+  overflow-wrap: anywhere;
+}
+.security-review__finding-heading code {
+  color: var(--primary-bright);
+  font-size: inherit;
+  font-weight: 750;
+}
+.security-review__findings p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+.security-review__truncated,
+.security-review__empty {
+  margin: 18px 0 0;
+}
+.security-review__disclaimer {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 0.7rem;
 }
 .status-card {
   margin-top: 36px;
@@ -2688,6 +2834,15 @@ img {
   .plugin-facts > div {
     grid-template-columns: 1fr;
     gap: 5px;
+  }
+  .security-review {
+    padding: 18px 15px;
+  }
+  .security-review__header {
+    flex-direction: column;
+  }
+  .security-review__status {
+    max-width: none;
   }
   .install-panel {
     padding: 18px 14px;
