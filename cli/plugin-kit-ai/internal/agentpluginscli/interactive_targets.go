@@ -75,7 +75,25 @@ func (app App) compatibleDetectedTargets(ctx context.Context, source string, det
 		return compatible, nil, err
 	case isDirectorySelector(source):
 		compatible, err := app.compatibleDirectoryTargets(ctx, source, detected)
-		return compatible, nil, err
+		if err != nil {
+			return nil, nil, err
+		}
+		loaded, err := app.loadPackageFor(
+			ctx,
+			source,
+			withDetectedClients(app.addResolutionRequest(source, detectedClientIDs(compatible)), detectedClientMap(detected)),
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		compatible = app.compatibleLoadedTargets(ctx, loaded, compatible)
+		if len(compatible) == 0 {
+			if loaded.cleanup != nil {
+				_ = loaded.cleanup()
+			}
+			return nil, nil, fmt.Errorf("the package cannot be installed automatically in any detected supported client; use --target to inspect a specific client")
+		}
+		return compatible, &loaded, nil
 	default:
 		loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, nil))
 		if err != nil {
@@ -220,11 +238,30 @@ func (app App) compatibleLoadedTargets(ctx context.Context, loaded loadedPackage
 			continue
 		}
 		plan, err := planner.Plan(ctx, candidate.envelope, client, domain.ScopeUser, physicalID)
-		if err == nil && plan.Status != domain.PlanUnsupported {
-			compatible = append(compatible, client)
+		if err != nil || plan.Status == domain.PlanUnsupported {
+			continue
 		}
+		if preflighter, ok := app.Lifecycle.Activator.(interface {
+			PreflightActivation(domain.ActivationRequest) error
+		}); ok {
+			err = preflighter.PreflightActivation(domain.ActivationRequest{
+				Client: client, Plan: plan, BackendExecutable: backendExecutable(client, clientMap), VerifyOnly: true,
+			})
+			if err != nil {
+				continue
+			}
+		}
+		compatible = append(compatible, client)
 	}
 	return compatible
+}
+
+func detectedClientIDs(clients []domain.DetectedClient) []domain.ClientID {
+	result := make([]domain.ClientID, len(clients))
+	for index, client := range clients {
+		result[index] = client.ClientID
+	}
+	return result
 }
 
 func detectedClientMap(clients []domain.DetectedClient) map[domain.ClientID]domain.DetectedClient {
