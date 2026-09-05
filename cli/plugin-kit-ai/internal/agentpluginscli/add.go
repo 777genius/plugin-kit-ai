@@ -104,6 +104,9 @@ func runAddWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *o
 }
 
 func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *options, loaded loadedPackage, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
+	if err := authorizeSecurityAssessment(cmd, app, opts, &loaded); err != nil {
+		return err
+	}
 	if automatedMutation(app, opts) && strings.TrimSpace(opts.target) == "" {
 		return fmt.Errorf("automated installation requires --target")
 	}
@@ -127,14 +130,14 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	planned, err := service.Add(ctx, input)
 	if err != nil {
 		if planned.Plan.Status == domain.PlanUnsupported {
-			if renderErr := renderAddResultError(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, opts.dryRun, err); renderErr != nil {
+			if renderErr := renderAddResultErrorWithSecurity(cmd.OutOrStdout(), opts.format, loaded.envelope, loaded.security, planned, opts.dryRun, err); renderErr != nil {
 				return renderErr
 			}
 		}
 		return err
 	}
 	if opts.dryRun || planned.NoChange {
-		return renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, opts.dryRun)
+		return renderAddResultWithSecurity(cmd.OutOrStdout(), opts.format, loaded.envelope, loaded.security, planned, opts.dryRun)
 	}
 	if opts.format == "human" {
 		if err := renderHumanPlan(cmd.OutOrStdout(), loaded.envelope, planned); err != nil {
@@ -143,7 +146,7 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	}
 	freshInstall := planned.Activation.Activation == ""
 	if !freshInstall && opts.format == "human" && app.Terminal && !activationComplete && !authComplete {
-		if err := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, false); err != nil {
+		if err := renderAddResultWithSecurity(cmd.OutOrStdout(), opts.format, loaded.envelope, loaded.security, planned, false); err != nil {
 			return err
 		}
 		return resumeInteractiveLifecycle(ctx, cmd, service, input, loaded.envelope, planned)
@@ -161,7 +164,7 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	}
 	if !confirmed {
 		if opts.format == "json" {
-			return renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, false)
+			return renderAddResultWithSecurity(cmd.OutOrStdout(), opts.format, loaded.envelope, loaded.security, planned, false)
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
 		return nil
@@ -170,7 +173,7 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	input.Confirmed = true
 	input.InstallationID = planned.InstallationID
 	result, err := service.Add(ctx, input)
-	if renderErr := renderAddResultError(cmd.OutOrStdout(), opts.format, loaded.envelope, result, false, err); renderErr != nil && err == nil {
+	if renderErr := renderAddResultErrorWithSecurity(cmd.OutOrStdout(), opts.format, loaded.envelope, loaded.security, result, false, err); renderErr != nil && err == nil {
 		err = renderErr
 	}
 	if err == nil && freshInstall && opts.format == "human" && app.Terminal {
@@ -478,8 +481,17 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 	return renderAddResultError(writer, format, envelope, result, dryRun, nil)
 }
 
+func renderAddResultWithSecurity(writer io.Writer, format string, envelope domain.PackageEnvelope, security *domain.SecurityAssessment, result usecase.AddResult, dryRun bool) error {
+	return renderAddResultErrorWithSecurity(writer, format, envelope, security, result, dryRun, nil)
+}
+
 func renderAddResultError(writer io.Writer, format string, envelope domain.PackageEnvelope, result usecase.AddResult, dryRun bool, commandErr error) error {
+	return renderAddResultErrorWithSecurity(writer, format, envelope, nil, result, dryRun, commandErr)
+}
+
+func renderAddResultErrorWithSecurity(writer io.Writer, format string, envelope domain.PackageEnvelope, security *domain.SecurityAssessment, result usecase.AddResult, dryRun bool, commandErr error) error {
 	data := newAddResultData(envelope, result, dryRun)
+	data.Security = security
 	data.envelopeResult = addEnvelopeResult(result, commandErr)
 	if format == "json" {
 		return writeJSONOutput(writer, "add", data)
@@ -529,16 +541,17 @@ func renderAddResultError(writer io.Writer, format string, envelope domain.Packa
 }
 
 type addResultData struct {
-	OperationID    string            `json:"operation_id,omitempty"`
-	Plugin         string            `json:"plugin"`
-	Version        string            `json:"version,omitempty"`
-	Source         string            `json:"source"`
-	Revision       string            `json:"revision,omitempty"`
-	TreeDigest     string            `json:"tree_digest"`
-	ManifestDigest string            `json:"manifest_digest"`
-	NextAction     string            `json:"next_action,omitempty"`
-	DryRun         bool              `json:"dry_run"`
-	Result         usecase.AddResult `json:"result"`
+	OperationID    string                     `json:"operation_id,omitempty"`
+	Plugin         string                     `json:"plugin"`
+	Version        string                     `json:"version,omitempty"`
+	Source         string                     `json:"source"`
+	Revision       string                     `json:"revision,omitempty"`
+	TreeDigest     string                     `json:"tree_digest"`
+	ManifestDigest string                     `json:"manifest_digest"`
+	Security       *domain.SecurityAssessment `json:"security,omitempty"`
+	NextAction     string                     `json:"next_action,omitempty"`
+	DryRun         bool                       `json:"dry_run"`
+	Result         usecase.AddResult          `json:"result"`
 	envelopeResult string
 }
 

@@ -121,6 +121,9 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		defer loaded.cleanup()
 	}
 	restoreCatalogEvidence(&loaded, binding)
+	if err := authorizeSecurityAssessment(cmd, app, opts, &loaded); err != nil {
+		return err
+	}
 	if err := prepareLoadedPackageForClient(&loaded, selected.ClientID); err != nil {
 		return err
 	}
@@ -240,6 +243,9 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	if domain.ComputeSourceBindingID(loaded.envelope.Source) != installation.Source.SourceBindingID {
 		return fmt.Errorf("resolved source identity changed; use agentplugins rebind after reviewing provenance")
+	}
+	if err := authorizeSecurityAssessment(cmd, app, opts, &loaded); err != nil {
+		return err
 	}
 	clients, err := app.Detector.Detect(ctx)
 	if err != nil {

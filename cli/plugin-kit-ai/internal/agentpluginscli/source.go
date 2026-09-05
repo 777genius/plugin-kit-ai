@@ -27,6 +27,8 @@ const maxAutodiscoveryPackageCandidates = 16
 
 type loadedPackage struct {
 	envelope              domain.PackageEnvelope
+	security              *domain.SecurityAssessment
+	securityAuthorized    bool
 	hints                 domain.CompatibilityHints
 	origin                domain.OriginMode
 	directory             *domain.DirectoryOrigin
@@ -561,7 +563,17 @@ func (app App) loadSnapshot(ctx context.Context, snapshot domain.PackageSnapshot
 	if envelope.TreeDigest != snapshot.TreeDigest {
 		return fail(fmt.Errorf("loader changed the acquired immutable package digest"))
 	}
-	return loadedPackage{envelope: envelope, origin: origin, directory: cloneDirectoryOrigin(directory), directorySelection: cloneDirectorySelection(selection), cleanup: func() error { return packagedigest.Remove(snapshot) }}, nil
+	var assessment *domain.SecurityAssessment
+	if app.SecurityEvaluator != nil && envelope.FormatID == domain.FormatIDAgentPluginsV1 {
+		result, securityErr := app.SecurityEvaluator.Evaluate(ctx, domain.SecurityEvaluationInput{
+			SnapshotRoot: snapshot.Root, TreeDigest: envelope.TreeDigest, ManifestDigest: envelope.ManifestDigest,
+		})
+		if securityErr != nil {
+			return fail(fmt.Errorf("security assessment failed before installation: %w", securityErr))
+		}
+		assessment = &result
+	}
+	return loadedPackage{envelope: envelope, security: assessment, origin: origin, directory: cloneDirectoryOrigin(directory), directorySelection: cloneDirectorySelection(selection), cleanup: func() error { return packagedigest.Remove(snapshot) }}, nil
 }
 
 // loadAcquiredSnapshot selects a manifest format from the immutable snapshot.

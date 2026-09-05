@@ -23,6 +23,7 @@ func NewRoot(app App) *cobra.Command {
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "show the exact plan without changes")
 	flags.StringVar(&opts.format, "format", "human", "output format: human or json")
 	flags.BoolVar(&opts.noColor, "no-color", false, "disable color output")
+	flags.BoolVar(&opts.acceptSecurityRisk, "accept-security-risk", false, "continue despite blocking automated security findings")
 
 	root.AddCommand(newAddCommand(app, opts))
 	root.AddCommand(newUpdateCommand(app, opts))

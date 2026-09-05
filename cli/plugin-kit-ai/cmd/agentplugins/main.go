@@ -24,6 +24,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/discoveryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/loader"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/processlock"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/securityscan"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/sourceacquisition"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/specregistry"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statemigration"
@@ -110,11 +111,15 @@ func run() error {
 		SourceAcquirer:      lazySourceAcquirer{dataRoot: dataRoot, acquirer: sourceacquisition.Acquirer{TempRoot: dataRoot}},
 		PackageLoader:       packageLoader,
 		NativePackageLoader: loader.OpenAILoader{Loader: packageLoader},
-		Lifecycle:           lifecycle,
-		Input:               os.Stdin,
-		Output:              os.Stdout,
-		ErrorOutput:         os.Stderr,
-		Terminal:            term.IsTerminal(int(os.Stdin.Fd())),
+		SecurityEvaluator: securityscan.Evaluator{
+			Scanner: securityscan.ReleaseScanner{Root: filepath.Join(dataRoot, "security", "lintai"), HTTPClient: lintaiReleaseHTTPClient()},
+			Cache:   securityscan.FileCache{Root: filepath.Join(dataRoot, "security", "assessments")}, Requirement: securityscan.DefaultRequirement(),
+		},
+		Lifecycle:   lifecycle,
+		Input:       os.Stdin,
+		Output:      os.Stdout,
+		ErrorOutput: os.Stderr,
+		Terminal:    term.IsTerminal(int(os.Stdin.Fd())),
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -250,6 +255,24 @@ func hardenedHTTPClient(feed string) *http.Client {
 				!strings.EqualFold(request.URL.Scheme, via[0].URL.Scheme) ||
 				!strings.EqualFold(request.URL.Host, via[0].URL.Host) {
 				return fmt.Errorf("%s redirect must remain on the original HTTPS origin", feed)
+			}
+			request.Header.Del("Authorization")
+			request.Header.Del("Cookie")
+			request.Header.Del("Proxy-Authorization")
+			return nil
+		},
+	}
+}
+
+func lintaiReleaseHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			if len(via) == 0 || len(via) > 2 || request.URL.Scheme != "https" {
+				return fmt.Errorf("invalid LintAI release redirect")
+			}
+			if request.URL.Hostname() != "github.com" && request.URL.Hostname() != "release-assets.githubusercontent.com" {
+				return fmt.Errorf("LintAI release redirect uses an untrusted host")
 			}
 			request.Header.Del("Authorization")
 			request.Header.Del("Cookie")
