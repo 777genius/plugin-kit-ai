@@ -73,20 +73,22 @@ commit; current `main` is never allowed to impersonate a historical harness.
 
 ## Homebrew tap
 
-A successful `Agentplugins Release Assets` run triggers
-`.github/workflows/agentplugins-homebrew-tap.yml`. The publisher downloads only
-the exact public `release-manifest.json`, requires its stable tag to resolve to
-the embedded source commit, verifies the GitHub artifact attestation, and
-generates `777genius/homebrew-agentplugins/Formula/agentplugins.rb` from the six
-closed-set asset identities. The formula exposes the four macOS and Linux
-assets and pins every URL to its release tag and SHA-256.
+Homebrew synchronization is owned by
+[`777genius/homebrew-agentplugins`](https://github.com/777genius/homebrew-agentplugins),
+not by a cross-repository token in this source repository. Its `Sync
+Agentplugins release` workflow checks the latest stable release every hour and
+can also be dispatched with one exact `agentplugins-vX.Y.Z` tag.
 
-`HOMEBREW_TAP_TOKEN` must have contents-write access to the tap repository and
-does not need write access to this source repository. The publisher is
-idempotent: an identical formula is a no-op. If automatic publication fails,
-fix the publisher or token and manually dispatch the workflow with the same
-immutable release tag. Do not edit a released formula by hand or repoint it to
-different bytes under the same version.
+The tap downloads only the exact public `release-manifest.json`, requires the
+stable tag to resolve to the embedded source commit, verifies the GitHub
+artifact attestation, and generates `Formula/agentplugins.rb` from the six
+closed-set asset identities. The formula exposes the four macOS and Linux
+assets and pins every URL to its release tag and SHA-256. Synchronization uses
+the tap repository's short-lived `GITHUB_TOKEN`, is idempotent, and does not
+require a long-lived cross-repository PAT. If automatic synchronization fails,
+fix or manually dispatch the tap-owned workflow with the same immutable release
+tag. Do not edit a released formula by hand or repoint it to different bytes
+under the same version.
 
 ## Bootstrap publication record
 
